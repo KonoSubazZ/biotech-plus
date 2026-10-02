@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.dromara</groupId>
+        <artifactId>ruoyi-modules</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 新模块的 artifactId：与目录名一致，建议 ruoyi-<业务域> -->
+    <artifactId>ruoyi-qc</artifactId>
+
+    <description>
+        qc 业务模块
+    </description>
+
+    <!--
+      只声明模板代码真正用到的依赖；版本由父 POM / ruoyi-common-bom 统一管理，这里不写 <version>。
+      用到新能力时先查 ruoyi-common 里有哪些模块，不要在业务模块里另引第三方库。
+      对应关系：
+        R / ServiceException / MapstructUtils / 校验分组  → ruoyi-common-core
+        PageQuery / TableDataInfo / BaseMapperPlus       → ruoyi-common-mybatis
+        BaseController                                   → ruoyi-common-web
+        @Log / BusinessType                              → ruoyi-common-log
+        @RepeatSubmit                                    → ruoyi-common-idempotent
+        @SaCheckPermission / Sa-Token                    → ruoyi-common-security
+        @Tag / @Operation（接口文档）                     → ruoyi-common-doc
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-mybatis</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-log</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-idempotent</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-security</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-doc</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>
