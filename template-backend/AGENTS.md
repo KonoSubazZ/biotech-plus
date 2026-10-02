@@ -2,6 +2,10 @@
 
 作用范围：本目录及子目录。修改前阅读 `docs/backend-code-standard.md`，与现有代码保持一致。
 
+> 仓库级规则（可读性判据 / 评审契约 / 多人协作）见 `../ai-rules/`，
+> 机械闸门：在仓库根目录执行 `python3 tools/readability_check.py --changed-only origin/main`。
+> 新模块从 `../ai-templates/backend-module/` 复制，不要从零写。
+
 ## 开发约定
 
 - 使用 Java 17、Maven 和现有 Spring Boot / MyBatis-Plus 技术栈；先查找已有实现再增加依赖或抽象。

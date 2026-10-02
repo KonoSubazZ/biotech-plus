@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  复杂 SQL 才写在这里。单表 CRUD / 简单条件 / 排序 / 计数用 BaseMapperPlus，不要进这个文件。
+  约定：
+    · namespace = Mapper 接口全限定名；语句 id = 接口方法名
+    · 普通值一律 #{param} 绑定，禁止 ${} 拼接（${} 只允许接收服务端可信 Wrapper）
+    · 多参数用 @Param 明确命名
+    · 不写 SELECT *，用 resultMap 显式列，避免联表字段冲突和敏感字段泄漏
+    · 分页由 MyBatis-Plus 分页插件接管，这里不要手写 LIMIT
+-->
+<mapper namespace="org.dromara.biotech.mapper.ProductConfigMapper">
+
+    <resultMap id="ProductConfigResult" type="org.dromara.biotech.domain.vo.ProductConfigVo">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="code" column="code"/>
+        <result property="testType" column="test_type"/>
+        <result property="relatedDiseases" column="related_diseases"/>
+        <result property="reportCycleDays" column="report_cycle_days"/>
+        <result property="status" column="status"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectProductConfigColumns">
+        p.id, p.name, p.code, p.test_type, p.related_diseases,
+        p.report_cycle_days, p.status, p.remark, p.create_time
+    </sql>
+
+    <!--
+      复杂联表示例：产品 + 其质控标准条数（子查询/聚合这类才放 XML）
+      方法签名示例： Page<ProductConfigVo> selectPageWithStandardCount(
+                        @Param("page") Page<ProductConfigVo> page,
+                        @Param("bo") ProductConfigBo bo);
+    -->
+    <select id="selectPageWithStandardCount" resultMap="ProductConfigResult">
+        SELECT
+        <include refid="selectProductConfigColumns"/>
+        FROM product_config p
+        WHERE p.del_flag = '0'
+        <if test="bo.name != null and bo.name != ''">
+            AND p.name LIKE CONCAT('%', #{bo.name}, '%')
+        </if>
+        <if test="bo.status != null and bo.status != ''">
+            AND p.status = #{bo.status}
+        </if>
+        ORDER BY p.id ASC
+    </select>
+
+</mapper>
