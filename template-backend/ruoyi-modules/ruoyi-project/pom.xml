@@ -63,6 +63,12 @@
             <groupId>org.dromara</groupId>
             <artifactId>ruoyi-common-doc</artifactId>
         </dependency>
+
+        <!-- Excel 导入：产品关联基因支持上传「一列 gene_symbol」的表格 -->
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-excel</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

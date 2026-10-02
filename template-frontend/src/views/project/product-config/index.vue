@@ -9,6 +9,7 @@ import { $t } from '@/locales';
 import ButtonIcon from '@/components/custom/button-icon.vue';
 import ProductConfigOperateDrawer from './modules/product-config-operate-drawer.vue';
 import ProductConfigSearch from './modules/product-config-search.vue';
+import ProductGeneDetailDrawer from './modules/product-gene-detail-drawer.vue';
 
 // name 必须与路由名一致，否则 keep-alive 失效
 defineOptions({
@@ -17,6 +18,15 @@ defineOptions({
 
 const appStore = useAppStore();
 const { hasAuth } = useAuth();
+
+/** 基因详情抽屉 */
+const geneDrawerVisible = ref(false);
+const geneCurrentProduct = ref<Api.Project.ProductConfig | null>(null);
+
+function handleGeneDetail(row: Api.Project.ProductConfig) {
+  geneCurrentProduct.value = row;
+  geneDrawerVisible.value = true;
+}
 
 /** 状态：active 启用 / inactive 停用（查表代替三元，便于扩展也过可读性闸门） */
 const STATUS_META: Record<string, { label: string; type: 'success' | 'default' }> = {
@@ -64,14 +74,22 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 140,
+        width: 180,
         render: row => {
-          // 每个按钮单独判权限；两个都没有时连分隔线都不渲染
-          const divider = () => {
-            if (!hasAuth('project:productConfig:edit') || !hasAuth('project:productConfig:remove')) {
+          // 基因详情：看/维护这个产品的 gene list（先建产品、后补基因）
+          const detailBtn = () => {
+            if (!hasAuth('project:productGene:query')) {
               return null;
             }
-            return <NDivider vertical />;
+            return (
+              <ButtonIcon
+                text
+                type="info"
+                icon="material-symbols:info-outline"
+                tooltipContent="基因详情"
+                onClick={() => handleGeneDetail(row)}
+              />
+            );
           };
 
           const editBtn = () => {
@@ -107,8 +125,10 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
 
           return (
             <div class="flex-center gap-8px">
+              {detailBtn()}
+              <NDivider vertical />
               {editBtn()}
-              {divider()}
+              <NDivider vertical />
               {deleteBtn()}
             </div>
           );
@@ -183,6 +203,8 @@ async function handleDelete(id: CommonType.IdType) {
       :row-data="editingData"
       @submitted="getData"
     />
+
+    <ProductGeneDetailDrawer v-model:visible="geneDrawerVisible" :product="geneCurrentProduct" />
   </div>
 </template>
 

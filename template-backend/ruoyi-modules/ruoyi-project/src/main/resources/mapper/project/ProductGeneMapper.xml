@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  产品关联基因：跨库读基因库（nkb.ncbi_gene）+ 计数。
+  单表 CRUD 用 BaseMapperPlus，不在这里写。
+  约定：普通值一律 #{param} 绑定；多参数用 @Param 命名；不写 SELECT *。
+-->
+<mapper namespace="org.dromara.project.mapper.ProductGeneMapper">
+
+    <resultMap id="ProductGeneResult" type="org.dromara.project.domain.vo.ProductGeneVo">
+        <id property="id" column="id"/>
+        <result property="productId" column="product_id"/>
+        <result property="geneId" column="gene_id"/>
+        <result property="geneSymbol" column="gene_symbol"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!--
+      跨库读基因库（只读，不落库）。
+      · nkb 与 ry-vue 在同实例，直接写 nkb. 前缀即可
+      · 限定 tax_id = 9606（人类）：库里另有 63221 / 741158 两个物种共 73 行，混进来只会添乱
+      · 排序：精确匹配优先 → symbol 短的优先（更可能是用户想要的主符号）→ 字典序
+    -->
+    <select id="searchGeneFromNcbi" resultType="org.dromara.project.domain.vo.NcbiGeneVo">
+        SELECT g.gene_id      AS geneId,
+               g.gene_symbol  AS geneSymbol,
+               g.description  AS description,
+               g.synonyms     AS synonyms
+        FROM nkb.ncbi_gene g
+        WHERE g.tax_id = 9606
+          AND g.gene_symbol LIKE CONCAT('%', #{keyword}, '%')
+        ORDER BY CASE WHEN g.gene_symbol = #{keyword} THEN 0 ELSE 1 END,
+                 CHAR_LENGTH(g.gene_symbol),
+                 g.gene_symbol
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      按 symbol 批量取基因（粘贴 / Excel 导入时补全 geneId）。
+      一个 symbol 可能命中多条（tRNA 重名），返回全部由 Service 判定歧义。
+    -->
+    <select id="selectGenesBySymbolsFromNcbi" resultType="org.dromara.project.domain.vo.NcbiGeneVo">
+        SELECT g.gene_id      AS geneId,
+               g.gene_symbol  AS geneSymbol,
+               g.description  AS description,
+               g.synonyms     AS synonyms
+        FROM nkb.ncbi_gene g
+        WHERE g.tax_id = 9606
+          AND g.gene_symbol IN
+        <foreach collection="symbols" item="symbol" open="(" separator="," close=")">
+            #{symbol}
+        </foreach>
+        ORDER BY g.gene_id
+    </select>
+
+    <select id="countByProductId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM product_gene
+        WHERE product_id = #{productId}
+          AND del_flag = '0'
+    </select>
+
+</mapper>
