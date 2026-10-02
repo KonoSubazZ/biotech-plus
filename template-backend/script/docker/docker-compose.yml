@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:8.0.42
+    image: mysql:5.7.26
     container_name: mysql
     environment:
       # 时区上海
