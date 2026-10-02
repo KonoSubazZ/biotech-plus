@@ -66,6 +66,13 @@ DELIMITER ;
 CALL remove_obsolete_menus();
 DROP PROCEDURE IF EXISTS remove_obsolete_menus;
 
+-- 兜底：清掉所有指向「已不存在菜单」的授权记录。
+-- 基版 ry_vue_5.X.sql 的 sys_role_menu 初始数据里有 15 条引用废弃菜单（menu_id 11616~11701 区间）的授权，
+-- 上面的 remove_obsolete_menus() 只收集「当前 sys_menu 中存在且命中条件」的 ID，覆盖不到这些；
+-- 实测：全新重建库跑完 01/02/03 后仍剩 15 条孤立记录（sys_role_menu 82 条里 15 条无效）。
+-- 幂等，重复执行无副作用。
+DELETE rm FROM sys_role_menu rm LEFT JOIN sys_menu m ON m.menu_id = rm.menu_id WHERE m.menu_id IS NULL;
+
 -- 删除不再由 RBAC 使用的组织、岗位、租户和演示表。
 DROP TABLE IF EXISTS sys_user_post;
 DROP TABLE IF EXISTS sys_role_dept;

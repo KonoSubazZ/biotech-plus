@@ -1,7 +1,7 @@
 -- Run against the rbac-only database. Additive and repeatable; existing records belong to 000000.
 SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS sys_tenant (
-    id bigint NOT NULL,
+    id bigint NOT NULL AUTO_INCREMENT,
     tenant_id varchar(20) NOT NULL,
     tenant_name varchar(100) NOT NULL,
     status char(1) NOT NULL DEFAULT '0',
@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS sys_tenant (
     PRIMARY KEY (id),
     UNIQUE KEY uk_sys_tenant_identifier (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='租户目录';
-INSERT IGNORE INTO sys_tenant (id, tenant_id, tenant_name, status, create_by, create_time)
-VALUES (1, '000000', '默认租户', '0', 1, NOW());
+-- 主键自增（与全库主键策略一致），默认租户的 id 由数据库分配；
+-- 幂等靠 uk_sys_tenant_identifier(tenant_id) 的唯一键，重复执行不会插第二条。
+INSERT IGNORE INTO sys_tenant (tenant_id, tenant_name, status, create_by, create_time)
+VALUES ('000000', '默认租户', '0', 1, NOW());
 
 DROP PROCEDURE IF EXISTS add_tenant_scope;
 DELIMITER $$
@@ -63,6 +65,8 @@ DROP PROCEDURE add_tenant_scope;
 UPDATE sys_user_role ur JOIN sys_user u ON ur.user_id = u.user_id SET ur.tenant_id = u.tenant_id;
 
 -- Only the platform administrator receives this menu. order_num=0 puts it first in System Management.
+-- 图标用「本地图标」类型（local-icon-company → src/assets/svg-icon/menu/company.svg），
+-- 与其余内置菜单保持一致；iconify 类型（mdi:xxx）要走在线/离线 API，不在菜单这一层引入。
 SET @system_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'system' LIMIT 1);
 SET @tenant_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = @system_menu_id AND path = 'tenant' LIMIT 1);
 SET @tenant_menu_id = IFNULL(@tenant_menu_id, (SELECT COALESCE(MAX(menu_id), 0) + 1 FROM sys_menu));
