@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  复杂 SQL 才写在这里。单表 CRUD / 简单条件 / 排序 / 计数用 BaseMapperPlus，不要进这个文件。
+  约定：
+    · namespace = Mapper 接口全限定名；语句 id = 接口方法名
+    · 普通值一律 #{param} 绑定，禁止 ${} 拼接（${} 只允许接收服务端可信 Wrapper）
+    · 多参数用 @Param 明确命名
+    · 不写 SELECT *，用 resultMap 显式列，避免联表字段冲突和敏感字段泄漏
+    · 分页由 MyBatis-Plus 分页插件接管，这里不要手写 LIMIT
+-->
+<mapper namespace="org.dromara.project.mapper.ProductConfigMapper">
+
+    <resultMap id="ProductConfigResult" type="org.dromara.project.domain.vo.ProductConfigVo">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="code" column="code"/>
+        <result property="testType" column="test_type"/>
+        <result property="relatedDiseases" column="related_diseases"/>
+        <result property="reportCycleDays" column="report_cycle_days"/>
+        <result property="status" column="status"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectProductConfigColumns">
+        p.id, p.name, p.code, p.test_type, p.related_diseases,
+        p.report_cycle_days, p.status, p.remark, p.create_time
+    </sql>
+
+    <!--
+      删除保护：统计引用了该产品的质控标准条数（设计文档 product-config.md §3）。
+      跨模块只读查询（ruoyi-project 不依赖 ruoyi-qc），租户条件由租户拦截器自动附加，
+      所以这里只按 product_id + del_flag 过滤，只会统计当前租户的数据。
+    -->
+    <select id="countQcStandardByProductId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM qc_standard
+        WHERE product_id = #{productId}
+          AND del_flag = '0'
+    </select>
+
+</mapper>
