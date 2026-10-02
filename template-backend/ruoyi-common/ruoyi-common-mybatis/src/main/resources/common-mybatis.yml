@@ -23,7 +23,11 @@ mybatis-plus:
     dbConfig:
       # 主键类型
       # AUTO 自增 NONE 空 INPUT 用户输入 ASSIGN_ID 雪花 ASSIGN_UUID 唯一 UUID
-      idType: ASSIGN_ID
+      # 本项目：所有表主键（复合主键的表用 @TableId(type = INPUT) 显式传值）
+      # 统一走数据库自增 AUTO —— 注意与 ASSIGN_ID 的差别：AUTO 时 MyBatis-Plus
+      # 不会预生成 ID，插入后由数据库回填，因此**表的主键列必须是 AUTO_INCREMENT**，
+      # 否则会报 "Field 'xxx' doesn't have a default value"。
+      idType: AUTO
       # 逻辑已删除值(可按需求随意修改)
       logicDeleteValue: 1
       # 逻辑未删除值

@@ -131,8 +131,9 @@ mybatis-plus:
     dbConfig:
       # 主键类型
       # AUTO 自增 NONE 空 INPUT 用户输入 ASSIGN_ID 雪花 ASSIGN_UUID 唯一 UUID
-      # 如需改为自增 需要将数据库表全部设置为自增
-      idType: ASSIGN_ID
+      # 本项目：所有表的主键列已设成 AUTO_INCREMENT（复合主键的表用 @TableId(type = INPUT) 显式传值），
+      # 所以这里必须同步改成 AUTO —— 与 ruoyi-common-mybatis 的 common-mybatis.yml 同项保持一致。
+      idType: AUTO
 
 # 数据加密
 mybatis-encryptor:

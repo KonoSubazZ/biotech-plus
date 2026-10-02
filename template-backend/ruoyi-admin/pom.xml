@@ -104,6 +104,16 @@
 <!--            <version>${与你的agent探针版本保持一致}</version>-->
 <!--        </dependency>-->
 
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-qc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-project</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

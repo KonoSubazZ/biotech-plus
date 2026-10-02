@@ -121,6 +121,12 @@
             <!-- common 的依赖配置-->
             <dependency>
                 <groupId>org.dromara</groupId>
+                <artifactId>ruoyi-project</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.dromara</groupId>
                 <artifactId>ruoyi-common-bom</artifactId>
                 <version>${revision}</version>
                 <type>pom</type>
@@ -312,6 +318,12 @@
                 <groupId>com.alibaba</groupId>
                 <artifactId>fastjson</artifactId>
                 <version>${fastjson.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.dromara</groupId>
+                <artifactId>ruoyi-qc</artifactId>
+                <version>${revision}</version>
             </dependency>
 
             <dependency>
