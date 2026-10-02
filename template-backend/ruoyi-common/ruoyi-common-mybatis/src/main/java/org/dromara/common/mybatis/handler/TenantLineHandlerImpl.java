@@ -14,7 +14,10 @@ import java.util.function.Supplier;
 /** All business tables are isolated by default; only explicit platform tables are shared. */
 public class TenantLineHandlerImpl implements TenantLineHandler {
     private static final Set<String> SHARED_TABLES = Set.of("sys_tenant", "sys_menu", "sys_role", "sys_role_menu",
-        "sys_client", "sys_config", "sys_dict_type", "sys_dict_data", "sys_oss_config", "gen_table", "gen_table_column");
+        "sys_client", "sys_config", "sys_dict_type", "sys_dict_data", "sys_oss_config", "gen_table", "gen_table_column",
+        // 跨库只读表：基因库 nkb.ncbi_gene 没有 tenant_id 列，
+        // 一旦被自动加上租户条件，SQL 会直接报 Unknown column（产品关联基因的搜索/导入会用到它）
+        "ncbi_gene");
     private final Supplier<String> tenantId;
     private final BooleanSupplier ignore;
 
