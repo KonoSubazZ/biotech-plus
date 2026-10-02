@@ -156,6 +156,19 @@ qc_result:string:质控结果:50,status:string:人工状态:req:20,tested_at:dat
 → `node_modules/.bin/vue-tsc --noEmit --skipLibCheck` 0 错误（pnpm typecheck 会被依赖检查卡住，直接跑 vue-tsc）
 → 真机调一次 CRUD（新增 / 列表 / 删除，确认主键自增 + tenant_id 自动补成 000000）。
 
+**最后一步：规范提交**（`ai-rules/05-git-commit.md`）——别攒着，一个逻辑改动一个 commit：
+
+```bash
+bash tools/install-git-hooks.sh        # 每个 clone 装一次：pre-commit 跑闸门 + commit-msg 校验提交信息
+git add <具体文件>                      # 不要 git add .（会带上临时文件/密钥/生成物）
+git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页面/菜单）"
+```
+
+典型拆三段：`feat(db): 建表脚本` → `feat(<模块>): 后端 + 前端页面` → `chore(frontend): 生成物与 i18n`。
+提交前自检：`python3 tools/check_commit.py --message "..."`（钩子也会拦）。
+**注意**：`ai-templates/`、`src/router/elegant/`（插件生成物）已被闸门排除 —— 它们是骨架/生成物，
+不套业务契约；如果哪天闸门又报这两个目录，说明排除规则被改坏了。
+
 7. **页面目录层级必须与菜单层级一致** —— 否则路由会被静默丢弃（实测排查了很久）：
    页面放 `src/views/<模块目录>/<实体短横线>/index.vue`，菜单的 `component` 写 `<模块目录>/<实体短横线>/index`。
    **不要**放在一层 `src/views/<实体短横线>/`：
