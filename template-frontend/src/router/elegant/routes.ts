@@ -134,6 +134,35 @@ export const generatedRoutes: GeneratedRoute[] = [
     ]
   },
   {
+    name: 'project',
+    path: '/project',
+    component: 'layout.base',
+    meta: {
+      title: 'project',
+      i18nKey: 'route.project'
+    },
+    children: [
+      {
+        name: 'project_product-config',
+        path: '/project/product-config',
+        component: 'view.project_product-config',
+        meta: {
+          title: 'project_product-config',
+          i18nKey: 'route.project_product-config'
+        }
+      },
+      {
+        name: 'project_qc-standard',
+        path: '/project/qc-standard',
+        component: 'view.project_qc-standard',
+        meta: {
+          title: 'project_qc-standard',
+          i18nKey: 'route.project_qc-standard'
+        }
+      }
+    ]
+  },
+  {
     name: 'social-callback',
     path: '/social-callback',
     component: 'layout.blank$view.social-callback',
