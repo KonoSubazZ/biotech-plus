@@ -204,7 +204,12 @@ async function handleDelete(id: CommonType.IdType) {
       @submitted="getData"
     />
 
-    <ProductGeneDetailDrawer v-model:visible="geneDrawerVisible" :product="geneCurrentProduct" />
+    <!-- 用 v-if：不打开就不挂载，避免抽屉的列表 hook 在产品配置页加载时白打一次接口 -->
+    <ProductGeneDetailDrawer
+      v-if="geneDrawerVisible"
+      v-model:visible="geneDrawerVisible"
+      :product="geneCurrentProduct"
+    />
   </div>
 </template>
 

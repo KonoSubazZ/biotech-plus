@@ -38,7 +38,9 @@ const geneCount = ref(0);
 const addModalVisible = ref(false);
 
 const searchParams = ref<Api.Project.ProductGeneSearchParams>({
-  productId: null,
+  // 挂载时就带上产品 id：useNaivePaginatedTable 初始化即会请求一次，
+  // 这里若为 null，后端会回「请先选择产品」，直接弹到产品配置页上（踩过）
+  productId: props.product?.id ?? null,
   geneSymbol: null,
   pageNum: 1,
   pageSize: 20,
