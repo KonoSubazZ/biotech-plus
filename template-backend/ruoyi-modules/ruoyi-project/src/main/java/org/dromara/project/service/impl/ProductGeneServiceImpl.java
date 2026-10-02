@@ -88,6 +88,9 @@ public class ProductGeneServiceImpl implements IProductGeneService {
      * 处理规则：基因库里查不到的 → 只报告不入库（gene_id 是 NOT NULL，塞假的会污染数据）；
      * 一个 symbol 对应多个 gene_id 的 → 取 gene_id 最小的，并在结果里提示人工核对；
      * 该产品已关联的 → 跳过，不报错。
+     * <p>
+     * 特别注意「删了再加」：唯一键 uk_product_gene 不含 del_flag，被逻辑删除的行仍占着键位，
+     * 所以曾经关联过又删掉的基因只能把旧行**恢复**，直接 insert 会撞 Duplicate entry。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -118,17 +121,35 @@ public class ProductGeneServiceImpl implements IProductGeneService {
             return result;
         }
 
-        // 2. 去掉该产品已经关联过的（逻辑删除的不算已存在）
-        Set<Integer> existing = existingGeneIds(bo.getProductId());
+        // 2. 和库里已有的对照，分三类：未删的（跳过）、软删的（恢复）、全新的（插入）。
+        //    唯一键 uk_product_gene 不含 del_flag，被软删的行仍占着键位，
+        //    所以「曾经加过又删掉」的基因必须恢复旧行，重新 insert 会撞 Duplicate entry。
+        Set<Integer> alive = existingGeneIds(bo.getProductId());
+        Set<Integer> softDeleted = new HashSet<>(baseMapper.selectAllGeneIdsByProduct(bo.getProductId()));
+        softDeleted.removeAll(alive);
+
+        List<Integer> toRestore = new ArrayList<>();
         Iterator<Map.Entry<Integer, String>> it = candidates.entrySet().iterator();
         while (it.hasNext()) {
-            if (existing.contains(it.next().getKey())) {
+            Integer geneId = it.next().getKey();
+            if (alive.contains(geneId)) {
                 result.setSkippedCount(result.getSkippedCount() + 1);
+                it.remove();
+            } else if (softDeleted.contains(geneId)) {
+                toRestore.add(geneId);
                 it.remove();
             }
         }
 
-        // 3. 批量入库
+        // 3. 恢复被删掉的关联（对使用者来说等同于「加上了」，计入 addedCount）
+        if (!toRestore.isEmpty()) {
+            for (Integer geneId : toRestore) {
+                baseMapper.restoreDeleted(bo.getProductId(), geneId);
+            }
+            result.setAddedCount(result.getAddedCount() + toRestore.size());
+        }
+
+        // 4. 全新的批量入库
         if (!candidates.isEmpty()) {
             List<ProductGene> rows = new ArrayList<>(candidates.size());
             candidates.forEach((geneId, geneSymbol) -> {
@@ -139,7 +160,7 @@ public class ProductGeneServiceImpl implements IProductGeneService {
                 rows.add(row);
             });
             baseMapper.insertBatch(rows);
-            result.setAddedCount(rows.size());
+            result.setAddedCount(result.getAddedCount() + rows.size());
         }
         return result;
     }

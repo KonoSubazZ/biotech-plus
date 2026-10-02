@@ -51,4 +51,25 @@ public interface ProductGeneMapper extends BaseMapperPlus<ProductGene, ProductGe
      * @return 关联数
      */
     Long countByProductId(@Param("productId") Long productId);
+
+    /**
+     * 查该产品关联的全部 gene_id，**包含已被逻辑删除的**。
+     * <p>
+     * 唯一键 uk_product_gene 不含 del_flag，软删的行仍占着这个键，
+     * 所以导入时要区分「未删的（跳过）」「软删的（恢复）」「全新的（插入）」。
+     * 不能用 MyBatis-Plus 的查询 —— @TableLogic 会自动补 del_flag='0'，查不到软删的行。
+     *
+     * @param productId 产品配置 id
+     * @return gene_id 列表（含软删）
+     */
+    List<Integer> selectAllGeneIdsByProduct(@Param("productId") Long productId);
+
+    /**
+     * 恢复被逻辑删除的关联（「删了再加」的场景）。
+     *
+     * @param productId 产品配置 id
+     * @param geneId    基因 id
+     * @return 影响行数
+     */
+    int restoreDeleted(@Param("productId") Long productId, @Param("geneId") Integer geneId);
 }

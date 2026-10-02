@@ -61,4 +61,26 @@
           AND del_flag = '0'
     </select>
 
+    <!--
+      查该产品关联的**全部** gene_id，包含已被逻辑删除的。
+      用途：唯一键 uk_product_gene 里不含 del_flag，被软删的行仍然占着这个键 ——
+      所以「曾经加过又删掉」的基因不能重新 insert，只能把旧行恢复回来。
+      这里必须走手写 SQL：MyBatis-Plus 的 @TableLogic 会自动补 del_flag='0'，查不到软删的行。
+    -->
+    <select id="selectAllGeneIdsByProduct" resultType="java.lang.Integer">
+        SELECT gene_id
+        FROM product_gene
+        WHERE product_id = #{productId}
+    </select>
+
+    <!-- 恢复被逻辑删除的关联（删了再加的场景） -->
+    <update id="restoreDeleted">
+        UPDATE product_gene
+        SET del_flag = '0',
+            update_time = NOW()
+        WHERE product_id = #{productId}
+          AND gene_id = #{geneId}
+          AND del_flag = '1'
+    </update>
+
 </mapper>
