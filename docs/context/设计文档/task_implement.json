@@ -1,0 +1,52 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "name": "湿实验质控模块设计文档整理",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "读取现有的湿实验质控相关代码与数据库表结构",
+        "整理 qc_record / qc_standard / product_config / sample_file / sample_qc_info 表结构及字段说明",
+        "梳理自动判定业务逻辑与数据链路",
+        "整理 API 接口与功能全景",
+        "输出功能介绍流程图（文字描述版）",
+        "编写完整设计文档并落盘"
+      ],
+      "requirements": [],
+      "write_scope": [
+        ".spark/specs/spec_1789646123590/spec.md"
+      ],
+      "read_scope": [
+        "server/modules/qc/",
+        "server/modules/sample-qc-info/",
+        "server/database/schema.ts",
+        "shared/api.interface.ts",
+        "client/src/pages/QcQualityControl/",
+        "AGENTS.md"
+      ],
+      "acceptance": "设计文档已完整覆盖湿实验质控模块的表结构、业务逻辑、API 和功能流程",
+      "dependencies": [],
+      "beginTime": 1789646250370,
+      "endTime": 1789646377253
+    },
+    {
+      "id": 2,
+      "name": "按菜单目录结构扩展其余模块设计文档",
+      "type": "normal",
+      "status": "completed",
+      "subtasks": [
+        "待用户确认湿实验质控文档效果后，按菜单目录逐一整理各模块的设计文档"
+      ],
+      "requirements": [],
+      "write_scope": [],
+      "read_scope": [],
+      "acceptance": "各模块设计文档按菜单目录结构完整输出",
+      "dependencies": [
+        1
+      ],
+      "beginTime": 1789646377375,
+      "endTime": 1789659574645
+    }
+  ]
+}
