@@ -171,7 +171,6 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
 
 7. **页面目录层级必须与菜单层级一致** —— 否则路由会被静默丢弃（实测排查了很久）：
    页面放 `src/views/<模块目录>/<实体短横线>/index.vue`，菜单的 `component` 写 `<模块目录>/<实体短横线>/index`。
-   **不要**放在一层 `src/views/<实体短横线>/`：
    - 前端会按 component 算出路由名（`project/qc-standard/index` → `project_qc-standard`；一层则是 `qc-standard`）
    - `elegant/transform.ts` 用 `isFirstLevelRoute(name) = !name.includes('_')` 判断层级
    - 名字里**没有下划线**就被当成「一级路由」，再走 `getSingleLevelRouteComponent(component)`
@@ -179,6 +178,26 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
      `throw "Layout component not found"` → 被 `catch` 吞掉 → **该路由根本没注册**
    - 症状：菜单能正常显示、一点击就报 `Uncaught Error: No match for {"name":"qc-standard","params":{}}`
    - 一句话：**目录层级 = 菜单层级，路由名才有下划线，才不会被误判**。
+
+8. **逻辑删除 + 唯一键：删了再加会撞唯一键**（实测踩到：`Duplicate entry '000000-2-675' for key 'uk_product_gene'`）
+   唯一键（如 `uk_product_gene(tenant_id, product_id, gene_id)`）**不含 del_flag**，被软删的行仍占着键位。
+   所以「曾经加过又删掉」的记录不能重新 insert，必须把旧行恢复：
+   - 查该维度下**含软删**的全部记录 —— **不能**用 MyBatis-Plus 的查询（`@TableLogic` 会自动补
+     `del_flag='0'` 导致查不到），必须写手写 SQL（XML 里加一条 `selectAllGeneIdsByProduct` 这种）
+   - 分流处理：未删的 → 跳过；软删的 → `UPDATE ... SET del_flag='0'`（恢复）；全新的 → insert
+   - 除非业务上「重复添加」本就该报错，否则新增/导入逻辑都要按这三类走
+   - `check_db_schema.py` 只查表结构，发现不了这个，只有在真机调「删了再加」时才暴露
+
+9. **其它几个必踩的小坑**（都是本仓库实测）
+   - Excel 用的是 **FastExcel**（`cn.idev.excel`），**不是** `com.alibaba.excel`（EasyExcel）；读一列用
+     `@ExcelProperty(index = 0)` 的行对象 + `ExcelUtil.importExcel(is, clazz)`，别按表头名匹配
+   - `TableDataInfo.build(mapper.selectVoPage(...))` 直接套会报 `reference to build is ambiguous` ——
+     `selectVoPage` 的泛型返回让重载解析不出来，要先赋给 `Page<Vo>` 变量再 build
+   - 列表页 `NDataTable` **必须带 `remote`**（闸门 `list-no-remote`），分页器用 `:pagination` 交给表格，
+     不要另放 `<NPagination>`
+   - 组件里写 JSX 时 `<script setup lang="ts">` 要改成 **`lang="tsx"`**，否则 vue-tsc 报一串 `TS1005`
+   - 跨库读没有 `tenant_id` 的表（如基因库 `nkb.ncbi_gene`），要加进
+     `TenantLineHandlerImpl.SHARED_TABLES`，否则租户拦截器自动加条件 → `Unknown column` 报错
 
 ## Verification Checklist
 
