@@ -121,6 +121,12 @@
             <!-- common 的依赖配置-->
             <dependency>
                 <groupId>org.dromara</groupId>
+                <artifactId>ruoyi-report</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.dromara</groupId>
                 <artifactId>ruoyi-project</artifactId>
                 <version>${revision}</version>
             </dependency>

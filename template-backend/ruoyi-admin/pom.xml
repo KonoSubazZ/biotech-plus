@@ -114,6 +114,11 @@
             <artifactId>ruoyi-project</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-report</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

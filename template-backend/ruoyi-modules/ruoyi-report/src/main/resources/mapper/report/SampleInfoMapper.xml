@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  复杂 SQL 才写在这里。单表 CRUD / 简单条件 / 排序 / 计数用 BaseMapperPlus，不要进这个文件。
+  约定：
+    · namespace = Mapper 接口全限定名；语句 id = 接口方法名
+    · 普通值一律 #{param} 绑定，禁止 ${} 拼接（${} 只允许接收服务端可信 Wrapper）
+    · 多参数用 @Param 明确命名
+    · 不写 SELECT *，用 resultMap 显式列，避免联表字段冲突和敏感字段泄漏
+    · 分页由 MyBatis-Plus 分页插件接管，这里不要手写 LIMIT
+    · 租户条件由租户拦截器自动附加，这里不手写 tenant_id
+-->
+<mapper namespace="org.dromara.report.mapper.SampleInfoMapper">
+
+    <!--
+      含已软删行的取 id：导入时判断「这个样本编号以前删过没有」。
+      @TableLogic 给普通查询自动补 del_flag='0'，查不到已删行；而唯一键不含 del_flag，
+      已删行仍占键位，所以这里不加 del_flag 条件。
+    -->
+    <select id="selectIdBySubbarcodeIncludeDeleted" resultType="java.lang.Long">
+        SELECT id
+        FROM sample_file
+        WHERE subbarcode = #{subbarcode}
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <!-- 把软删除的行恢复（导入命中已删行时用）；update_by 随后由 updateById 重写 -->
+    <update id="restoreById">
+        UPDATE sample_file
+        SET del_flag = '0', update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除保护：统计引用了该样本编号的质控记录条数（跨模块只读查询） -->
+    <select id="countQcRecordBySubbarcode" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM qc_record
+        WHERE subbarcode = #{subbarcode}
+          AND del_flag = '0'
+    </select>
+
+</mapper>
