@@ -29,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 报告解读 业务层处理
@@ -180,6 +182,13 @@ public class InterpretationServiceImpl implements IInterpretationService {
             return lims;
         }
 
+        fillLims(lims, sample);
+        validateLims(lims, errors, warnings);
+        return lims;
+    }
+
+    /** sample_file → LIMS 字段映射（设计书 5.2 的字段对照表） */
+    private void fillLims(InterpretationLimsVo lims, SampleInfo sample) {
         lims.setPatientId(sample.getPcode());
         lims.setPatientName(sample.getPatientName());
         lims.setGender(sample.getSex());
@@ -206,7 +215,10 @@ public class InterpretationServiceImpl implements IInterpretationService {
         lims.setEmailAddress(sample.getEmailAddress());
         lims.setPatientInfoEmail(sample.getPatientInfoEmail());
         lims.setDoctorEmail(sample.getAdmissionDoctorEmail());
+    }
 
+    /** 校验：必填缺失进 errors（阻止生成），非关键缺失进 warnings */
+    private void validateLims(InterpretationLimsVo lims, List<String> errors, List<String> warnings) {
         require(lims.getPatientName(), "患者姓名", errors);
         require(lims.getCancerType(), "录单癌种", errors);
         require(lims.getSpecimenType(), "样本类型", errors);
@@ -222,7 +234,6 @@ public class InterpretationServiceImpl implements IInterpretationService {
         warnOnMissing(lims::getSampleReceivedAt, "收样日期", warnings);
         warnOnMissing(lims::getCommissionedAt, "委托日期", warnings);
         warnOnMissing(lims::getReportReceiver, "报告接收人", warnings);
-        return lims;
     }
 
     /** 按样本编号取一条样本信息；同编号多条时取最新一条（编号在租户内唯一，这里只是防御） */
@@ -246,25 +257,15 @@ public class InterpretationServiceImpl implements IInterpretationService {
         }
     }
 
-    /** 取第一个非空值（医院的三个候选列用） */
+    /** 取第一个非空值（医院的三个候选列用）；全空时返回空 Optional，由调用方决定展示 */
     private String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (StringUtils.isNotBlank(value)) {
-                return value;
-            }
-        }
-        return null;
+        return Stream.of(values).filter(StringUtils::isNotBlank).findFirst().orElse(null);
     }
 
     /** 拼接非空片段（样本量 = 数量 + 单位） */
     private String joinNonBlank(String... values) {
-        StringBuilder builder = new StringBuilder();
-        for (String value : values) {
-            if (StringUtils.isNotBlank(value)) {
-                builder.append(value);
-            }
-        }
-        return builder.isEmpty() ? null : builder.toString();
+        String joined = Stream.of(values).filter(StringUtils::isNotBlank).collect(Collectors.joining());
+        return joined.isEmpty() ? null : joined;
     }
 
     /**
