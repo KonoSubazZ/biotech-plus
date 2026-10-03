@@ -264,6 +264,35 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
     只能硬套 backend/frontend，scope 与代码归属就不一致了）。已有：
     backend/frontend/db/system/qc/project/report/tools/rules/deps。
 
+20. **从生产库 dump 整表搬字段（100+ 列那种）**：别手抄，写脚本从 `CREATE TABLE` 生成
+    DDL 列 / 实体字段 / 前端列清单。三个实测坑：
+    - **拆词要过一遍**：源表名是 `BIRTHDAY`、`firsttreatmentdrugregimen` 这种密排写法，转小写下划线
+      靠词表匹配；词表里要有 `day / stages / spec / mailing / recorder / contact / attachments /
+      gene / result / contracts` 这些词，并且**把 `a / p / s / er` 这类单字母词删掉**，
+      否则会拆出 `birth_d_a_y`、`sample_cont_a_ct_desc`、`record_er` 这种垃圾列名（实测踩到）。
+      拆完打印「源列名 → 新列名」对照表人工过一遍，再生成代码。
+    - **源表没有 COMMENT 时不要编中文名**：列注释写 `COMMENT '源表列 XXX'`（可逐列对照），
+      UI 标签先用源列名 + 只补用户明确点过名的几个。编错业务含义比留英文更难收拾。
+    - 类型映射：`longtext→text`、`varchar(n)` 原样（04-db-schema §7）；补 `id` 自增、公共字段、
+      `del_flag`、`tenant_id`、`uk_<表>_<业务键>(tenant_id, 业务键)`、`idx_tenant_id`。
+21. **MyBatis-Plus 的驼峰转下划线：数字前不插下划线**。`cancerType1` → `cancer_type1`；
+    如果按规范建成 `cancer_type_1`，一切查询都报 `Unknown column 'cancer_type1' in 'field list'`。
+    给实体字段加 `@TableField("cancer_type_1")` 显式指定列名即可。
+    **搬完表一定要跑一遍比对**：实体字段名 → MP 推导列名 vs 库里真实列名，逐个核对（实测就漏过这一列，
+    列表和导入一起炸）。
+22. **列数一多，文件长度红线会顶穿**（122 列实测）：
+    - Java：每个字段 3 行 × 122 + 头 ≈ 400 行还行；**Bo 别再写 javadoc**（用 @Size 的 message 带中文名），
+      否则必超 500；`ExcelRow` 只给有中文标签的字段写 javadoc。
+    - 前端默认值：122 行的对象字面量写在抽屉里 → `createDefaultModel()` 超 50 行被判 `web-func-too-long`。
+      抽成 `modules/<实体>-form-model.ts` 里的**常量**（数据与行为分文件），抽屉里
+      `jsonClone(EMPTY_XXX_FORM)` —— 必须 clone，否则多个抽屉共用同一对象会被改脏。
+    - 表单按语义拆成 4 组子组件（患者与临床 / 样本与收样 / 录单与商务 / 治疗史与家族史），
+      每个 < 200 行，父抽屉用 `v-model:model` 传同一个 model（子组件里 `defineModel<T>('model')`，
+      直接改属性即可，NFormItem 在子组件里也能吃到父 NForm 的校验上下文）。
+    - 列表 columns 把全部列都放进去（靠右上角「列设置」关掉），列顺序保持源表顺序。
+23. **导入模板的表头直接用源表列名**（`@ExcelProperty(value = "BARCODE", index = 1)`）：
+    这样从源系统导出的表格可以原样导入，不用先改名；读的时候仍按 `index`，表头被改也能读对。
+
 ## 真机联调与 UI 验收（本地栈，2026-10 实测）
 
 - **登录接口开了接口加密**（`application.yml` 的 `api-decrypt.enabled: true`）：
