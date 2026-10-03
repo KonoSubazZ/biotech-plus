@@ -17,15 +17,15 @@ import org.dromara.report.domain.vo.SampleInfoVo;
 public interface SampleInfoMapper extends BaseMapperPlus<SampleInfo, SampleInfoVo> {
 
     /**
-     * 按样本编号查 id，**包含已软删除的行**（导入时判断「曾经删过又再导入」用）。
+     * 按样本编号（barcode）查 id，**包含已软删除的行**（导入时判断「曾经删过又再导入」用）。
      * <p>
-     * 不能用 MyBatis-Plus 的查询：{@code @TableLogic} 会自动补 {@code del_flag='0'}`，
-     * 已删行查不到，而唯一键 uk_sample_file_subbarcode 不含 del_flag，删掉的行仍占着键位。
+     * 不能用 MyBatis-Plus 的查询：{@code @TableLogic} 会自动补 {@code del_flag='0'}，
+     * 已删行查不到，而唯一键 uk_sample_file_barcode 不含 del_flag，删掉的行仍占着键位。
      *
-     * @param subbarcode 样本编号
+     * @param barcode 样本编号（源表列 BARCODE）
      * @return 命中的 id；没有则返回 null
      */
-    Long selectIdBySubbarcodeIncludeDeleted(@Param("subbarcode") String subbarcode);
+    Long selectIdByBarcodeIncludeDeleted(@Param("barcode") String barcode);
 
     /**
      * 把软删除的行恢复成正常行（导入时命中已删行的情况）。
@@ -40,6 +40,7 @@ public interface SampleInfoMapper extends BaseMapperPlus<SampleInfo, SampleInfoV
      * <p>
      * 跨模块只读查询：ruoyi-report 不依赖 ruoyi-qc，所以走一条只读 SQL，
      * 与 ruoyi-project 的 countQcStandardByProductId 同一口径。
+     * 实验室侧的 qc_record 把同一个样本编号叫 subbarcode，值是 sample_file.barcode。
      *
      * @param subbarcode 样本编号
      * @return 引用条数
