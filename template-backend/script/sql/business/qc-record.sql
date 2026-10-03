@@ -1,11 +1,11 @@
--- 质控记录表（qc_record）+「质量管理」菜单（湿实验质控 / 生信质控）与权限点位
+-- 质控记录表（qc_record）+「质控管理」菜单（湿实验质控 / 生信质控）与权限点位
 -- 依据：docs/context/设计文档/spec.md §1.1（qc_record 字段表）
 --       docs/context/设计文档/bioinfo-qc.md（生信质控 = 同表同接口，仅 qc_category='bioinfo'）
 --       原文是 PG/Prisma 写法（uuid 主键、_created_at 等），类型已按 ai-rules/04-db-schema.md §7 映射
 -- 规范：ai-rules/04-db-schema.md     模板：ai-templates/db/table-template.sql
 -- 体检：python3 tools/check_db_schema.py   （error 必须为 0）
--- 定位：挂在「项目管理」>「质量管理」菜单下（设计文档原写 /qc/quality-control，
---       本次按「项目管理下的质量管理模块」归属实现；前端页面 /project/quality/*）
+-- 菜单位置：「质控管理」是根目录下的一级菜单（2026-10 从「项目管理 > 质量管理」独立出来），
+--       前端页面 /qc/wet-lab、/qc/bioinfo（与设计文档原写的 /qc/quality-control 同一层）
 
 SET NAMES utf8mb4;
 
@@ -44,42 +44,66 @@ CREATE TABLE IF NOT EXISTS `qc_record` (
 
 
 -- ============================================================================
--- 2. 菜单：项目管理 > 质量管理（目录）> 湿实验质控 / 生信质控
---    用 path 定位父菜单，不写死 ID；每段都 NOT EXISTS 包一层派生表做幂等
+-- 2. 菜单：质控管理（根目录下的一级菜单）> 湿实验质控 / 生信质控
+--    一级目录：parent_id=0、path='qc'、component='Layout'；
+--    两个页面 component 写满三层（qc/wet-lab/index，路由名 qc_wet-lab / qc_bioinfo），
+--    与前端目录 views/qc/{wet-lab,bioinfo}/ 一一对应（目录层级必须与菜单层级一致）。
+--    用 path 定位菜单，不写死 ID；INSERT 用 NOT EXISTS 包一层派生表做幂等（MySQL 5.7 不能相关派生表）；
+--    历史数据（原先挂在「项目管理 > 质量管理」下）用 UPDATE 收敛过来，脚本可重复执行。
 --    perms 与 QcRecordController 的 @SaCheckPermission 逐字一致
 -- ============================================================================
 SET @project_id = (SELECT menu_id FROM sys_menu WHERE path = 'project' AND parent_id = 0 LIMIT 1);
 
+-- 旧结构收敛：把「项目管理 > 质量管理」那行原地搬成根目录一级菜单（保留 menu_id，角色授权不用重做）
+SET @legacy_id = (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @project_id AND path = 'quality' LIMIT 1);
+
+UPDATE sys_menu
+SET parent_id = 0, menu_name = '质控管理', path = 'qc', component = 'Layout', order_num = 3,
+    menu_type = 'M', visible = '0', status = '0', remark = '质控管理（一级目录）',
+    update_by = 1, update_time = NOW()
+WHERE menu_id = @legacy_id;
+
+-- 新装：没有历史行时新建（已迁过的库这里自然跳过）
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT '质量管理', @project_id, 3, 'quality', NULL, 1, 0,
-    'M', '0', '0', '', 'local-icon-skill', 1, NOW(), '质量管理（目录）'
+SELECT '质控管理', 0, 3, 'qc', 'Layout', 1, 0,
+    'M', '0', '0', '', 'local-icon-skill', 1, NOW(), '质控管理（一级目录）'
 FROM (SELECT 1) AS dummy
-WHERE @project_id IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
-      WHERE parent_id = @project_id AND path = 'quality') AS exists_check);
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+    WHERE parent_id = 0 AND path = 'qc') AS exists_check);
 
-SET @quality_id = (SELECT menu_id FROM sys_menu WHERE parent_id = @project_id AND path = 'quality' LIMIT 1);
+SET @quality_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'qc' LIMIT 1);
 
--- 湿实验质控（component 三层：project/quality/wet-lab/index，路由名 project_quality_wet-lab）
+-- 湿实验质控（component 三层：qc/wet-lab/index，路由名 qc_wet-lab）
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT 'route.project_quality_wet-lab', @quality_id, 1, 'wet-lab', 'project/quality/wet-lab/index', 1, 0,
+SELECT 'route.qc_wet-lab', @quality_id, 1, 'wet-lab', 'qc/wet-lab/index', 1, 0,
     'C', '0', '0', 'qc:qcRecord:list', 'local-icon-documentation', 1, NOW(), '湿实验质控'
 FROM (SELECT 1) AS dummy
 WHERE @quality_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
       WHERE parent_id = @quality_id AND path = 'wet-lab') AS exists_check);
 
--- 生信质控
+UPDATE sys_menu
+SET parent_id = @quality_id, menu_name = 'route.qc_wet-lab', component = 'qc/wet-lab/index',
+    path = 'wet-lab', order_num = 1, menu_type = 'C', update_by = 1, update_time = NOW()
+WHERE parent_id = @quality_id AND path = 'wet-lab';
+
+-- 生信质控（component 三层：qc/bioinfo/index，路由名 qc_bioinfo）
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT 'route.project_quality_bioinfo', @quality_id, 2, 'bioinfo', 'project/quality/bioinfo/index', 1, 0,
+SELECT 'route.qc_bioinfo', @quality_id, 2, 'bioinfo', 'qc/bioinfo/index', 1, 0,
     'C', '0', '0', 'qc:qcRecord:list', 'local-icon-code', 1, NOW(), '生信质控'
 FROM (SELECT 1) AS dummy
 WHERE @quality_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
       WHERE parent_id = @quality_id AND path = 'bioinfo') AS exists_check);
+
+UPDATE sys_menu
+SET parent_id = @quality_id, menu_name = 'route.qc_bioinfo', component = 'qc/bioinfo/index',
+    path = 'bioinfo', order_num = 2, menu_type = 'C', update_by = 1, update_time = NOW()
+WHERE parent_id = @quality_id AND path = 'bioinfo';
 
 
 -- ============================================================================
