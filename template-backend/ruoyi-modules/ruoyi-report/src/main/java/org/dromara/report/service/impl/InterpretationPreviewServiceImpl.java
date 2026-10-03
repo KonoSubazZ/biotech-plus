@@ -235,9 +235,10 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             item.setFrequency(asString(row.get("frequency")));
             item.setDepth(asString(row.get("depth")));
             matchWithHistory(pc, item, null);
+            PreviewSupport.decorate(row, item, false);
             items.add(item);
         }
-        return items;
+        return PreviewSupport.sortByOrderNum(items);
     }
 
     private List<PreviewVariantVo> matchGermlineVariants(PreviewContext pc) {
@@ -254,9 +255,10 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             item.setClinicalSignificance(significance);
             item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(significance));
             matchWithHistory(pc, item, significance);
+            PreviewSupport.decorate(row, item, true);
             items.add(item);
         }
-        return items;
+        return PreviewSupport.sortByOrderNum(items);
     }
 
     /**

@@ -70,8 +70,13 @@ const preview = ref<Api.Report.InterpretationPreview | null>(null);
 const jsonVisible = ref(false);
 /** 正在保存的行（避免连点） */
 const savingId = ref<number | null>(null);
-/** 改靶输入：位点ID → 父级ID */
-const targetInput = ref<Record<number, number | null>>({});
+/** 详情弹窗（原来表格展开行里的内容挪进来） */
+const detailRow = ref<Api.Report.PreviewVariant | null>(null);
+const detailVisible = ref(false);
+/** 改靶弹窗（胚系：人工父级ID；体细胞暂为占位） */
+const targetRow = ref<Api.Report.PreviewVariant | null>(null);
+const targetVisible = ref(false);
+const targetValue = ref<number | null>(null);
 
 const canEdit = computed(() => hasAuth('report:interpretation:edit'));
 
@@ -139,14 +144,13 @@ async function saveTarget(row: Api.Report.PreviewVariant, parentMutationId: numb
   }
 }
 
-/** 位点表公共前几列（基因/变异/类型/原始位点/丰度/深度） */
+/** 位点表公共前几列（基因/变异/类型/原始位点/丰度·reads） */
 function baseColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
   return [
-    // Naive UI 的展开行不是表格 prop，而是**一个 type='expand' 的列**（实测踩到：只传 :render-expand 不会出触发器）
-    { type: 'expand', renderExpand: renderEvidence, width: 46 },
     { key: 'gene', title: '基因', align: 'center', width: 110, render: row => row.gene ?? '-' },
     { key: 'variant', title: '变异', align: 'center', width: 150, render: row => row.variant ?? '-' },
-    { key: 'mutationType', title: '类型', align: 'center', width: 90, render: row => row.mutationType ?? '-' },
+    // 类型：体系|变异类别|核酸类型（核酸类型只有融合有，由后端 typeText 组装）
+    { key: 'mutationType', title: '类型', align: 'center', width: 130, render: row => row.typeText ?? '-' },
     {
       key: 'oriVariant',
       title: '原始位点',
@@ -155,17 +159,17 @@ function baseColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
       ellipsis: { tooltip: true },
       render: row => row.oriVariant ?? '-'
     },
-    { key: 'frequency', title: '丰度', align: 'center', width: 90, render: row => row.frequency ?? '-' },
-    { key: 'depth', title: '深度', align: 'center', width: 110, render: row => row.depth ?? '-' }
+    // 丰度/reads：DNA → 45.47%；RNA 融合 → reads 数（无单位）；扩增/缺失 → 拷贝数
+    { key: 'frequency', title: '丰度/reads', align: 'center', width: 120, render: row => row.abundanceText ?? '-' }
   ];
 }
 
-/** 体细胞列 = 公共列 + 知识库匹配 */
+/** 体细胞列 = 公共列 + 操作 */
 function buildSomaticColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [...baseColumns(), matchStatusColumn()];
+  return [...baseColumns(), operateColumn()];
 }
 
-/** 胚系列 = 公共列 + 合子/临床意义/文件判定/改靶 + 知识库匹配 */
+/** 胚系列 = 公共列 + 合子/临床意义/文件判定 + 操作 */
 function buildGermlineColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
   return [
     ...baseColumns(),
@@ -193,124 +197,72 @@ function buildGermlineColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[
       width: 130,
       render: row => row.sourceClnsig ?? row.classificationLovd ?? '-'
     },
-    targetColumn(),
-    matchStatusColumn()
+    operateColumn()
   ];
 }
 
-/** 知识库匹配状态列 */
-function matchStatusColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
+/**
+ * 操作列：详情（弹窗展示原来的展开内容）/ 匹配(占位) / 改靶
+ * <p>
+ * 匹配、体细胞改靶先占位（提示待实现）；胚系改靶沿用已实现的接口，点开弹窗填人工父级ID。
+ */
+function operateColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
   return {
-    key: 'matchStatus',
-    title: '知识库匹配',
+    key: 'operate',
+    title: '操作',
     align: 'center',
-    width: 120,
-    render: row => {
-      const meta = statusMeta(row.matchStatus);
-      return <NTag type={meta.type}>{meta.label}</NTag>;
-    }
-  };
-}
-
-/** 改靶列（人工父级 + 保存/取消） */
-function targetColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
-  return {
-    key: 'target',
-    title: '改靶',
-    align: 'center',
-    width: 230,
+    width: 190,
     render: row => (
-      <div class="flex items-center justify-center gap-6px">
-        <NInputNumber
-          value={targetInput.value[row.sourceId] ?? row.parentMutationId}
-          size="small"
-          class="w-110px"
-          placeholder="人工父级ID"
-          disabled={!canEdit.value}
-          onUpdateValue={(value: number | null) => {
-            targetInput.value[row.sourceId] = value;
-          }}
-        />
+      <div class="flex items-center justify-center gap-10px">
+        <NButton text type="primary" size="small" onClick={() => openDetail(row)}>
+          详情
+        </NButton>
+        <NButton text type="primary" size="small" onClick={() => showTodo('匹配')}>
+          匹配
+        </NButton>
         <NButton
           text
           type="primary"
-          size="tiny"
-          disabled={!canEdit.value}
-          loading={savingId.value === row.sourceId}
-          onClick={() => saveTarget(row, targetInput.value[row.sourceId] ?? null)}
+          size="small"
+          onClick={() => (row.sourceType === 'CR_ALL' ? openTarget(row) : showTodo('改靶'))}
         >
-          保存
-        </NButton>
-        <NButton text size="tiny" disabled={!canEdit.value} onClick={() => saveTarget(row, null)}>
-          取消
+          改靶
         </NButton>
       </div>
     )
   };
 }
 
-/** 展开行：en7 口径的证据展示（分级名串 + 明细全保留） */
-function renderEvidence(row: Api.Report.PreviewVariant) {
-  const groups = row.drugGroups ?? {};
-  const groupItems = GROUP_KEYS.filter(key => groups[key]);
-  const evidence = row.drugMatch ?? [];
-
-  return (
-    <div class="px-16px py-12px">
-      <div class="mb-8px flex flex-wrap items-center gap-8px text-13px">
-        <span class="font-medium">知识库命中</span>
-        <NTag size="small" type={row.inNkb ? 'success' : 'default'}>
-          {row.matchedNode ?? '未收录'}
-        </NTag>
-        {row.effectText ? <NTag size="small" type="warning">{row.effectText}</NTag> : null}
-        <span class="op-60">位点分级</span>
-        <NTag size="small" type={row.variationClass === 'I类' ? 'error' : 'info'}>
-          {row.variationClass ?? '-'}
-        </NTag>
-        {evidence.length ? <span class="op-60">证据 {evidence.length} 条</span> : null}
-      </div>
-
-      {row.description ? <div class="mb-8px text-12px op-70">说明：{row.description}</div> : null}
-
-      {groupItems.length ? (
-        <div class="mb-10px flex flex-wrap items-center gap-8px text-12px">
-          {groupItems.map(key => (
-            <span key={key} class="rounded bg-#f5f7fa px-8px py-2px">
-              {GROUP_LABELS[key]}：{groups[key]}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      {evidence.length === 0 ? (
-        <div class="text-13px op-60">
-          该位点在当前癌种范围（本癌种 + 祖先 + 子孙）内没有可用药物证据
-        </div>
-      ) : (
-        <div class="flex-col gap-8px">{evidence.map((drug, index) => renderDrugCard(drug, index))}</div>
-      )}
-    </div>
-  );
+/** 详情弹窗：位点 + 命中信息 + 证据明细（原来的展开行内容） */
+function openDetail(row: Api.Report.PreviewVariant) {
+  detailRow.value = row;
+  detailVisible.value = true;
 }
 
-/** 单条证据卡片（药物 × 等级 × 证据癌种，全量保留） */
-function renderDrugCard(drug: Api.Report.PreviewDrug, index: number) {
-  return (
-    <div key={index} class="rounded bg-#f5f7fa p-10px">
-      <div class="mb-4px flex flex-wrap items-center gap-8px">
-        <NTag size="small" type={drug.relation === 'RESISTANT' ? 'error' : 'success'}>
-          {drug.levelName ?? '-'} 级
-        </NTag>
-        <span class="font-medium">{drug.drugName ?? '-'}</span>
-        <span class="text-12px op-60">{drug.disease ?? '-'}</span>
-        {drug.evidencePhase ? <NTag size="small">{drug.evidencePhase}</NTag> : null}
-        {drug.relationship ? <NTag size="small" type="info">{drug.relationship}</NTag> : null}
-        {drug.fromOtherCancer ? <NTag size="small" type="warning">其他癌种获批</NTag> : null}
-        <span class="text-12px op-50">命中节点 {drug.nodeName ?? '-'}</span>
-      </div>
-      <div class="text-12px leading-20px op-80">{drug.annotation ?? drug.comment ?? '-'}</div>
-    </div>
-  );
+/** 改靶弹窗（胚系：人工父级节点ID） */
+function openTarget(row: Api.Report.PreviewVariant) {
+  targetRow.value = row;
+  targetValue.value = row.parentMutationId ?? null;
+  targetVisible.value = true;
+}
+
+async function confirmTarget() {
+  if (!targetRow.value) {
+    return;
+  }
+  await saveTarget(targetRow.value, targetValue.value);
+  targetVisible.value = false;
+}
+
+/** 尚未实现的操作统一提示（匹配 / 体细胞改靶） */
+function showTodo(name: string) {
+  window.$message?.info(`${name}功能待实现`);
+}
+
+/** 详情用：取该位点非空的等级分组 key（模板里 v-for 用） */
+function groupItemsOf(row: Api.Report.PreviewVariant | null): string[] {
+  const groups = row?.drugGroups ?? {};
+  return GROUP_KEYS.filter(key => groups[key]);
 }
 
 const sectionMeta = computed(() => [
@@ -381,6 +333,97 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
         size="small"
       />
     </NCard>
+
+    <!-- 详情：原来的表格展开内容（知识库命中 / effect / 位点分级 / 分组名串 / 证据明细全量） -->
+    <NModal
+      v-model:show="detailVisible"
+      preset="card"
+      :title="detailRow ? `位点详情：${detailRow.gene ?? '-'} ${detailRow.variant ?? '-'}` : '位点详情'"
+      class="w-80vw max-w-1000px"
+      :bordered="false"
+    >
+      <div class="mb-8px flex items-center gap-8px text-13px">
+        <span class="op-60">知识库匹配</span>
+        <NTag size="small" :type="statusMeta(detailRow?.matchStatus).type">
+          {{ statusMeta(detailRow?.matchStatus).label }}
+        </NTag>
+      </div>
+      <div v-if="detailRow" class="max-h-70vh overflow-auto">
+        <div class="mb-8px flex flex-wrap items-center gap-8px text-13px">
+          <span class="font-medium">知识库命中</span>
+          <NTag size="small" :type="detailRow.inNkb ? 'success' : 'default'">
+            {{ detailRow.matchedNode ?? '未收录' }}
+          </NTag>
+          <NTag v-if="detailRow.effectText" size="small" type="warning">{{ detailRow.effectText }}</NTag>
+          <span class="op-60">位点分级</span>
+          <NTag size="small" :type="detailRow.variationClass === 'I类' ? 'error' : 'info'">
+            {{ detailRow.variationClass ?? '-' }}
+          </NTag>
+          <span v-if="detailRow.drugMatch?.length" class="op-60">证据 {{ detailRow.drugMatch.length }} 条</span>
+        </div>
+
+        <div v-if="detailRow.description" class="mb-8px text-12px op-70">说明：{{ detailRow.description }}</div>
+
+        <div v-if="groupItemsOf(detailRow).length" class="mb-10px flex flex-wrap items-center gap-8px text-12px">
+          <span v-for="key in groupItemsOf(detailRow)" :key="key" class="rounded bg-#f5f7fa px-8px py-2px">
+            {{ GROUP_LABELS[key] }}：{{ detailRow.drugGroups?.[key] }}
+          </span>
+        </div>
+
+        <div v-if="!detailRow.drugMatch?.length" class="text-13px op-60">
+          该位点在当前癌种范围（本癌种 + 祖先 + 子孙）内没有可用药物证据
+        </div>
+        <div v-else class="flex-col gap-8px">
+          <div v-for="(drug, index) in detailRow.drugMatch" :key="index" class="rounded bg-#f5f7fa p-10px">
+            <div class="mb-4px flex flex-wrap items-center gap-8px">
+              <NTag size="small" :type="drug.relation === 'RESISTANT' ? 'error' : 'success'">
+                {{ drug.levelName ?? '-' }} 级
+              </NTag>
+              <span class="font-medium">{{ drug.drugName ?? '-' }}</span>
+              <span class="text-12px op-60">{{ drug.disease ?? '-' }}</span>
+              <NTag v-if="drug.evidencePhase" size="small">{{ drug.evidencePhase }}</NTag>
+              <NTag v-if="drug.relationship" size="small" type="info">{{ drug.relationship }}</NTag>
+              <NTag v-if="drug.fromOtherCancer" size="small" type="warning">其他癌种获批</NTag>
+              <span class="text-12px op-50">命中节点 {{ drug.nodeName ?? '-' }}</span>
+            </div>
+            <div class="text-12px leading-20px op-80">{{ drug.annotation ?? drug.comment ?? '-' }}</div>
+          </div>
+        </div>
+      </div>
+    </NModal>
+
+    <!-- 改靶（胚系）：人工父级节点ID -->
+    <NModal
+      v-model:show="targetVisible"
+      preset="card"
+      title="改靶（人工父级节点）"
+      class="w-40vw max-w-520px"
+      :bordered="false"
+    >
+      <NForm label-placement="left" :label-width="110">
+        <NFormItem label="人工父级ID">
+          <NInputNumber
+            v-model:value="targetValue"
+            class="w-full"
+            placeholder="填 NKB gene_variant_id（留空=取消改靶）"
+            :disabled="!canEdit"
+          />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="targetVisible = false">取消</NButton>
+          <NButton
+            type="primary"
+            :disabled="!canEdit"
+            :loading="savingId === targetRow?.sourceId"
+            @click="confirmTarget"
+          >
+            保存
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
 
     <NModal
       v-model:show="jsonVisible"

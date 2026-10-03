@@ -342,14 +342,18 @@
     <select id="selectReportedSomaticVariants" resultType="java.util.LinkedHashMap">
         SELECT 'SNP_INDEL' AS sourceType, v.id AS sourceId, v.gene AS gene, v.variant AS variant,
                v.ori_variant AS oriVariant, v.exonic_func_known_gene AS mutationTypeRaw,
-               v.mut_freq AS frequency, CONCAT(IFNULL(v.mut_depth, ''), '/', IFNULL(v.total_depth, '')) AS depth
+               v.mut_freq AS frequency, CONCAT(IFNULL(v.mut_depth, ''), '/', IFNULL(v.total_depth, '')) AS depth,
+               f.file_type AS fileType, v.mut_freq AS freqRaw, v.cosmic91 AS cosmic,
+               NULL AS fusionQuality
         FROM file_Somatic_SNV_Indel v
         JOIN data_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         UNION ALL
         SELECT 'CNV' AS sourceType, v.id AS sourceId, v.gene AS gene, v.variant AS variant,
                v.ori_variant AS oriVariant, 'CNV' AS mutationTypeRaw,
-               v.copy_num AS frequency, NULL AS depth
+               v.copy_num AS frequency, NULL AS depth,
+               f.file_type AS fileType, v.copy_num AS freqRaw, NULL AS cosmic,
+               NULL AS fusionQuality
         FROM file_CNV v
         JOIN data_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
@@ -357,7 +361,9 @@
         SELECT 'FUSION' AS sourceType, v.id AS sourceId,
                IFNULL(CONCAT(v.gene1, '-', v.gene2), v.gene) AS gene, v.variant AS variant,
                v.ori_variant AS oriVariant, 'FUSION' AS mutationTypeRaw,
-               v.freq AS frequency, v.depth AS depth
+               v.freq AS frequency, v.depth AS depth,
+               f.file_type AS fileType, v.freq AS freqRaw, v.cosmic_info AS cosmic,
+               v.tag AS fusionQuality
         FROM file_Fusion v
         JOIN data_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
@@ -369,7 +375,8 @@
         SELECT 'CR_ALL' AS sourceType, v.id AS sourceId, v.gene AS gene, v.variant AS variant,
                v.ori_variant AS oriVariant, v.exonic_func AS mutationTypeRaw,
                v.zygosity AS zygosity, v.depth AS depth, v.clnsig AS clnsig,
-               v.parent_mutation_id AS parentMutationId
+               v.parent_mutation_id AS parentMutationId,
+               f.file_type AS fileType, NULL AS freqRaw, NULL AS cosmic, NULL AS fusionQuality
         FROM file_CR_ALL v
         JOIN data_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'

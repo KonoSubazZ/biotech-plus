@@ -102,4 +102,22 @@ public class PreviewVariantVo implements Serializable {
 
     /** 位点用药说明（en7 四段模板：失活/扩增/缺失/未明） */
     private String description;
+
+    /** 来源文件类型（data_file_status.file_type：SNP / Indel / CNV / Fusion / CR_ALL） */
+    private String fileType;
+
+    /** 核酸类型：DNA / RNA（只有融合行才有值，取自 file_Fusion.fusion_quality） */
+    private String nucleicAcid;
+
+    /** 类型列展示值（体系|变异类别|核酸类型，见 NkbDrugMatcher#typeText） */
+    private String typeText;
+
+    /** 丰度/reads 展示值：DNA → "45.47%"；RNA → reads 数（无单位）；扩增/缺失 → 拷贝数 */
+    private String abundanceText;
+
+    /** 默认排序权重（en7 setOrderNum，越大越靠前；不展示给前端） */
+    private Float orderNum;
+
+    /** 位点类别的排序辅助（en7 用：Cosmic 有无 + 药物最高等级） */
+    private Integer topLevelWeight;
 }

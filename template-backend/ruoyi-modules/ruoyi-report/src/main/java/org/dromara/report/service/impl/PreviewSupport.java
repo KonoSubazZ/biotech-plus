@@ -176,6 +176,177 @@ final class PreviewSupport {
         return value == null ? "" : value.trim();
     }
 
+    /**
+     * 类型列第二段（变异类别）。改口径只需改这张表 —— 用户口径：`体系|变异类别|核酸类型`，
+     * 例：`S|Indel|DNA`、`S|Somatic|RNA`（核酸类型只有融合行才有）。
+     */
+    private static final Map<String, String> VARIANT_KIND = Map.of(
+        "SNP_INDEL", "Indel",
+        "CNV", "CNV",
+        "FUSION", "Somatic",
+        "CR_ALL", "Somatic"
+    );
+
+    /**
+     * 类型列展示值：`{体系/胚系}|{变异类别}|{DNA或RNA}`（核酸类型仅融合行有）
+     *
+     * @param sourceType    来源表（SNP_INDEL / CNV / FUSION / CR_ALL）
+     * @param germline      是否胚系
+     * @param fusionQuality 融合质量串（含 DNA → DNA，否则 RNA）
+     * @return 展示值
+     */
+    static String typeText(String sourceType, boolean germline, String fusionQuality) {
+        StringBuilder sb = new StringBuilder(germline ? "G" : "S");
+        sb.append('|').append(VARIANT_KIND.getOrDefault(sourceType, sourceType));
+        if ("FUSION".equals(sourceType)) {
+            sb.append('|').append(nucleicAcid(fusionQuality));
+        }
+        return sb.toString();
+    }
+
+    /** 融合的核酸类型：fusion_quality 含 DNA → DNA；否则按 en7 口径视为 RNA */
+    static String nucleicAcid(String fusionQuality) {
+        boolean dna = fusionQuality != null
+            && fusionQuality.toUpperCase(java.util.Locale.ROOT).contains("DNA");
+        return dna ? "DNA" : "RNA";
+    }
+
+    /**
+     * 丰度/reads 展示值（对齐 en7 的 mutFreq 口径）
+     * <ul>
+     *   <li>扩增/缺失（拷贝数）：原值，无单位</li>
+     *   <li>融合 DNA：freq 是 0~1 小数 → 乘 100 保留两位 + `%`</li>
+     *   <li>融合 RNA：freq 存的是 reads 数 → 取整数部分，无单位</li>
+     *   <li>SNP/Indel：库内已是百分数 → 原值 + `%`</li>
+     * </ul>
+     *
+     * @param sourceType    来源表
+     * @param freqRaw       原始丰度/拷贝数/reads
+     * @param fusionQuality 融合质量串
+     * @return 展示值；无丰度口径时返回 null（前端显示 -）
+     */
+    static String abundanceText(String sourceType, Object freqRaw, String fusionQuality) {
+        String empty = null;
+        if (freqRaw == null || !StringUtils.hasText(String.valueOf(freqRaw))) {
+            return empty;
+        }
+        String raw = String.valueOf(freqRaw).trim();
+        if ("CNV".equals(sourceType)) {
+            return raw;
+        }
+        try {
+            if ("FUSION".equals(sourceType)) {
+                double value = Double.parseDouble(raw);
+                if ("DNA".equals(nucleicAcid(fusionQuality))) {
+                    return String.format(java.util.Locale.ROOT, "%.2f%%", value * 100);
+                }
+                return String.valueOf((long) value);
+            }
+        } catch (NumberFormatException e) {
+            // 非数值（如 "12X"、带文字的描述）：原样展示，不改写业务值
+            log.debug("丰度不是纯数值，按原值展示：{}", raw);
+            return raw;
+        }
+        return raw.endsWith("%") ? raw : raw + "%";
+    }
+
+    /**
+     * 默认排序权重（对齐 en7 setOrderNum：数值越大越靠前）
+     * <p>
+     * 组成：丰度基数 + 结果类型（有用药证据 70000 / 无证据 10000，CNV 类 +300、融合 +200）
+     * + Cosmic 命中 +100 + 药物最高等级权重（A 9000 … 其他 1000）。
+     * 这样「I 类/II 类（有药）」天然排在「III 类（无证据）」前面。
+     *
+     * @param freqRaw  原始丰度
+     * @param fused    是否融合
+     * @param cnvLike  是否扩增/缺失类
+     * @param cosmic   Cosmic 列（空/`.` 视为没有）
+     * @param evidence 证据列表（可为空）
+     * @return 排序权重
+     */
+    static float orderNum(Object freqRaw, boolean fused, boolean cnvLike, Object cosmic,
+                          List<PreviewDrugVo> evidence) {
+        float order = freqOrderBase(freqRaw);
+        boolean hasDrug = evidence != null && !evidence.isEmpty();
+        if (hasDrug) {
+            order += 70000;
+            if (cnvLike) {
+                order += 300;
+            } else if (fused) {
+                order += 200;
+            }
+        } else {
+            order += 10000;
+        }
+        if (cosmic != null && StringUtils.hasText(String.valueOf(cosmic)) && !".".equals(String.valueOf(cosmic))) {
+            order += 100;
+        }
+        return order + (hasDrug ? topLevelWeight(evidence) : 0);
+    }
+
+    /** 丰度基数：`12X` → 212；空/`.`/含「合」→ 0；其余取数值 */
+    private static float freqOrderBase(Object freqRaw) {
+        if (freqRaw == null) {
+            return 0f;
+        }
+        String value = String.valueOf(freqRaw).trim();
+        if (!StringUtils.hasText(value) || ".".equals(value) || value.contains("合") || value.contains("H")) {
+            return 0f;
+        }
+        try {
+            if (value.endsWith("X")) {
+                return 200 + Float.parseFloat(value.substring(0, value.length() - 1));
+            }
+            return Float.parseFloat(value);
+        } catch (NumberFormatException e) {
+            // 非数值丰度（如 "12X" 之外的描述）不参与排序权重，按 0 处理
+            log.debug("丰度无法转为排序权重，按 0 处理：{}", value);
+            return 0f;
+        }
+    }
+
+    /** 药物最高等级权重（en7：A 9000 / B 8000 / C 7000 / D 6000 / 耐药A 5000 … 其他 1000） */
+    private static int topLevelWeight(List<PreviewDrugVo> evidence) {
+        int weight = 0;
+        for (PreviewDrugVo drug : evidence) {
+            Integer range = drug.getApproveRange();
+            int current = range == null ? 1000 : Math.max(1000, 10000 - range * 1000);
+            weight = Math.max(weight, current);
+        }
+        return weight;
+    }
+
+    /**
+     * 位点行展示字段 + 默认排序权重（en7 setOrderNum 口径）
+     *
+     * @param row      查询原始行
+     * @param item     位点行
+     * @param germline 是否胚系
+     */
+    static void decorate(Map<String, Object> row, PreviewVariantVo item, boolean germline) {
+        String sourceType = item.getSourceType();
+        Object freqRaw = row.get("freqRaw");
+        Object cosmic = row.get("cosmic");
+        String fusionQuality = asString(row.get("fusionQuality"));
+        item.setFileType(asString(row.get("fileType")));
+        item.setNucleicAcid("FUSION".equals(sourceType) ? nucleicAcid(fusionQuality) : null);
+        item.setTypeText(typeText(sourceType, germline, fusionQuality));
+        item.setAbundanceText(abundanceText(sourceType, freqRaw, fusionQuality));
+        boolean fused = "FUSION".equals(sourceType);
+        boolean cnvLike = "CNV".equals(sourceType)
+            || String.valueOf(item.getVariant()).contains("Amplification")
+            || String.valueOf(item.getVariant()).contains("Loss");
+        item.setOrderNum(orderNum(freqRaw, fused, cnvLike, cosmic, item.getDrugMatch()));
+    }
+
+    /** 默认排序：orderNum 降序（有用药证据、丰度高、有 Cosmic 的在前）；同权重按来源主键稳定 */
+    static List<PreviewVariantVo> sortByOrderNum(List<PreviewVariantVo> items) {
+        items.sort(java.util.Comparator.comparing((PreviewVariantVo row) ->
+            row.getOrderNum() == null ? 0f : row.getOrderNum()).reversed()
+            .thenComparing(PreviewVariantVo::getSourceId));
+        return items;
+    }
+
     static String firstNonBlank(String... values) {
         String hit = null;
         for (String value : values) {

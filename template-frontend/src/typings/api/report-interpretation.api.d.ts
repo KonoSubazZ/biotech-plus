@@ -319,6 +319,14 @@ declare namespace Api {
       effectText: string | null;
       /** 位点用药说明（失活/扩增/缺失/未明四段模板） */
       description: string | null;
+      /** 来源文件类型（SNP/Indel/CNV/Fusion/CR_ALL） */
+      fileType: string | null;
+      /** 核酸类型：DNA / RNA（只有融合行有值） */
+      nucleicAcid: string | null;
+      /** 类型列展示值：体系|变异类别|核酸类型（如 S|Indel 、S|Somatic|RNA） */
+      typeText: string | null;
+      /** 丰度/reads 展示值：DNA → 45.47%；RNA 融合 → reads 数（无单位） */
+      abundanceText: string | null;
     }
 
     /** 报告预览：一个分节 */
