@@ -103,6 +103,18 @@ public class PreviewVariantVo implements Serializable {
     /** 位点用药说明（en7 四段模板：失活/扩增/缺失/未明） */
     private String description;
 
+    /** 命中的知识库节点ID（自身或父级；位点说明按它取） */
+    private Long matchedMutationId;
+
+    /** 基因说明（NKB gene_description.gene_description_chinese，Approved） */
+    private String geneDescription;
+
+    /** 位点说明（NKB gene_variant_description.description_chinese，按命中节点） */
+    private String variantDescription;
+
+    /** 突变说明（HGVS → 中文，移植 en7 的 translate_hgvs.pl + mutation_explanation.pm） */
+    private String mutationExplanation;
+
     /** 来源文件类型（data_file_status.file_type：SNP / Indel / CNV / Fusion / CR_ALL） */
     private String fileType;
 

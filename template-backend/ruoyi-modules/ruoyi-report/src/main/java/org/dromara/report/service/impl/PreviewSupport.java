@@ -134,6 +134,7 @@ final class PreviewSupport {
             result.setDrugGroups(new LinkedHashMap<>());
             result.setDrugAuditList(new ArrayList<>());
             result.setInNkb((Boolean) frozen.get("inNkb"));
+            result.setMutationId(asLong(frozen.get("mutationId")));
             result.setMatchedNode((String) frozen.get("matchedNode"));
             result.setEffectText((String) frozen.get("effectText"));
             result.setVariationClass((String) frozen.get("variationClass"));
@@ -286,6 +287,24 @@ final class PreviewSupport {
             order += 100;
         }
         return order + (hasDrug ? topLevelWeight(evidence) : 0);
+    }
+
+    /**
+     * 传给突变说明生成器的丰度值：去尾部 `%`、保留原值（`12X` / `合` / 数值）
+     *
+     * @param freqRaw 原始丰度
+     * @return 归一后的丰度；空或 `.` 返回 null（不输出丰度句）
+     */
+    static String translationFreq(Object freqRaw) {
+        String empty = null;
+        if (freqRaw == null) {
+            return empty;
+        }
+        String value = String.valueOf(freqRaw).trim();
+        if (!StringUtils.hasText(value) || ".".equals(value)) {
+            return empty;
+        }
+        return value.endsWith("%") ? value.substring(0, value.length() - 1) : value;
     }
 
     /** 丰度基数：`12X` → 212；空/`.`/含「合」→ 0；其余取数值 */

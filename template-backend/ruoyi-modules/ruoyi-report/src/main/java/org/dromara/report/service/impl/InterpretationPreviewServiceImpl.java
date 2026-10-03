@@ -65,6 +65,8 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
 
     private final NkbDiseaseScopeResolver diseaseScopeResolver;
 
+    private final VariantDescriptionEnricher descriptionEnricher;
+
     private static final Map<Integer, String> SIGNIFICANCE_LABEL = Map.of(
         1, "致病", 2, "可能致病", 3, "未知临床意义", 4, "可能良性", 5, "良性");
 
@@ -236,6 +238,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             item.setDepth(asString(row.get("depth")));
             matchWithHistory(pc, item, null);
             PreviewSupport.decorate(row, item, false);
+            descriptionEnricher.enrich(item, row.get("freqRaw"));
             items.add(item);
         }
         return PreviewSupport.sortByOrderNum(items);
@@ -256,6 +259,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(significance));
             matchWithHistory(pc, item, significance);
             PreviewSupport.decorate(row, item, true);
+            descriptionEnricher.enrich(item, row.get("freqRaw"));
             items.add(item);
         }
         return PreviewSupport.sortByOrderNum(items);
@@ -307,6 +311,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         Map<String, Object> frozen = new LinkedHashMap<>();
         frozen.put("inNkb", item.getInNkb());
         frozen.put("matchedNode", item.getMatchedNode());
+        frozen.put("mutationId", item.getMatchedMutationId());
         frozen.put("effectText", item.getEffectText());
         frozen.put("variationClass", item.getVariationClass());
         frozen.put("description", item.getDescription());
@@ -320,6 +325,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     private void applyMatchResult(PreviewVariantVo item, NkbDrugMatcher.MatchResult matched) {
         item.setInNkb(Boolean.TRUE.equals(matched.getInNkb()));
         item.setMatchedNode(matched.getMatchedNode());
+        item.setMatchedMutationId(matched.getMutationId());
         item.setEffectText(matched.getEffectText());
         List<PreviewDrugVo> evidence = matched.getEvidence() == null ? List.of() : matched.getEvidence();
         item.setDrugMatch(evidence);

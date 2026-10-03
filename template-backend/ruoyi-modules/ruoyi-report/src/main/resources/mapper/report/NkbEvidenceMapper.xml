@@ -167,6 +167,35 @@
         <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
     </select>
 
+    <!-- 基因说明（Approved，取第一条有中文说明的） -->
+    <select id="selectGeneDescription" resultType="java.util.LinkedHashMap">
+        SELECT gd.gene_description_chinese AS geneDescription,
+               gd.related_pathway            AS relatedPathway,
+               gd.pathway_description_chinese AS pathwayDescription
+        FROM nkb.gene_description gd
+        JOIN nkb.ncbi_gene g ON g.gene_id = gd.gene_id
+        WHERE g.gene_symbol = #{geneSymbol}
+          AND gd.checking_status_id = 2
+          AND gd.gene_description_chinese IS NOT NULL
+          AND gd.gene_description_chinese != ''
+        ORDER BY gd.annotation_id
+        LIMIT 1
+    </select>
+
+    <!-- 位点说明（Approved，按命中的节点取第一条） -->
+    <select id="selectVariantDescription" resultType="java.util.LinkedHashMap">
+        SELECT d.description_chinese  AS variantDescription,
+               d.smple_desc_chinese   AS simpleDescription,
+               d.annotation_type      AS annotationType
+        FROM nkb.gene_variant_description d
+        WHERE d.gene_variant_id = #{mutationId}
+          AND d.checking_status_id = 2
+          AND d.description_chinese IS NOT NULL
+          AND d.description_chinese != ''
+        ORDER BY d.annotation_id
+        LIMIT 1
+    </select>
+
     <!-- give 判定：该注释在父级癌种范围内「招募中」的临床试验数（en7 getClinicalNumber 原文） -->
     <select id="selectRecruitingTrialCount" resultType="java.lang.Integer">
         SELECT COUNT(DISTINCT ct.clinical_trial_id)

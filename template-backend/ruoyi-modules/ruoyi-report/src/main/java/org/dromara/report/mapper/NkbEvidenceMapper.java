@@ -128,6 +128,22 @@ public interface NkbEvidenceMapper {
                                                 @Param("limit") int limit);
 
     /**
+     * 基因说明（NKB gene_description，Approved；en7 用 nkb_onco_gene_description_evw）
+     *
+     * @param geneSymbol 基因符号
+     * @return {geneDescription, relatedPathway, pathwayDescription}；无则 null
+     */
+    Map<String, Object> selectGeneDescription(@Param("geneSymbol") String geneSymbol);
+
+    /**
+     * 位点说明（NKB gene_variant_description，按命中的知识库节点，Approved）
+     *
+     * @param mutationId 命中的节点ID（自身或父级）
+     * @return {variantDescription, simpleDescription, annotationType}；无则 null
+     */
+    Map<String, Object> selectVariantDescription(@Param("mutationId") Long mutationId);
+
+    /**
      * 某注释在给定癌种范围内「招募中」的临床试验数（en7 getClinicalNumber，用于 give 判定）
      *
      * @param annotationId 注释ID
