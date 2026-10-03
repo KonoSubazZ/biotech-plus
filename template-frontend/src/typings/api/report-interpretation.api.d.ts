@@ -327,6 +327,14 @@ declare namespace Api {
       typeText: string | null;
       /** 丰度/reads 展示值：DNA → 45.47%；RNA 融合 → reads 数（无单位） */
       abundanceText: string | null;
+      /** 命中的知识库节点ID（自身或父级） */
+      matchedMutationId: number | null;
+      /** 基因说明（NKB gene_description，Approved） */
+      geneDescription: string | null;
+      /** 位点说明（NKB gene_variant_description，按命中的节点） */
+      variantDescription: string | null;
+      /** 突变说明（HGVS → 中文，移植 en7 的 translate_hgvs.pl） */
+      mutationExplanation: string | null;
     }
 
     /** 报告预览：一个分节 */
