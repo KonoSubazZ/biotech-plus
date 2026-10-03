@@ -6,7 +6,7 @@ SET NAMES utf8mb4;
 
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query_param,
     is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
-SELECT 1625, '项目管理', 0, 2, 'project', 'Layout', '', 1, 1, 'M', '0', '0', '', 'mdi:menu', 1, NOW(), 1, NOW(), ''
+SELECT 1625, '项目管理', 0, 2, 'project', 'Layout', '', 1, 1, 'M', '0', '0', '', 'local-icon-category', 1, NOW(), 1, NOW(), ''
 FROM (SELECT 1) AS dummy
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu WHERE path = 'project' AND parent_id = 0) AS exists_check);
 
