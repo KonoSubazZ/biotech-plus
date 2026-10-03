@@ -353,7 +353,17 @@ render: row => {
    实测踩到：质控类别「湿实验 / 生信」原本一个 `success` 一个 `info`，绿色的「湿实验」看着像「通过」；
    同一维度内要保持同一种中性色。
 4. **字典驱动的状态优先用 `DictTag`**（颜色由 `sys_dict_data.list_class` 决定），同一状态在不同页面
-   不许出现两种颜色；改字典时检查 `list_class` 是否落在这套配色里（`success/warning/error/default`）。
+   不许出现两种颜色。**这里有个必踩的坑（2026-10 实测，用户报「药企管理（租户页）的停用还是有问题」）**：
+   RuoYi 原版字典的 `list_class` 是 **Element-Plus 那套 `primary` / `danger`**，而 Naive UI 的 `NTag`
+   只认 `success | warning | error | info | primary | default` —— **`danger` 不是合法值，标签直接掉色**。
+   本项目已把字典统一成：`正常/成功/显示/是 → success`、`停用/隐藏/关闭/否/失败 → error`、
+   破坏性操作（删除/强退/清空数据）→ `error`、其余类型/操作类 → `info` / `default`。
+   - 源码位置：`template-backend/script/sql/ry_vue_5.X.sql` 里的 `insert into sys_dict_data …`（deploy.sh 会把它
+     拷成 `mysql/init/01-ry_vue.sql`，只影响重建数据卷的场景）。
+   - **改完必须清字典缓存**：后端用 Redisson 的 hash 缓存（key `sys_dict`，field = dictType），
+     直接用 SQL 改不会自动失效 → `redis-cli -a <pass> HDEL sys_dict <dictType>`；
+     从「系统管理 > 字典管理」界面改则框架会自动清。
+   - 验收：进页面看标签的实际渲染色（`getComputedStyle(tag).color`），别只看库里的值。
 
 ## 搜索栏布局契约（search 组件，2026-10 用户定稿）
 
