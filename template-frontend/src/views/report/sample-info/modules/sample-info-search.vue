@@ -53,8 +53,13 @@ async function search() {
     <NCollapse>
       <NCollapseItem :title="$t('common.search')" name="sample-info-search">
         <NForm ref="formRef" :model="model" label-placement="left" :label-width="90">
-          <NGrid responsive="screen" item-responsive>
-            <NFormItemGi span="24 s:12 m:8" label="委托日期" path="enterDate" class="pr-24px">
+          <!--
+            搜索项排布用 flex-wrap（不用 NGrid）：按钮组 ml-auto 自动贴在本行最右边；
+            一行放不下时整组换到下一行，ml-auto 仍让它贴最右。
+            （NGrid 的最后一格只会在自己格子内靠右，字段数不是列数整数倍时会悬在行中间 —— 实测踩到）
+          -->
+          <div class="flex flex-wrap items-start">
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="委托日期" path="enterDate">
               <NDatePicker
                 v-model:formatted-value="dateRangeEnter"
                 type="daterange"
@@ -62,24 +67,24 @@ async function search() {
                 clearable
                 @update:formatted-value="onDateRangeEnterUpdate"
               />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" label="样本编号" path="barcode" class="pr-24px">
+            </NFormItem>
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="样本编号" path="barcode">
               <NInput v-model:value="model.barcode" placeholder="请输入样本编号（BARCODE）" clearable />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" label="姓名" path="patientName" class="pr-24px">
+            </NFormItem>
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="姓名" path="patientName">
               <NInput v-model:value="model.patientName" placeholder="请输入患者姓名（PATIENTNAME）" clearable />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" label="客户" path="customerName" class="pr-24px">
+            </NFormItem>
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="客户" path="customerName">
               <NInput v-model:value="model.customerName" placeholder="客户名称 / 客户（两个字段一起搜）" clearable />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" label="录单癌种" path="cancerType" class="pr-24px">
+            </NFormItem>
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="录单癌种" path="cancerType">
               <NInput v-model:value="model.cancerType" placeholder="请输入录单癌种（CANCERTYPE）" clearable />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" label="录单产品" path="erpTestName" class="pr-24px">
+            </NFormItem>
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="录单产品" path="erpTestName">
               <NInput v-model:value="model.erpTestName" placeholder="请输入录单产品（ERPTESTNAME）" clearable />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" class="pr-24px">
-              <NSpace class="w-full" justify="end">
+            </NFormItem>
+            <NFormItem class="ml-auto" :show-feedback="false">
+              <NSpace :size="16">
                 <NButton @click="reset">
                   <template #icon>
                     <icon-ic-round-refresh class="text-icon" />
@@ -93,8 +98,8 @@ async function search() {
                   {{ $t('common.search') }}
                 </NButton>
               </NSpace>
-            </NFormItemGi>
-          </NGrid>
+            </NFormItem>
+          </div>
         </NForm>
       </NCollapseItem>
     </NCollapse>
