@@ -62,6 +62,7 @@
 | `system` | 系统管理（菜单、权限、租户） |
 | `qc` | 质控标准（及将来的 qc_record） |
 | `project` | 项目管理（产品配置等） |
+| `report` | 报告管理（样本信息等） |
 | `tools` | `tools/` 下的闸门与脚手架 |
 | `rules` | `ai-rules/`、`AGENTS.md`、`ai-templates/` |
 | `deps` | 依赖升级 |
