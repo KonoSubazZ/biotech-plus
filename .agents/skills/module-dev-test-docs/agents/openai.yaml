@@ -1,0 +1,4 @@
+interface:
+  display_name: "模块开发测试文档"
+  short_description: "把口述需求整理为可追踪的模块开发说明和测试用例 同步输出 Word 与 Markdown"
+  default_prompt: "使用 $module-dev-test-docs，根据我的口述需求和项目现有实现，为指定模块生成 Markdown 和 Word 开发测试文档，区分已确认需求与待确认项。"
