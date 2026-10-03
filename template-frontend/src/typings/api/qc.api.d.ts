@@ -49,5 +49,55 @@ declare namespace Api {
       status?: string | null;
       remark?: string | null;
     }
+
+    /**
+     * 质控记录（= 后端 QcRecordVo）
+     * <p>
+     * 湿实验质控与生信质控共用同一张表/同一套接口，靠 qcCategory 区分
+     * （见 docs/context/设计文档/bioinfo-qc.md）。字段对应 script/sql/business/qc-record.sql。
+     */
+    interface QcRecord {
+      id: number;
+      /** 样本条码 */
+      subbarcode: string;
+      /** 质控项目名称（如 mapping_rate、average_depth） */
+      qcItem: string;
+      /** 质控结果数值（字符串形式，如 "98.5"） */
+      qcResult?: string | null;
+      /** 操作员 */
+      operator?: string | null;
+      /** 检测时间 */
+      testedAt?: string | null;
+      /** 备注 */
+      remark?: string | null;
+      /** 人工状态：pending 待确认 / passed 通过 / failed 未通过 */
+      status: string;
+      /** 质控类别：wet_lab 湿实验 / bioinfo 生信 */
+      qcCategory: string;
+      createTime?: string | null;
+    }
+
+    /** 分页列表（后端 TableDataInfo 的 rows/total 在顶层） */
+    type QcRecordList = Common.PaginatingQueryRecord<QcRecord>;
+
+    /** 搜索参数 */
+    type QcRecordSearchParams = CommonType.RecordNullable<
+      Pick<QcRecord, 'subbarcode' | 'qcItem' | 'status' | 'qcCategory'> & Common.CommonSearchParams
+    >;
+
+    /** 新增/编辑表单（= 后端 QcRecordBo） */
+    interface QcRecordForm {
+      id?: number | null;
+      subbarcode: string;
+      qcItem: string;
+      qcResult?: string | null;
+      operator?: string | null;
+      testedAt?: string | null;
+      remark?: string | null;
+      /** 人工状态：pending 待确认 / passed 通过 / failed 未通过 */
+      status?: string | null;
+      /** 质控类别：由所在页面固定传入，不在表单里编辑 */
+      qcCategory?: string | null;
+    }
   }
 }

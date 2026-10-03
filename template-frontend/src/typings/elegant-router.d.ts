@@ -36,6 +36,9 @@ declare module "@elegant-router/types" {
     "project": "/project";
     "project_product-config": "/project/product-config";
     "project_qc-standard": "/project/qc-standard";
+    "project_quality": "/project/quality";
+    "project_quality_bioinfo": "/project/quality/bioinfo";
+    "project_quality_wet-lab": "/project/quality/wet-lab";
     "social-callback": "/social-callback";
     "system": "/system";
     "system_client": "/system/client";
@@ -131,6 +134,8 @@ declare module "@elegant-router/types" {
     | "monitor_operlog"
     | "project_product-config"
     | "project_qc-standard"
+    | "project_quality_bioinfo"
+    | "project_quality_wet-lab"
     | "system_client"
     | "system_config"
     | "system_dict"
