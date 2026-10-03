@@ -169,7 +169,7 @@ declare namespace Api {
      */
     type InterpretationFileSearchParams = CommonType.RecordNullable<
       Pick<InterpretationFile, 'fileName' | 'fileType' | 'status'> & Common.CommonSearchParams
-    > & { analysisId: number };
+    > & { analysisId: number; params?: Record<string, unknown> };
 
     /** 文件内容（= 后端 InterpretationFileContentVo） */
     interface InterpretationFileContent {
@@ -185,10 +185,18 @@ declare namespace Api {
     }
 
     /**
-     * 解读页 Tab③ 筛选位点：位点行（= 后端 InterpretationVariantVo）
-     * 四类位点在同一张「并集」VO 里，按 sourceType 只填对应字段，其余为 null。
+     * 解读页 Tab③ 筛选位点：位点行
+     * <p>
+     * 后端按需求把明细表「除公共字段外的列全部返回」，返回的是 Map（key = **数据库列名**），
+     * 所以这里不强约束字段：列的顺序/中文标题在前端 tab-variants.vue 的 COLUMN_SPEC 里维护。
+     * 注意后端 Jackson 配了 non_null，值为 null 的列不会出现在 JSON 里 → 取值一律 `row[key] ?? '-'`。
+     * 另外 is_reported 是 tinyint(1)，JDBC 会把它映射成布尔（true/false），判断报出状态要兼容两种。
      */
-    interface InterpretationVariant {
+    type InterpretationVariant = Record<string, unknown>;
+
+    /** 旧字段说明（保留注释便于对照表结构）：
+     * （已改为 Map，下面这组字段仅作列语义参考，不再是接口契约） */
+    interface InterpretationVariantLegacy {
       /** 位点主键（各明细表 id） */
       sourceId: number;
       /** SNP_INDEL / CNV / FUSION / CR_ALL */
@@ -234,10 +242,14 @@ declare namespace Api {
     /** 位点分页列表 */
     type InterpretationVariantList = Common.PaginatingQueryRecord<InterpretationVariant>;
 
-    /** 位点搜索参数：sourceType 必填（决定查哪张明细表）+ 基因 + 是否入报告 */
-    type InterpretationVariantSearchParams = CommonType.RecordNullable<
-      Pick<InterpretationVariant, 'sourceType' | 'gene' | 'isReported'> & Common.CommonSearchParams
-    > & { analysisId: number };
+    /** 位点搜索参数：sourceType 必填（决定查哪张明细表）+ 基因 + 报出（1 是 / 0 否） */
+    type InterpretationVariantSearchParams = CommonType.RecordNullable<{
+      sourceType: string;
+      gene: string;
+      isReported: number;
+      pageNum: number;
+      pageSize: number;
+    }> & { analysisId: number; params?: Record<string, unknown> };
 
     /** 解读页上下文（= 后端 InterpretationContextVo） */
     interface InterpretationContext {

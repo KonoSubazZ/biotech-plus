@@ -22,7 +22,6 @@ import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
-import org.dromara.report.domain.vo.InterpretationVariantVo;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.mapper.SampleInfoMapper;
@@ -154,12 +153,11 @@ public class InterpretationServiceImpl implements IInterpretationService {
     }
 
     @Override
-    public TableDataInfo<InterpretationVariantVo> selectVariantList(Long analysisId, InterpretationVariantQueryBo bo,
-                                                                   PageQuery pageQuery) {
+    public TableDataInfo<Map<String, Object>> selectVariantList(Long analysisId, InterpretationVariantQueryBo bo,
+                                                               PageQuery pageQuery) {
         assertAnalysisExists(analysisId);
         assertSourceType(bo.getSourceType());
-        Page<InterpretationVariantVo> page =
-            interpretationMapper.selectVariantPage(pageQuery.build(), analysisId, bo);
+        Page<Map<String, Object>> page = interpretationMapper.selectVariantPage(pageQuery.build(), analysisId, bo);
         return TableDataInfo.build(page);
     }
 

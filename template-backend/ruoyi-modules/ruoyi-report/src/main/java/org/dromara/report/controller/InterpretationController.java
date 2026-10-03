@@ -19,7 +19,8 @@ import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
-import org.dromara.report.domain.vo.InterpretationVariantVo;
+
+import java.util.Map;
 import org.dromara.report.service.IInterpretationService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -128,9 +129,9 @@ public class InterpretationController extends BaseController {
      */
     @SaCheckPermission("report:interpretation:query")
     @GetMapping("/variants")
-    public TableDataInfo<InterpretationVariantVo> variants(@RequestParam Long analysisId,
-                                                          InterpretationVariantQueryBo bo,
-                                                          PageQuery pageQuery) {
+    public TableDataInfo<Map<String, Object>> variants(@RequestParam Long analysisId,
+                                                      InterpretationVariantQueryBo bo,
+                                                      PageQuery pageQuery) {
         return interpretationService.selectVariantList(analysisId, bo, pageQuery);
     }
 

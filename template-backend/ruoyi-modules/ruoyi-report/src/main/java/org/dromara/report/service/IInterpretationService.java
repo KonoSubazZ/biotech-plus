@@ -11,7 +11,8 @@ import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
-import org.dromara.report.domain.vo.InterpretationVariantVo;
+
+import java.util.Map;
 
 /**
  * 报告解读 业务接口
@@ -68,14 +69,17 @@ public interface IInterpretationService {
 
     /**
      * 分页查询位点（Tab③ 筛选位点）：按 sourceType 查对应明细表，只返回该批次的位点。
+     * <p>
+     * 返回 Map（key = 数据库列名）：明细表列多（SNP/Indel 38 列、CR_ALL 38 列），
+     * 按需求「除公共字段外全展示」，用 Map 免得每加一列都要改 Java。
      *
      * @param analysisId 分析数据ID
      * @param bo         查询条件（sourceType 必填 / gene / isReported）
      * @param pageQuery  分页参数
-     * @return 分页列表
+     * @return 分页列表（每行一个 Map）
      */
-    TableDataInfo<InterpretationVariantVo> selectVariantList(Long analysisId, InterpretationVariantQueryBo bo,
-                                                             PageQuery pageQuery);
+    TableDataInfo<Map<String, Object>> selectVariantList(Long analysisId, InterpretationVariantQueryBo bo,
+                                                         PageQuery pageQuery);
 
     /**
      * 切换位点「入报告」状态。

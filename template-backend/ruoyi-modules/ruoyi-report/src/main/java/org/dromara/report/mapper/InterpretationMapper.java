@@ -9,7 +9,8 @@ import org.dromara.report.domain.vo.AnalysisSnapshotVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
-import org.dromara.report.domain.vo.InterpretationVariantVo;
+
+import java.util.Map;
 
 /**
  * 报告解读列表 / 批次快照 Mapper（跨表查询，SQL 见 resources/mapper/report/InterpretationMapper.xml）
@@ -72,9 +73,9 @@ public interface InterpretationMapper {
      * @param query      查询条件（sourceType 必填 / gene / isReported）
      * @return 分页结果
      */
-    Page<InterpretationVariantVo> selectVariantPage(@Param("page") Page<InterpretationVariantVo> page,
-                                                    @Param("analysisId") Long analysisId,
-                                                    @Param("query") InterpretationVariantQueryBo query);
+    Page<Map<String, Object>> selectVariantPage(@Param("page") Page<Map<String, Object>> page,
+                                               @Param("analysisId") Long analysisId,
+                                               @Param("query") InterpretationVariantQueryBo query);
 
     /**
      * 切换位点「入报告」状态；UPDATE 带 analysisId 归属校验，返回 0 表示位点不存在或不属于该批次。
