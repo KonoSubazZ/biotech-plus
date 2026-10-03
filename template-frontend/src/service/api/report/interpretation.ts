@@ -16,6 +16,15 @@ export function fetchGetInterpretationList(params: Api.Report.InterpretationSear
   });
 }
 
+/** 解读页上下文：报告头 + LIMS 信息（Tab①）+ 生成前校验结论 */
+export function fetchGetInterpretationContext(params: { reportId: number; analysisId: number }) {
+  return request<Api.Report.InterpretationContext>({
+    url: '/report/interpretation/context',
+    method: 'get',
+    params
+  });
+}
+
 /** 进入解读：创建/复用该分析批次的「解读中」报告，返回 reportId */
 export function fetchEnterInterpretation(data: { analysisId: number }) {
   return request<Api.Report.InterpretationReport>({

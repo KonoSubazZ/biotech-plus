@@ -482,5 +482,75 @@ declare namespace Api {
       comment: string | null;
       createTime: string | null;
     }
+
+    /** 解读页 Tab① LIMS 信息（= 后端 InterpretationLimsVo；数据源 sample_file） */
+    interface InterpretationLims {
+      /** 是否找到该样本编号的样本信息；false = 没有 LIMS 数据（会阻止生成） */
+      found: boolean | null;
+      /** 命中的样本编号 */
+      barcode: string | null;
+      /** 患者编号 */
+      patientId: string | null;
+      /** 患者姓名 */
+      patientName: string | null;
+      /** 性别 */
+      gender: string | null;
+      /** 出生日期 */
+      birthday: string | null;
+      /** 年龄 */
+      age: string | null;
+      /** 录单癌种 */
+      cancerType: string | null;
+      /** 病理类型 */
+      pathologicalType: string | null;
+      /** 临床分期 */
+      clinicalStage: string | null;
+      /** 临床备注 */
+      clinicalRemark: string | null;
+      /** 医院/送检单位 */
+      hospitalName: string | null;
+      /** 送检医生 */
+      doctorName: string | null;
+      /** 样本类型 */
+      specimenType: string | null;
+      /** 样本量 */
+      specimenQuantity: string | null;
+      /** 样本来源 */
+      sampleSource: string | null;
+      /** 取材部位 */
+      fromOrgan: string | null;
+      /** 采样日期 */
+      sampleCollectedAt: string | null;
+      /** 收样日期 */
+      sampleReceivedAt: string | null;
+      /** 委托日期 */
+      commissionedAt: string | null;
+      /** 录单产品 */
+      testingProgram: string | null;
+      /** 样本备注 */
+      sampleRemark: string | null;
+      /** 实验室 */
+      laboratoryName: string | null;
+      /** 报告接收人 */
+      reportReceiver: string | null;
+      /** 送检邮箱 */
+      emailAddress: string | null;
+      /** 患者信息邮箱 */
+      patientInfoEmail: string | null;
+      /** 接诊医生邮箱 */
+      doctorEmail: string | null;
+    }
+
+    /** 解读页上下文（= 后端 InterpretationContextVo） */
+    interface InterpretationContext {
+      report: InterpretationReport;
+      lims: InterpretationLims;
+      /** 是否满足继续解读/生成的最低数据要求 */
+      canGenerate: boolean | null;
+      /** 阻止生成的错误 */
+      errors: string[];
+      /** 不阻断流程的告警 */
+      warnings: string[];
+    }
   }
 }

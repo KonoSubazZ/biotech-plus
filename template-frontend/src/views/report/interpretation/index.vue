@@ -7,7 +7,9 @@ import { useAppStore } from '@/store/modules/app';
 import { useRouterPush } from '@/hooks/common/router';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
+import InterpretationDetail from './modules/interpretation-detail.vue';
 import InterpretationSearch from './modules/interpretation-search.vue';
+import { DRIVE_STATUS_META, REPORT_STATUS_META, statusMeta } from './modules/interpretation-status';
 
 defineOptions({
   name: 'ReportInterpretation'
@@ -17,40 +19,18 @@ const appStore = useAppStore();
 const route = useRoute();
 const { routerPushByKey } = useRouterPush();
 
-/**
- * 状态配色契约（本仓统一）：绿=正常/完成、黄=进行中/待处理、红=非正常（驳回/失败）、灰只做未知值兜底。
- * 状态 → 颜色集中在这张表里，别散到各个三元表达式。
- */
-const REPORT_STATUS_META: Record<string, { label: string; type: 'success' | 'warning' | 'error' }> = {
-  INTERPRETING: { label: '解读中', type: 'warning' },
-  PENDING_REVIEW: { label: '待审核', type: 'warning' },
-  APPROVED: { label: '已审核', type: 'success' },
-  REJECTED: { label: '已驳回', type: 'error' },
-  SENT: { label: '已发送', type: 'success' }
-};
-
-const DRIVE_STATUS_META: Record<string, { label: string; type: 'success' | 'warning' | 'error' }> = {
-  DRIVING: { label: '驱动中', type: 'warning' },
-  LOADED: { label: '已完成', type: 'success' },
-  PARTIAL: { label: '部分成功', type: 'error' },
-  FAILED: { label: '失败', type: 'error' }
-};
-
 /** 进入解读请求中（防止连点） */
 const entering = ref(false);
 
-/** 当前是否在解读详情（Page 2 落地真实详情页，这里先按 query 占位） */
-const currentReportId = computed(() => {
-  const raw = route.query.reportId;
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return value ? Number(value) : null;
-});
+/** 详情页参数来自 query（菜单路由是动态生成的，详情用同一路由 + query，避免多挂一个隐藏菜单） */
+const currentReportId = computed(() => queryNumber('reportId'));
+const currentAnalysisId = computed(() => queryNumber('analysisId'));
 
-const currentAnalysisId = computed(() => {
-  const raw = route.query.analysisId;
+function queryNumber(key: string) {
+  const raw = route.query[key];
   const value = Array.isArray(raw) ? raw[0] : raw;
-  return value ? Number(value) : null;
-});
+  return value ? Number(value) : 0;
+}
 
 const searchParams = ref<Api.Report.InterpretationSearchParams>({
   pageNum: 1,
@@ -80,11 +60,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         align: 'center',
         minWidth: 110,
         render: row => {
-          // 未知值兜底：灰底 + 原样显示，别静默按「已完成」渲染
-          const meta = DRIVE_STATUS_META[row.driveStatus ?? ''] ?? {
-            label: row.driveStatus ?? '-',
-            type: 'default' as const
-          };
+          const meta = statusMeta(DRIVE_STATUS_META, row.driveStatus);
           return <NTag type={meta.type}>{meta.label}</NTag>;
         }
       },
@@ -94,10 +70,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         align: 'center',
         minWidth: 110,
         render: row => {
-          const meta = REPORT_STATUS_META[row.reportStatus ?? ''] ?? {
-            label: row.reportStatus ? row.reportStatus : '未解读',
-            type: 'default' as const
-          };
+          const meta = statusMeta(REPORT_STATUS_META, row.reportStatus, '未解读');
           return <NTag type={meta.type}>{meta.label}</NTag>;
         }
       },
@@ -136,7 +109,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     ]
   });
 
-/** 进入解读：创建/复用报告记录 → 带上 reportId / analysisId 回到本页（Page 2 会在这里渲染详情） */
+/** 进入解读：创建/复用报告记录 → 带上 reportId / analysisId 回本页，由详情组件接管渲染 */
 async function handleEnter(analysisId: number) {
   if (entering.value) {
     return;
@@ -156,7 +129,7 @@ async function handleEnter(analysisId: number) {
   }
 }
 
-/** 返回列表（清掉 query） */
+/** 返回列表（清掉 query 并刷新列表，保证状态列是最新的） */
 async function backToList() {
   await routerPushByKey('report_interpretation');
   await getData();
@@ -165,20 +138,12 @@ async function backToList() {
 
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <!-- 解读详情占位：Page 2 用真实详情页（6 个 Tab）替换这一段 -->
-    <template v-if="currentReportId">
-      <NCard :bordered="false" size="small" class="card-wrapper">
-        <NSpace align="center" justify="space-between">
-          <NSpace align="center">
-            <span class="text-16px font-medium">报告解读 #{{ currentReportId }}</span>
-            <NTag type="info">分析批次 {{ currentAnalysisId }}</NTag>
-          </NSpace>
-          <NButton @click="backToList">返回列表</NButton>
-        </NSpace>
-        <NDivider class="my-12px!" />
-        <NEmpty description="详情页建设中（Page 2：顶部摘要 + LIMS 信息 / 集群对接 / 筛选位点 / 报告预览 / 审核报告 / 报告发送 六个 Tab）" />
-      </NCard>
-    </template>
+    <InterpretationDetail
+      v-if="currentReportId"
+      :report-id="currentReportId"
+      :analysis-id="currentAnalysisId"
+      @back="backToList"
+    />
 
     <template v-else>
       <InterpretationSearch v-model:model="searchParams" @search="getDataByPage" />
