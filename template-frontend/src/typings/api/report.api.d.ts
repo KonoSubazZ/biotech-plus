@@ -541,6 +541,53 @@ declare namespace Api {
       doctorEmail: string | null;
     }
 
+    /** 解读页 Tab② 集群对接：文件列表行（= 后端 InterpretationFileVo，data_file_status） */
+    interface InterpretationFile {
+      fileId: number;
+      /** 文件类型：SNP / Indel / CNV / Fusion / CR_ALL / MSI / qc / Chem / Chemical_all */
+      fileType: string | null;
+      /** 数据类别：variant / druginfo … */
+      dataType: string | null;
+      /** 文件名 */
+      fileName: string | null;
+      /** 状态：Pending / Loaded / Error */
+      status: string | null;
+      /** 失败原因（status=Error 时） */
+      message: string | null;
+      /** 解析出的变异数 */
+      mutNum: number | null;
+      /** 分析日期（YYYYMMDD） */
+      analysisDate: string | null;
+      /** file_text 长度 */
+      textLength: number | null;
+      /** 更新时间 */
+      updateTime: string | null;
+    }
+
+    /** 文件分页列表 */
+    type InterpretationFileList = Common.PaginatingQueryRecord<InterpretationFile>;
+
+    /**
+     * 文件列表搜索参数：文件名 / 文件类型 / 状态 + 固定带上的 analysisId。
+     * 管理列表（一个批次一个范围）不提供跨批次搜索，analysisId 由详情页传入。
+     */
+    type InterpretationFileSearchParams = CommonType.RecordNullable<
+      Pick<InterpretationFile, 'fileName' | 'fileType' | 'status'> & Common.CommonSearchParams
+    > & { analysisId: number };
+
+    /** 文件内容（= 后端 InterpretationFileContentVo） */
+    interface InterpretationFileContent {
+      fileId: number;
+      fileName: string | null;
+      fileType: string | null;
+      /** 文件内容（超长时截断） */
+      fileText: string | null;
+      /** 是否被截断 */
+      truncated: boolean | null;
+      /** 原始长度 */
+      textLength: number | null;
+    }
+
     /** 解读页上下文（= 后端 InterpretationContextVo） */
     interface InterpretationContext {
       report: InterpretationReport;

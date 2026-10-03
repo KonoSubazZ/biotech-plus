@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { NTag } from 'naive-ui';
 import { fetchGetInterpretationContext } from '@/service/api/report/interpretation';
 import { REPORT_STATUS_META, statusMeta } from './interpretation-status';
+import InterpretationTabFiles from './tab-files.vue';
 import InterpretationTabLims from './tab-lims.vue';
 
 defineOptions({
@@ -110,6 +111,9 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
         <NTabPane v-for="tab in TABS" :key="tab.name" :name="tab.name" :tab="tab.label">
           <template v-if="tab.name === 'lims'">
             <InterpretationTabLims v-if="context" :lims="context.lims" />
+          </template>
+          <template v-else-if="tab.name === 'files'">
+            <InterpretationTabFiles :analysis-id="props.analysisId" />
           </template>
           <template v-else>
             <NEmpty :description="`${tab.label}：建设中（后续页面按 Tab 逐个交付）`" />

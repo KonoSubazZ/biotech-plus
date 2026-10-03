@@ -25,6 +25,24 @@ export function fetchGetInterpretationContext(params: { reportId: number; analys
   });
 }
 
+/** Tab② 集群对接：某分析批次的文件分页列表 */
+export function fetchGetInterpretationFileList(params: Api.Report.InterpretationFileSearchParams) {
+  return request<Api.Common.PaginatingQueryRecord<Api.Report.InterpretationFile>>({
+    url: '/report/interpretation/files',
+    method: 'get',
+    params
+  });
+}
+
+/** Tab② 查看单个文件内容（超长已在后端截断） */
+export function fetchGetInterpretationFileContent(params: { fileId: number; analysisId: number }) {
+  return request<Api.Report.InterpretationFileContent>({
+    url: '/report/interpretation/file/content',
+    method: 'get',
+    params
+  });
+}
+
 /** 进入解读：创建/复用该分析批次的「解读中」报告，返回 reportId */
 export function fetchEnterInterpretation(data: { analysisId: number }) {
   return request<Api.Report.InterpretationReport>({
