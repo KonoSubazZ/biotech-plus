@@ -199,6 +199,47 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
    - 跨库读没有 `tenant_id` 的表（如基因库 `nkb.ncbi_gene`），要加进
      `TenantLineHandlerImpl.SHARED_TABLES`，否则租户拦截器自动加条件 → `Unknown column` 报错
 
+10. **菜单是多级目录（模块 > 目录 > 页面）时，脚本的前端部分不能直接用**
+    `new_crud.py` 只会把页面放到 `views/<模块>/<实体短横线>/`（两层）。若菜单树是三层
+    （如「项目管理 > 质量管理 > 湿实验质控」），页面要放三层
+    `views/<一级>/<目录>/<页面>/index.vue`，菜单 `component` 同步写三层。
+    做法：`--no-frontend` 只生成后端，前端手写（照 `views/project/qc-standard/` 抄），
+    再 **必须** 重跑 `pnpm gen-route` —— 重新生成 `router/elegant/{imports,routes,transform}.ts`
+    与 `typings/elegant-router.d.ts`；不重跑，`views` 映射里没有新 key → 路由被静默丢弃
+    （页面上点菜单报 `No match for`）。
+    - 中间目录菜单：`menu_type='M'`、`component` 留空即可 —— 后端 `SysMenu.getComponentInfo()`
+      会返回 `ParentView`，前端默认支持，不用手写布局。
+    - `pnpm gen-route` 可能先报 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`（它内部跑了
+      一次 `pnpm install` 依赖检查）—— 生成物通常已经写好，用 `git diff src/router/elegant/` 确认；
+      确实没写就 `CI=true pnpm gen-route`。
+    - 两个页面共用同一组件时：页面实现放 `views/<一级>/<目录>/modules/xxx-page.vue`（props 传
+      分类），两个菜单各自的 `index.vue` 只做一层薄包装传 prop，别复制两份业务代码。
+
+11. **实体带日期字段时，脚本生成的 Java 少一行 import**
+    `new_crud.py` 只替换 `// @fields:start .. // @fields:end` 之间的内容，**类顶部 import 不动**。
+    模板里没有 `java.util.Date`，所以 `--fields` 一出现 `date`/`datetime`，
+    `domain/Xxx.java` 与 `domain/bo/XxxBo.java` 就编译不过（`cannot find symbol: class Date`）。
+    生成后必查这两处补 `import java.util.Date;`（`Vo` 模板自带）。
+
+12. **模板 XML 里有一段抄「产品配置」的样板 SQL，必须清掉**
+    生成的 `XxxMapper.xml` 带着 `selectPageWithStandardCount` 与 `p.name / p.code / p.test_type`
+    这类**别的表**的列。单表 CRUD 用不到 XML —— 只留 `namespace` 的空 mapper，别把样板留给下一个人。
+
+## 真机联调与 UI 验收（本地栈，2026-10 实测）
+
+- **登录接口开了接口加密**（`application.yml` 的 `api-decrypt.enabled: true`）：
+  `POST /auth/login` 必须带 `encrypt-key` 头（= RSA 加密 `base64(AES密钥)`，body 用该 AES-ECB
+  加密 JSON），否则直接 403「没有访问权限」。公私钥看 `application.yml` 的 `api-decrypt` 段——
+  **以实际值为准**，注释里「请求解密私钥」标错位过：`privateKey` 才是请求解密私钥。
+- **验证码**：`GET /auth/code` 拿 `uuid`，答案可从 redis 只读取
+  `global:captcha_codes:<uuid>`（`docker exec biotech-plus-redis redis-cli -a ruoyi123 GET ...`，
+  值是带引号的 JSON 字符串，记得 strip 引号）。
+- **自己写的业务接口没挂 `@ApiEncrypt`**：拿到 token 后直接明文 JSON 调，不用加密。
+- **UI 验收要看到真渲染**（别只验接口）：用系统自带 chrome
+  `~/.agent-browser/browsers/chrome-*/chrome` + python playwright 打开 `http://localhost:9527`，
+  真登录（走上面的验证码）后 goto 目标路由，断言面包屑/卡片标题/列头/侧边菜单都在，并截图。
+  判断路由通不通就看控制台有没有 `Error transforming route "xxx": View component "xxx" not found`。
+
 ## Verification Checklist
 
 - [ ] dry-run 的 12 个路径与权限前缀已确认
