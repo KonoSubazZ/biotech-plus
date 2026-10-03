@@ -9,26 +9,32 @@ import org.dromara.common.core.utils.StringUtils;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.report.domain.AnalysisReport;
+import org.dromara.report.domain.SampleInfo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.AnalysisSnapshotVo;
+import org.dromara.report.domain.vo.InterpretationContextVo;
+import org.dromara.report.domain.vo.InterpretationLimsVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
+import org.dromara.report.mapper.SampleInfoMapper;
 import org.dromara.report.service.IInterpretationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * 报告解读 业务层处理
  * <p>
- * 本页只承担「列表 + 进入解读」两件事：
+ * 本页承担「列表 + 进入解读 + 解读上下文（LIMS）」：
  * <ul>
  *   <li>列表 = analysis_data ⟕ 该批次最新一份 analysis_report（一个批次可有多份报告，列表只显示最新那份的状态）。</li>
- *   <li>进入解读 = 复用该批次仍在 INTERPRETING 的报告；没有才新建，且样本/产品信息从 analysis_data 复制，
- *       保证报告行自身可读（设计书要求报告记录带 analysis_date / subbarcode / product 快照）。</li>
+ *   <li>进入解读 = 复用该批次仍在 INTERPRETING 的报告；没有才新建，样本/产品信息从 analysis_data 复制。</li>
+ *   <li>上下文 = 报告头 + LIMS 信息（读 sample_file，按 barcode = subbarcode）+ 生成前校验结论。</li>
  * </ul>
  * 位点筛选、预览、审核、发送属于后续页面的能力，不在这里实现。
  *
@@ -43,6 +49,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
 
     private final InterpretationMapper interpretationMapper;
     private final AnalysisReportMapper analysisReportMapper;
+    private final SampleInfoMapper sampleInfoMapper;
 
     @Override
     public TableDataInfo<InterpretationRowVo> selectPageList(InterpretationQueryBo bo, PageQuery pageQuery) {
@@ -84,6 +91,140 @@ public class InterpretationServiceImpl implements IInterpretationService {
             throw new ServiceException("报告记录创建失败：analysisId=" + analysisId);
         }
         return vo;
+    }
+
+    @Override
+    public InterpretationContextVo loadContext(Long reportId, Long analysisId) {
+        if (reportId == null || analysisId == null) {
+            throw new ServiceException("reportId 与 analysisId 不能为空");
+        }
+        AnalysisReportVo report = analysisReportMapper.selectVoById(reportId);
+        if (report == null) {
+            throw new ServiceException("报告不存在或已删除：reportId=" + reportId);
+        }
+        if (!analysisId.equals(report.getAnalysisId())) {
+            throw new ServiceException("报告与分析批次不匹配：reportId=" + reportId + "，analysisId=" + analysisId);
+        }
+
+        InterpretationContextVo context = new InterpretationContextVo();
+        context.setReport(report);
+        context.setLims(loadLims(report.getSubbarcode(), context.getErrors(), context.getWarnings()));
+        context.setCanGenerate(context.getErrors().isEmpty());
+        return context;
+    }
+
+    /**
+     * LIMS 信息：按 barcode = analysis_data.subbarcode 读 sample_file（本仓已把生产库录单样本表
+     * myapp_webcrmsample 的 122 列全量落成这张表），再按设计书 5.2 的字段映射挑出报告需要的列。
+     * <p>
+     * 校验口径（设计书 5.2「关键校验」）：
+     * <ul>
+     *   <li>没有 LIMS 记录 → errors（阻止生成），并在页面上明说找不到哪个编号；</li>
+     *   <li>patientName / cancerType / specimenType / testingProgram 缺失 → errors；</li>
+     *   <li>其余非关键字段缺失 → 只进 warnings，且值保持 null（不替换成「/」或「-」）。</li>
+     * </ul>
+     */
+    private InterpretationLimsVo loadLims(String subbarcode, List<String> errors, List<String> warnings) {
+        InterpretationLimsVo lims = new InterpretationLimsVo();
+        lims.setBarcode(subbarcode);
+        if (StringUtils.isBlank(subbarcode)) {
+            lims.setFound(false);
+            errors.add("报告缺少样本编号（subbarcode），无法定位 LIMS 信息");
+            return lims;
+        }
+
+        SampleInfo sample = selectSample(subbarcode);
+        lims.setFound(sample != null);
+        if (sample == null) {
+            errors.add("未找到该样本编号的样本信息（sample_file.barcode）：" + subbarcode);
+            return lims;
+        }
+
+        lims.setPatientId(sample.getPcode());
+        lims.setPatientName(sample.getPatientName());
+        lims.setGender(sample.getSex());
+        lims.setBirthday(sample.getBirthDay());
+        lims.setAge(sample.getAge());
+        lims.setCancerType(sample.getCancerType());
+        lims.setPathologicalType(sample.getPathologicalType());
+        lims.setClinicalStage(sample.getClinicalStages());
+        lims.setClinicalRemark(sample.getClinicalRemark());
+        // 医院：源表里公司名一半在 customer_name、一半在 custom_desc（还有 corp_desc）
+        lims.setHospitalName(firstNonBlank(sample.getCustomerName(), sample.getCustomDesc(), sample.getCorpDesc()));
+        lims.setDoctorName(sample.getDoctorName());
+        lims.setSpecimenType(sample.getSampleType());
+        lims.setSpecimenQuantity(joinNonBlank(sample.getSpecimenNum(), sample.getUnit()));
+        lims.setSampleSource(sample.getSampleSource());
+        lims.setFromOrgan(sample.getFromOrgan());
+        lims.setSampleCollectedAt(firstNonBlank(sample.getSampleTime(), sample.getCollectDate()));
+        lims.setSampleReceivedAt(sample.getGetSpecDate());
+        lims.setCommissionedAt(sample.getEnterDate());
+        lims.setTestingProgram(sample.getErpTestName());
+        lims.setSampleRemark(sample.getSampleRemark());
+        lims.setLaboratoryName(sample.getLaboratoryName());
+        lims.setReportReceiver(sample.getReportReceiver());
+        lims.setEmailAddress(sample.getEmailAddress());
+        lims.setPatientInfoEmail(sample.getPatientInfoEmail());
+        lims.setDoctorEmail(sample.getAdmissionDoctorEmail());
+
+        require(lims.getPatientName(), "患者姓名", errors);
+        require(lims.getCancerType(), "录单癌种", errors);
+        require(lims.getSpecimenType(), "样本类型", errors);
+        require(lims.getTestingProgram(), "录单产品", errors);
+
+        warnOnMissing(lims::getGender, "性别", warnings);
+        warnOnMissing(lims::getBirthday, "出生日期", warnings);
+        warnOnMissing(lims::getAge, "年龄", warnings);
+        warnOnMissing(lims::getHospitalName, "医院/送检单位", warnings);
+        warnOnMissing(lims::getDoctorName, "送检医生", warnings);
+        warnOnMissing(lims::getSpecimenQuantity, "样本量", warnings);
+        warnOnMissing(lims::getSampleCollectedAt, "采样日期", warnings);
+        warnOnMissing(lims::getSampleReceivedAt, "收样日期", warnings);
+        warnOnMissing(lims::getCommissionedAt, "委托日期", warnings);
+        warnOnMissing(lims::getReportReceiver, "报告接收人", warnings);
+        return lims;
+    }
+
+    /** 按样本编号取一条样本信息；同编号多条时取最新一条（编号在租户内唯一，这里只是防御） */
+    private SampleInfo selectSample(String subbarcode) {
+        LambdaQueryWrapper<SampleInfo> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(SampleInfo::getBarcode, subbarcode);
+        wrapper.orderByDesc(SampleInfo::getId);
+        wrapper.last("LIMIT 1");
+        return sampleInfoMapper.selectOne(wrapper);
+    }
+
+    private void require(String value, String label, List<String> errors) {
+        if (StringUtils.isBlank(value)) {
+            errors.add("缺少必填的" + label);
+        }
+    }
+
+    private void warnOnMissing(Supplier<String> getter, String label, List<String> warnings) {
+        if (StringUtils.isBlank(getter.get())) {
+            warnings.add("未填写" + label);
+        }
+    }
+
+    /** 取第一个非空值（医院的三个候选列用） */
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (StringUtils.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    /** 拼接非空片段（样本量 = 数量 + 单位） */
+    private String joinNonBlank(String... values) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (StringUtils.isNotBlank(value)) {
+                builder.append(value);
+            }
+        }
+        return builder.isEmpty() ? null : builder.toString();
     }
 
     /**

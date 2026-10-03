@@ -12,6 +12,7 @@ import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.InterpretationEnterBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
+import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.service.IInterpretationService;
 import org.springframework.validation.annotation.Validated;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -66,5 +68,18 @@ public class InterpretationController extends BaseController {
     @PostMapping("/enter")
     public R<AnalysisReportVo> enter(@RequestBody @Validated InterpretationEnterBo bo) {
         return R.ok(interpretationService.enter(bo.getAnalysisId()));
+    }
+
+    /**
+     * 解读页上下文：报告头 + LIMS 信息（Tab①）+ 生成前校验结论
+     *
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID
+     * @return 上下文
+     */
+    @SaCheckPermission("report:interpretation:query")
+    @GetMapping("/context")
+    public R<InterpretationContextVo> context(@RequestParam Long reportId, @RequestParam Long analysisId) {
+        return R.ok(interpretationService.loadContext(reportId, analysisId));
     }
 }

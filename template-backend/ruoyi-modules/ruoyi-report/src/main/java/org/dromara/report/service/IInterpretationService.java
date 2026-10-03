@@ -4,6 +4,7 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
+import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 
 /**
@@ -29,4 +30,13 @@ public interface IInterpretationService {
      * @return 报告头信息（含 reportId / status）
      */
     AnalysisReportVo enter(Long analysisId);
+
+    /**
+     * 加载解读页上下文：报告头 + LIMS 信息 + 生成前校验结论。
+     *
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID（必须与报告归属一致）
+     * @return 上下文
+     */
+    InterpretationContextVo loadContext(Long reportId, Long analysisId);
 }
