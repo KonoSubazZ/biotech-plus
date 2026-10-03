@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  报告解读列表：analysis_data ⟕ 该批次最新一份 analysis_report。
+  约定（对齐 SampleInfoMapper.xml）：
+    · 不用 SELECT *，显式列出并别名成驼峰，和 VO 字段逐一对齐
+    · 值一律 #{param} 绑定；租户条件由租户拦截器自动附加，这里不写 tenant_id
+    · 分页由 MyBatis-Plus 分页插件接管，这里不写 LIMIT
+-->
+<mapper namespace="org.dromara.report.mapper.InterpretationMapper">
+
+    <select id="selectInterpretationPage" resultType="org.dromara.report.domain.vo.InterpretationRowVo">
+        SELECT
+            d.analysis_id         AS analysisId,
+            d.analysis_date       AS analysisDate,
+            d.subbarcode          AS subbarcode,
+            d.barcode             AS barcode,
+            d.product             AS product,
+            d.product_id          AS productId,
+            d.analyzer            AS analyzer,
+            d.drive_status        AS driveStatus,
+            d.drive_executed_at   AS driveExecutedAt,
+            r.report_id           AS reportId,
+            r.status              AS reportStatus,
+            r.analysis_disease    AS analysisDisease,
+            r.template_id         AS templateId,
+            r.template            AS template,
+            r.report_generated_by AS reportGeneratedBy,
+            r.report_generated_at AS reportGeneratedAt
+        FROM analysis_data d
+        LEFT JOIN analysis_report r
+               ON r.report_id = (
+                    SELECT MAX(r2.report_id) FROM analysis_report r2
+                    WHERE r2.analysis_id = d.analysis_id
+                      AND r2.del_flag = '0'
+                  )
+        WHERE d.del_flag = '0'
+        <if test="query != null and query.subbarcode != null and query.subbarcode != ''">
+            AND d.subbarcode LIKE CONCAT('%', #{query.subbarcode}, '%')
+        </if>
+        <if test="query != null and query.product != null and query.product != ''">
+            AND d.product LIKE CONCAT('%', #{query.product}, '%')
+        </if>
+        <if test="query != null and query.reportStatus != null and query.reportStatus != ''">
+            AND r.status = #{query.reportStatus}
+        </if>
+        <if test="beginTime != null and endTime != null">
+            AND d.analysis_date BETWEEN #{beginTime} AND #{endTime}
+        </if>
+        ORDER BY d.analysis_id DESC
+    </select>
+
+    <!-- 批次快照：只取建报告记录需要的几列 -->
+    <select id="selectAnalysisSnapshot" resultType="org.dromara.report.domain.vo.AnalysisSnapshotVo">
+        SELECT
+            d.analysis_id  AS analysisId,
+            d.analysis_date AS analysisDate,
+            d.subbarcode   AS subbarcode,
+            d.barcode      AS barcode,
+            d.product      AS product,
+            d.product_id   AS productId,
+            d.analyzer     AS analyzer
+        FROM analysis_data d
+        WHERE d.analysis_id = #{analysisId}
+          AND d.del_flag = '0'
+    </select>
+
+</mapper>
