@@ -18,16 +18,20 @@ defineOptions({
 const appStore = useAppStore();
 const { hasAuth } = useAuth();
 
-/** 质控类别：与后端约定一致（wet_lab / bioinfo）。用查表代替三元，便于扩展新类别 */
-const CATEGORY_META: Record<string, { label: string; type: 'success' | 'info' | 'default' }> = {
-  wet_lab: { label: '湿实验', type: 'success' },
+/**
+ * 质控类别：与后端约定一致（wet_lab / bioinfo）。
+ * 类别不是状态，用中性的 info，别借用 success/warning/error（会看着像「通过」）；
+ * 同一维度内保持同一种中性色。用查表代替三元，便于扩展新类别。
+ */
+const CATEGORY_META: Record<string, { label: string; type: 'info' | 'default' }> = {
+  wet_lab: { label: '湿实验', type: 'info' },
   bioinfo: { label: '生信', type: 'info' }
 };
 
-/** 状态 */
-const STATUS_META: Record<string, { label: string; type: 'success' | 'default' }> = {
+/** 状态：绿=正常(启用) 黄=警告 红=失败/错误(停用)；灰只留给「未知值兜底」 */
+const STATUS_META: Record<string, { label: string; type: 'success' | 'warning' | 'error' }> = {
   active: { label: '启用', type: 'success' },
-  inactive: { label: '停用', type: 'default' }
+  inactive: { label: '停用', type: 'error' }
 };
 
 const searchParams = ref<Api.Qc.QcStandardSearchParams>({

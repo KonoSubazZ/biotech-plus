@@ -28,10 +28,14 @@ function handleGeneDetail(row: Api.Project.ProductConfig) {
   geneDrawerVisible.value = true;
 }
 
-/** 状态：active 启用 / inactive 停用（查表代替三元，便于扩展也过可读性闸门） */
-const STATUS_META: Record<string, { label: string; type: 'success' | 'default' }> = {
+/**
+ * 状态：active 启用 / inactive 停用
+ * 配色契约：绿=正常(启用) 黄=警告 红=失败/错误(停用)；灰只留给「未知值兜底」。
+ * 查表代替三元，便于扩展也过可读性闸门。
+ */
+const STATUS_META: Record<string, { label: string; type: 'success' | 'warning' | 'error' }> = {
   active: { label: '启用', type: 'success' },
-  inactive: { label: '停用', type: 'default' }
+  inactive: { label: '停用', type: 'error' }
 };
 
 const searchParams = ref<Api.Project.ProductConfigSearchParams>({

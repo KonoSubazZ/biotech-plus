@@ -26,7 +26,10 @@ defineOptions({
 const appStore = useAppStore();
 const { hasAuth } = useAuth();
 
-/** 人工确认状态：与后端约定一致（pending / passed / failed） */
+/**
+ * 人工确认状态：与后端约定一致（pending / passed / failed）。
+ * 配色契约：绿=正常/通过 黄=警告/待确认 红=失败/未通过；灰只留给「未知值兜底」。
+ */
 const STATUS_META: Record<string, { label: string; type: 'warning' | 'success' | 'error' }> = {
   pending: { label: '待确认', type: 'warning' },
   passed: { label: '通过', type: 'success' },
