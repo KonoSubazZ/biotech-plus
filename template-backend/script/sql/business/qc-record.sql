@@ -75,6 +75,14 @@ WHERE NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
 
 SET @quality_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'qc' LIMIT 1);
 
+-- 收敛到当前定义：无论这行是刚搬过来的旧行，还是已迁过的库，这里都把字段刷成同一份定义
+-- （旧行的 UPDATE 只认「旧位置」，第二次执行就查不到了，所以必须按当前位置再刷一次；脚本可重复执行）
+UPDATE sys_menu
+SET parent_id = 0, menu_name = '质控管理', path = 'qc', component = 'Layout', order_num = 3,
+    menu_type = 'M', visible = '0', status = '0', remark = '质控管理（一级目录）',
+    update_by = 1, update_time = NOW()
+WHERE menu_id = @quality_id;
+
 -- 湿实验质控（component 三层：qc/wet-lab/index，路由名 qc_wet-lab）
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
