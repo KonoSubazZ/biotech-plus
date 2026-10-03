@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  质控记录的持久化当前**全部**走 BaseMapperPlus（单表 CRUD / 简单条件 / 排序 / 分页），
+  所以本文件暂无语句，仅保留 namespace 占位：
+  将来出现复杂联表（如按 sample_file.product_name 桥接 product_config 做自动判定）时，
+  把语句写在这里，不要把 SQL 塞回 Java。
+  约定：
+    · namespace = Mapper 接口全限定名；语句 id = 接口方法名
+    · 普通值一律 #{param} 绑定，禁止 ${} 拼接（${} 只允许接收服务端可信 Wrapper）
+    · 多参数用 @Param 明确命名
+    · 不写 SELECT *，用 resultMap 显式列，避免联表字段冲突和敏感字段泄漏
+    · 分页由 MyBatis-Plus 分页插件接管，这里不要手写 LIMIT
+-->
+<mapper namespace="org.dromara.qc.mapper.QcRecordMapper">
+
+</mapper>
