@@ -59,3 +59,8 @@ Desktop.ini
 
 # Agent runtime state; keep AGENTS.md, skills and project instructions
 .ai_state/
+
+# 大体积数据库 dump：nkb 全库导出（79MB）不入库，避免每次克隆都拉 76MB
+# 需要时从服务器/共享盘取回同名文件，导入命令见 template-backend/script/sql/nkb-README.md
+docs/context/nkb_20260202.sql
+docs/context/nkb/nkb_20260202.sql

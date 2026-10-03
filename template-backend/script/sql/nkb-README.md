@@ -4,6 +4,9 @@
 
 `docs/context/nkb_20260202.sql` —— 上游 MySQL **5.7.26** 导出的全库 dump（79MB）。
 
+> ⚠️ 该 dump **不入 git**（单文件 76MB，超过 GitHub 50MB 的建议上限，已在根 `.gitignore` 忽略）：
+> 新克隆的仓库里**没有**这个文件，导入前要把它从服务器/共享盘放回 `docs/context/nkb_20260202.sql`。
+
 ```
 Server version  5.7.26-log
 内容            66 张表 + 51 个视图（无存储过程 / 触发器）
@@ -42,4 +45,7 @@ docker exec -i biotech-plus-mysql mysql -uroot -proot --default-character-set=ut
    dump 中 DEFINER 只出现在 51 个视图上，5.7 建视图不校验 DEFINER 用户，能正常创建和查询。
 4. **不要把它放进 `deploy.sh` 的 init 目录**：79MB 会让每次「从零重建」都多跑一遍。
    已经是独立子命令 `./deploy.sh nkb`。
-5. 文件已入库（`.git` 体积增量约 31MB）。若将来还要放更大的数据文件，考虑改用 git-lfs。
+5. **文件不入库**：根 `.gitignore` 已忽略 `docs/context/nkb_20260202.sql`（及重复份
+   `docs/context/nkb/nkb_20260202.sql`），`git rm --cached` 后本地文件保留、`./deploy.sh nkb` 照常可用。
+   注意：**历史里仍留有早期提交带进来的同一份 blob**（远程仓库体积不会因此变小），
+   要彻底瘦身得重写历史 + 强推，另议。将来更大的数据文件建议用 git-lfs 或私有存储。
