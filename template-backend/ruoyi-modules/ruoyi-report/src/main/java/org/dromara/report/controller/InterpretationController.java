@@ -10,17 +10,21 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.InterpretationEnterBo;
+import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
+import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
+import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
 import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
+import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 
-import java.util.Map;
+import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IInterpretationService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,6 +33,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 /**
  * 报告解读（报告管理 › 报告解读）
@@ -49,6 +55,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class InterpretationController extends BaseController {
 
     private final IInterpretationService interpretationService;
+
+    private final IInterpretationPreviewService previewService;
 
     /**
      * 分页查询报告解读列表
@@ -147,6 +155,48 @@ public class InterpretationController extends BaseController {
     @PostMapping("/variant-report-status")
     public R<Void> variantReportStatus(@RequestBody @Validated InterpretationVariantStatusBo bo) {
         interpretationService.updateVariantReportStatus(bo);
+        return R.ok();
+    }
+
+    /**
+     * Tab④ 报告预览：按模板组装预览 JSON（对齐设计书 8.1；只返回、不落库、不写文件）
+     *
+     * @param bo 入参（analysisId / reportId / templateCode）
+     * @return 预览 JSON
+     */
+    @SaCheckPermission("report:interpretation:preview")
+    @PostMapping("/preview")
+    public R<InterpretationPreviewVo> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
+        return R.ok(previewService.buildPreview(bo));
+    }
+
+    /**
+     * 人工确认胚系五级临床意义（保存后重新预览即可看到按 Class 匹配的证据）
+     *
+     * @param bo 入参（analysisId / reportId / sourceId / clinicalSignificance 1~5）
+     * @return 操作结果
+     */
+    /**
+     * 胚系改靶 / 调整改靶：更新 file_CR_ALL.parent_mutation_id
+     *
+     * @param bo 入参（analysisId / sourceId / parentMutationId，null 表示取消改靶）
+     * @return 操作结果
+     */
+    @SaCheckPermission("report:interpretation:edit")
+    @RepeatSubmit()
+    @Log(title = "报告解读-胚系改靶", businessType = BusinessType.UPDATE)
+    @PostMapping("/germline-target")
+    public R<Void> germlineTarget(@RequestBody @Validated InterpretationTargetBo bo) {
+        previewService.updateGermlineTarget(bo);
+        return R.ok();
+    }
+
+    @SaCheckPermission("report:interpretation:edit")
+    @RepeatSubmit()
+    @Log(title = "报告解读-胚系临床意义", businessType = BusinessType.UPDATE)
+    @PostMapping("/germline-clinical-significance")
+    public R<Void> germlineSignificance(@RequestBody @Validated InterpretationGermlineSignificanceBo bo) {
+        previewService.updateGermlineSignificance(bo);
         return R.ok();
     }
 }

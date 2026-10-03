@@ -10,6 +10,7 @@ import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -88,6 +89,116 @@ public interface InterpretationMapper {
      * @param operatorId        操作人（reviewed_by / update_by）
      * @return 受影响行数
      */
+    /**
+     * 预览用：本批次所有「报出」的体细胞位点（SNP/Indel + CNV + Fusion 的并集）。
+     * <p>
+     * 四张表列不同，统一成预览需要的列：sourceType/sourceId/gene/variant/oriVariant/mutationTypeRaw/frequency/depth。
+     *
+     * @param analysisId 分析数据ID
+     * @return 位点列表
+     */
+    List<Map<String, Object>> selectReportedSomaticVariants(@Param("analysisId") Long analysisId);
+
+    /**
+     * 预览用：报告 + 分析行（模板/产品/癌种/产品编码）
+     *
+     * @param reportId 报告ID
+     * @return 行（reportId / analysisId / subbarcode / product / productId / template / templateId /
+     *         disease / cancerType / templateCode / moduleCode）；无则 null
+     */
+    Map<String, Object> selectReportRow(@Param("reportId") Long reportId);
+
+    /**
+     * 预览用：本批次所有「报出」的胚系位点（file_CR_ALL）。
+     *
+     * @param analysisId 分析数据ID
+     * @return 位点列表（含 zygosity / clinicalSignificanceClnsig）
+     */
+    List<Map<String, Object>> selectReportedGermlineVariants(@Param("analysisId") Long analysisId);
+
+    /**
+     * 产品启用的基因（圣域规则按 product_gene 输出）
+     *
+     * @param productId 产品配置ID
+     * @return 基因符号列表
+     */
+    List<String> selectProductGeneSymbols(@Param("productId") Long productId);
+
+    /**
+     * 按 match_key 取体细胞匹配历史（命中即复用冻结结果）
+     *
+     * @param matchKey 规范化条件 SHA-256
+     * @return 历史行（含 match_result）；无则 null
+     */
+    Map<String, Object> selectSomaticHistory(@Param("matchKey") String matchKey);
+
+    /**
+     * 按 match_key 取胚系匹配历史
+     *
+     * @param matchKey 规范化条件 SHA-256
+     * @return 历史行（含 match_result / clinical_significance）；无则 null
+     */
+    Map<String, Object> selectGermlineHistory(@Param("matchKey") String matchKey);
+
+    /**
+     * 写入首条体细胞匹配历史（INSERT IGNORE，靠 uk(match_key) 收敛并发）
+     *
+     * @param history 历史字段
+     * @return 影响行数（0 = 已存在，说明并发下别人先写了）
+     */
+    int insertSomaticHistory(@Param("h") Map<String, Object> history);
+
+    /**
+     * 写入首条胚系匹配历史（INSERT IGNORE）
+     *
+     * @param history 历史字段（含 clinical_significance）
+     * @return 影响行数
+     */
+    int insertGermlineHistory(@Param("h") Map<String, Object> history);
+
+    /**
+     * 胚系临床意义继承：同客户/产品/癌种/性别/位点/合子状态下最近一条（**故意忽略人工父级 parent_mutation_id**）
+     *
+     * @param q 查询条件
+     * @return clinical_significance；无则 null
+     */
+    Integer selectInheritedGermlineSignificance(@Param("q") Map<String, Object> q);
+
+    /**
+     * 保存人工确认的胚系临床意义（要求该位点已通过预览建立历史记录）
+     *
+     * @param matchKey             规范化匹配键
+     * @param clinicalSignificance 1~5
+     * @return 影响行数（0 = 还没建立历史）
+     */
+    int updateGermlineSignificance(@Param("matchKey") String matchKey,
+                                  @Param("clinicalSignificance") Integer clinicalSignificance,
+                                  @Param("matchResult") String matchResult,
+                                  @Param("matchStatus") String matchStatus,
+                                  @Param("variationClass") String variationClass);
+
+    /**
+     * 取单个 CR_ALL 位点（保存临床意义前要重算 match_key）
+     *
+     * @param sourceId   位点ID
+     * @param analysisId 分析数据ID（归属校验）
+     * @return gene/variant/oriVariant/zygosity；不存在时 null
+     */
+    Map<String, Object> selectGermlineVariant(@Param("sourceId") Long sourceId,
+                                             @Param("analysisId") Long analysisId);
+
+    /**
+     * 改靶：更新胚系位点的人工父级（带分析批次归属校验）
+     *
+     * @param sourceId         位点ID
+     * @param analysisId       分析数据ID
+     * @param parentMutationId 人工父级；null 表示取消改靶
+     * @return 影响行数
+     */
+    int updateGermlineParentMutation(@Param("sourceId") Long sourceId,
+                                    @Param("analysisId") Long analysisId,
+                                    @Param("parentMutationId") Long parentMutationId);
+
     int updateVariantReportStatus(@Param("sourceId") Long sourceId,
                                  @Param("sourceType") String sourceType,
                                  @Param("analysisId") Long analysisId,

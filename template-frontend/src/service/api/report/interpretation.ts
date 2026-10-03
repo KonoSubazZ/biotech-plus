@@ -67,6 +67,42 @@ export function fetchUpdateVariantReportStatus(data: {
   });
 }
 
+/** Tab④ 报告预览：按模板组装预览 JSON（只返回、不落库） */
+export function fetchBuildInterpretationPreview(data: { analysisId: number; reportId: number }) {
+  return request<Api.Report.InterpretationPreview>({
+    url: '/report/interpretation/preview',
+    method: 'post',
+    data
+  });
+}
+
+/** 人工确认胚系五级临床意义 */
+export function fetchUpdateGermlineSignificance(data: {
+  analysisId: number;
+  reportId: number;
+  sourceId: number;
+  clinicalSignificance: number;
+}) {
+  return request<null>({
+    url: '/report/interpretation/germline-clinical-significance',
+    method: 'post',
+    data
+  });
+}
+
+/** 胚系改靶 / 取消改靶 */
+export function fetchUpdateGermlineTarget(data: {
+  analysisId: number;
+  sourceId: number;
+  parentMutationId: number | null;
+}) {
+  return request<null>({
+    url: '/report/interpretation/germline-target',
+    method: 'post',
+    data
+  });
+}
+
 /** 进入解读：创建/复用该分析批次的「解读中」报告，返回 reportId */
 export function fetchEnterInterpretation(data: { analysisId: number }) {
   return request<Api.Report.InterpretationReport>({

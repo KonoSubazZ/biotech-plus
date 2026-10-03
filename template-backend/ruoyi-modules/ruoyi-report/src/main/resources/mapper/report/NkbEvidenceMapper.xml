@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.report.mapper.NkbEvidenceMapper">
+
+    <!-- 癌种解析：先用中文名精确匹配 -->
+    <select id="selectDiseaseByName" resultType="java.util.LinkedHashMap">
+        SELECT do_id AS diseaseId, disease_name_chinese AS diseaseName
+        FROM nkb.disease
+        WHERE disease_name_chinese = #{diseaseName}
+        LIMIT 1
+    </select>
+
+    <select id="selectDiseaseNames" resultType="java.lang.String">
+        SELECT disease_name_chinese
+        FROM nkb.disease
+        WHERE do_id IN
+        <foreach collection="diseaseIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="selectParentDiseaseIds" resultType="java.lang.Long">
+        SELECT DISTINCT is_a
+        FROM nkb.disease_hierarchy
+        WHERE do_id IN
+        <foreach collection="diseaseIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="selectGeneBySymbol" resultType="java.util.LinkedHashMap">
+        SELECT gene_id AS geneId, gene_symbol AS geneSymbol
+        FROM nkb.ncbi_gene
+        WHERE gene_symbol = #{geneSymbol}
+        LIMIT 1
+    </select>
+
+    <!-- 体细胞：规范化位点或原始位点命中即为同一变异 -->
+    <select id="selectGeneVariantIdsByVariant" resultType="java.lang.Long">
+        SELECT gene_variant_id
+        FROM nkb.gene_variant
+        WHERE gene_id = #{geneId}
+          AND (gene_variant = #{variant}
+               OR (#{oriVariant} IS NOT NULL AND ori_variant = #{oriVariant})
+               OR (#{variant} IS NOT NULL AND ori_variant LIKE CONCAT('%(', #{variant}, ')'))
+               OR gene_variant LIKE CONCAT('%(', #{variant}, ')'))
+        ORDER BY gene_variant_id
+        LIMIT 5
+    </select>
+
+    <!-- 胚系：NKB 以 Class5(致病)/Class4(疑似致病) 口径表达致病性 -->
+    <select id="selectGeneVariantIdsByClass" resultType="java.lang.Long">
+        SELECT gene_variant_id
+        FROM nkb.gene_variant
+        WHERE gene_id = #{geneId} AND gene_variant LIKE CONCAT(#{classPrefix}, '%')
+        ORDER BY gene_variant_id
+        LIMIT 5
+    </select>
+
+    <select id="selectDrugAnnotations" resultType="org.dromara.report.domain.vo.PreviewDrugVo">
+        SELECT
+            d.drug_name_chinese        AS drugName,
+            d.drug_name                AS drugNameEn,
+            dis.disease_name_chinese   AS disease,
+            a.direct_target_or_not     AS directTarget,
+            et.evidence_type_chinese   AS evidenceType,
+            er.evidence_ranking_chinese AS evidenceRanking,
+            ep.evidence_phase_chinese  AS evidencePhase,
+            r.relationship_chinese     AS relationship,
+            a.annotation_chinese       AS annotation,
+            a.comment                  AS comment
+        FROM nkb.variant_drug_annotation a
+        JOIN nkb.gene_variant gv ON gv.gene_variant_id = a.gene_variant_id
+        LEFT JOIN nkb.drug d ON d.drug_id = a.drug_id
+        LEFT JOIN nkb.disease dis ON dis.do_id = a.disease_id
+        LEFT JOIN nkb.evidence_type et ON et.evidence_type_id = a.evidence_type_id
+        LEFT JOIN nkb.evidence_ranking er ON er.evidence_ranking_id = a.evidence_ranking_id
+        LEFT JOIN nkb.evidence_phase ep ON ep.evidence_phase_id = a.evidence_phase_id
+        LEFT JOIN nkb.relationship r ON r.relationship_id = a.relationship_id
+        WHERE a.gene_variant_id IN
+        <foreach collection="geneVariantIds" item="gvId" open="(" separator="," close=")">#{gvId}</foreach>
+        <if test="diseaseIds != null and diseaseIds.size() > 0">
+            AND a.disease_id IN
+            <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+        </if>
+        ORDER BY er.evidence_ranking_id, a.annotation_id
+        LIMIT #{limit}
+    </select>
+
+</mapper>

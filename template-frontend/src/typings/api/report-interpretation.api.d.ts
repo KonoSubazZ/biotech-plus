@@ -251,6 +251,66 @@ declare namespace Api {
       pageSize: number;
     }> & { analysisId: number; params?: Record<string, unknown> };
 
+    /** 报告预览：单条药物证据 */
+    interface PreviewDrug {
+      drugName: string | null;
+      drugNameEn: string | null;
+      disease: string | null;
+      directTarget: string | null;
+      evidenceType: string | null;
+      evidenceRanking: string | null;
+      evidencePhase: string | null;
+      relationship: string | null;
+      annotation: string | null;
+      comment: string | null;
+    }
+
+    /** 报告预览：单个位点（体细胞或胚系） */
+    interface PreviewVariant {
+      sourceId: number;
+      sourceType: string;
+      gene: string | null;
+      variant: string | null;
+      oriVariant: string | null;
+      mutationType: string | null;
+      frequency: string | null;
+      depth: string | null;
+      zygosity: string | null;
+      clinicalSignificance: number | null;
+      clinicalSignificanceLabel: string | null;
+      /** MATCHED / NOT_MATCHED */
+      matchStatus: string | null;
+      variationClass: string | null;
+      parentMutationId: number | null;
+      /** 文件里的原始判定（CLNSIG） */
+      sourceClnsig: string | null;
+      classificationLovd: string | null;
+      drugMatch: PreviewDrug[];
+    }
+
+    /** 报告预览：一个分节 */
+    interface PreviewSection {
+      summary: { reportedCount?: number; matchedCount?: number; unmatchedCount?: number };
+      items: PreviewVariant[];
+    }
+
+    /** 报告预览 JSON（= 后端 InterpretationPreviewVo，对齐设计书 7.6 契约） */
+    interface InterpretationPreview {
+      schemaVersion: string;
+      templateCode: string | null;
+      templateVersion: string | null;
+      analysisId: number;
+      reportId: number;
+      reportInfo: Record<string, unknown>;
+      sampleInfo: Record<string, unknown>;
+      somaticVariants: PreviewSection;
+      germlineVariants: PreviewSection;
+      shengyuSomaticVariants: Record<string, unknown>[];
+      shengyuGermlineVariants: Record<string, unknown>[];
+      qualityControl: Record<string, unknown>;
+      warnings: string[];
+    }
+
     /** 解读页上下文（= 后端 InterpretationContextVo） */
     interface InterpretationContext {
       report: InterpretationReport;
