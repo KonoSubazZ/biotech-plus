@@ -2,9 +2,12 @@ package org.dromara.report.service;
 
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
+import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
+import org.dromara.report.domain.vo.InterpretationFileContentVo;
+import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 
 /**
@@ -39,4 +42,23 @@ public interface IInterpretationService {
      * @return 上下文
      */
     InterpretationContextVo loadContext(Long reportId, Long analysisId);
+
+    /**
+     * 分页查询集群对接文件（Tab②）
+     *
+     * @param analysisId 分析数据ID
+     * @param bo         查询条件（文件名 / 文件类型 / 状态）
+     * @param pageQuery  分页参数
+     * @return 分页列表
+     */
+    TableDataInfo<InterpretationFileVo> selectFileList(Long analysisId, InterpretationFileQueryBo bo, PageQuery pageQuery);
+
+    /**
+     * 查看单个文件内容（Tab②）
+     *
+     * @param fileId     文件ID
+     * @param analysisId 分析数据ID（校验归属）
+     * @return 文件内容
+     */
+    InterpretationFileContentVo queryFileContent(Long fileId, Long analysisId);
 }

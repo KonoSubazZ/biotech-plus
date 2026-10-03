@@ -10,9 +10,12 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.InterpretationEnterBo;
+import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
+import org.dromara.report.domain.vo.InterpretationFileContentVo;
+import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.service.IInterpretationService;
 import org.springframework.validation.annotation.Validated;
@@ -81,5 +84,34 @@ public class InterpretationController extends BaseController {
     @GetMapping("/context")
     public R<InterpretationContextVo> context(@RequestParam Long reportId, @RequestParam Long analysisId) {
         return R.ok(interpretationService.loadContext(reportId, analysisId));
+    }
+
+    /**
+     * Tab② 集群对接：某分析批次的文件分页列表
+     *
+     * @param analysisId 分析数据ID
+     * @param bo         查询条件（文件名 / 文件类型 / 状态）
+     * @param pageQuery  分页参数
+     * @return 分页列表
+     */
+    @SaCheckPermission("report:interpretation:query")
+    @GetMapping("/files")
+    public TableDataInfo<InterpretationFileVo> files(@RequestParam Long analysisId,
+                                                    InterpretationFileQueryBo bo,
+                                                    PageQuery pageQuery) {
+        return interpretationService.selectFileList(analysisId, bo, pageQuery);
+    }
+
+    /**
+     * Tab② 查看单个文件内容
+     *
+     * @param fileId     文件ID
+     * @param analysisId 分析数据ID
+     * @return 文件内容（超长已截断）
+     */
+    @SaCheckPermission("report:interpretation:query")
+    @GetMapping("/file/content")
+    public R<InterpretationFileContentVo> fileContent(@RequestParam Long fileId, @RequestParam Long analysisId) {
+        return R.ok(interpretationService.queryFileContent(fileId, analysisId));
     }
 }

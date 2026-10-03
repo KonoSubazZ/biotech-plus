@@ -10,10 +10,13 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.report.domain.AnalysisReport;
 import org.dromara.report.domain.SampleInfo;
+import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.AnalysisSnapshotVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
+import org.dromara.report.domain.vo.InterpretationFileContentVo;
+import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.mapper.AnalysisReportMapper;
@@ -46,6 +49,9 @@ public class InterpretationServiceImpl implements IInterpretationService {
 
     /** 报告状态：解读中 */
     private static final String STATUS_INTERPRETING = "INTERPRETING";
+
+    /** 单个文件内容最多返回的字符数（超大文件在库里 LEFT() 截断，避免整个 LONGTEXT 进内存/浏览器） */
+    private static final int MAX_FILE_TEXT_LENGTH = 200_000;
 
     private final InterpretationMapper interpretationMapper;
     private final AnalysisReportMapper analysisReportMapper;
@@ -111,6 +117,40 @@ public class InterpretationServiceImpl implements IInterpretationService {
         context.setLims(loadLims(report.getSubbarcode(), context.getErrors(), context.getWarnings()));
         context.setCanGenerate(context.getErrors().isEmpty());
         return context;
+    }
+
+    @Override
+    public TableDataInfo<InterpretationFileVo> selectFileList(Long analysisId, InterpretationFileQueryBo bo,
+                                                              PageQuery pageQuery) {
+        assertAnalysisExists(analysisId);
+        Page<InterpretationFileVo> page =
+            interpretationMapper.selectFilePage(pageQuery.build(), analysisId, bo);
+        return TableDataInfo.build(page);
+    }
+
+    @Override
+    public InterpretationFileContentVo queryFileContent(Long fileId, Long analysisId) {
+        if (fileId == null || analysisId == null) {
+            throw new ServiceException("fileId 与 analysisId 不能为空");
+        }
+        InterpretationFileContentVo content =
+            interpretationMapper.selectFileContent(fileId, analysisId, MAX_FILE_TEXT_LENGTH);
+        if (content == null) {
+            throw new ServiceException("文件不存在或不属于该分析批次：fileId=" + fileId + "，analysisId=" + analysisId);
+        }
+        long textLength = content.getTextLength() == null ? 0L : content.getTextLength();
+        content.setTruncated(textLength > MAX_FILE_TEXT_LENGTH);
+        return content;
+    }
+
+    /** 分析批次必须存在（列表/内容都以 analysisId 为范围，避免越权看别的批次文件） */
+    private void assertAnalysisExists(Long analysisId) {
+        if (analysisId == null) {
+            throw new ServiceException("分析数据ID不能为空");
+        }
+        if (interpretationMapper.selectAnalysisSnapshot(analysisId) == null) {
+            throw new ServiceException("分析数据不存在或已删除：analysisId=" + analysisId);
+        }
     }
 
     /**

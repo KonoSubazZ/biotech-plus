@@ -50,6 +50,48 @@
         ORDER BY d.analysis_id DESC
     </select>
 
+    <!-- Tab② 集群对接：某个分析批次落库的文件（不含 file_text，用 CHAR_LENGTH 只取长度） -->
+    <select id="selectFilePage" resultType="org.dromara.report.domain.vo.InterpretationFileVo">
+        SELECT
+            f.file_id       AS fileId,
+            f.file_type     AS fileType,
+            f.data_type     AS dataType,
+            f.file_name     AS fileName,
+            f.status        AS status,
+            f.message       AS message,
+            f.mut_num       AS mutNum,
+            f.analysis_date AS analysisDate,
+            CHAR_LENGTH(f.file_text) AS textLength,
+            f.update_time   AS updateTime
+        FROM data_file_status f
+        WHERE f.del_flag = '0'
+          AND f.analysis_id = #{analysisId}
+        <if test="query != null and query.fileName != null and query.fileName != ''">
+            AND f.file_name LIKE CONCAT('%', #{query.fileName}, '%')
+        </if>
+        <if test="query != null and query.fileType != null and query.fileType != ''">
+            AND f.file_type LIKE CONCAT('%', #{query.fileType}, '%')
+        </if>
+        <if test="query != null and query.status != null and query.status != ''">
+            AND f.status = #{query.status}
+        </if>
+        ORDER BY f.file_id ASC
+    </select>
+
+    <!-- Tab② 查看文件内容：LEFT() 在库里截断，避免把超大 LONGTEXT 整个拉到应用层 -->
+    <select id="selectFileContent" resultType="org.dromara.report.domain.vo.InterpretationFileContentVo">
+        SELECT
+            f.file_id   AS fileId,
+            f.file_name AS fileName,
+            f.file_type AS fileType,
+            LEFT(f.file_text, #{maxLength}) AS fileText,
+            CHAR_LENGTH(f.file_text)        AS textLength
+        FROM data_file_status f
+        WHERE f.file_id = #{fileId}
+          AND f.analysis_id = #{analysisId}
+          AND f.del_flag = '0'
+    </select>
+
     <!-- 批次快照：只取建报告记录需要的几列 -->
     <select id="selectAnalysisSnapshot" resultType="org.dromara.report.domain.vo.AnalysisSnapshotVo">
         SELECT
