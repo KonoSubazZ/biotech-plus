@@ -6,6 +6,7 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 报告预览：单个位点（体细胞或胚系）
@@ -75,6 +76,30 @@ public class PreviewVariantVo implements Serializable {
     /** 文件里给出的分类（CR_ALL.classification_lovd，如 Class5(致病)） */
     private String classificationLovd;
 
-    /** 药物证据；无证据时为空列表 */
+    /** 药物证据（全部保留：每个「药物 × 等级 × 证据癌种」一行；无证据时为空列表） */
     private List<PreviewDrugVo> drugMatch;
+
+    /**
+     * 按等级分组的药物名串（en7 的 drugsA/drugsB/drugsC/drugsD + resistant_drugsA..D）。
+     * <p>
+     * 去重键 = 药名 + 证据癌种（与 en7 {@code getDrugNameStr} 一致）；
+     * 明细仍在 {@link #drugMatch} 里**全量保留**，不因为名字去重而丢证据。
+     * 需要其他检测的药物名后缀 `#`（en7 的 other_test_required 标记）。
+     */
+    private Map<String, String> drugGroups;
+
+    /** 审核列表（en7 buildDrugAuditList）：{drug, relation, level, evidenceDiseaseId, evidenceDiseaseName} */
+    private List<Map<String, Object>> drugAuditList;
+
+    /** 是否在知识库中查到节点 */
+    private Boolean inNkb;
+
+    /** 知识库命中节点名（自身或父级，如 V559D / Active Mutation / Inactive Mutation） */
+    private String matchedNode;
+
+    /** 知识库功能判定（effect 字典：激活/失活/未知/无影响） */
+    private String effectText;
+
+    /** 位点用药说明（en7 四段模板：失活/扩增/缺失/未明） */
+    private String description;
 }

@@ -74,11 +74,66 @@ public interface NkbEvidenceMapper {
      * 取药物证据（按基因位点 + 癌种范围过滤）
      *
      * @param geneVariantIds NKB gene_variant_id 列表
-     * @param diseaseIds     癌种ID范围（自身 + 全部父级）
+     * @param diseaseIds     癌种ID范围（本癌种 + 祖先 + 子孙）
+     * @param mutationType   突变类型：S 体细胞 / G 胚系（SQL 里按 IN (#{mutationType}, 'S/G') 取）
      * @param limit          最多返回条数
-     * @return 证据列表
+     * @return 证据列表（未分级）
      */
     List<PreviewDrugVo> selectDrugAnnotations(@Param("geneVariantIds") List<Long> geneVariantIds,
                                              @Param("diseaseIds") List<Long> diseaseIds,
+                                             @Param("mutationType") String mutationType,
                                              @Param("limit") int limit);
+
+    /**
+     * 位点节点（含 effect 与父级名称）——en7 的 gene_variant_evw 等价查询
+     * （本机 sql_mode 含 only_full_group_by，视图 gene_variant_evw 报 1055，故用等价自建查询）
+     *
+     * @param geneSymbol  基因符号
+     * @param geneVariant 位点（短名，如 V559D / Inactive Mutation）
+     * @return mutationId / variantName / effectText / parentVariants；无则 null
+     */
+    Map<String, Object> selectVariantNode(@Param("geneSymbol") String geneSymbol,
+                                          @Param("geneVariant") String geneVariant);
+
+    /**
+     * 一个节点的父级ID列表（一层）——en7 的 getParentMutationId
+     *
+     * @param mutationId 节点ID
+     * @return 父级节点ID列表
+     */
+    List<Long> selectParentMutationIds(@Param("mutationId") Long mutationId);
+
+    /**
+     * 子孙癌种展开：取这些癌种的直接子级（en7 getSonDiseaseList，Java 里递归）
+     *
+     * @param diseaseIds 当前层癌种ID
+     * @return 子级癌种ID列表
+     */
+    List<Long> selectChildDiseaseIds(@Param("diseaseIds") List<Long> diseaseIds);
+
+    /**
+     * 其他癌种「获批上市」（evidence_phase_id = 24）的药物证据；en7 会把它们**降格为 C 级**输出
+     *
+     * @param geneVariantIds 节点ID列表
+     * @param diseaseIds     本癌种范围（做 NOT IN）
+     * @param excludedIds    需要排除的癌种（性别/实体瘤·血液瘤剔除集合，可空）
+     * @param mutationType   突变类型
+     * @param limit          最多返回条数
+     * @return 证据列表
+     */
+    List<PreviewDrugVo> selectOtherApprovedDrugs(@Param("geneVariantIds") List<Long> geneVariantIds,
+                                                @Param("diseaseIds") List<Long> diseaseIds,
+                                                @Param("excludedIds") List<Long> excludedIds,
+                                                @Param("mutationType") String mutationType,
+                                                @Param("limit") int limit);
+
+    /**
+     * 某注释在给定癌种范围内「招募中」的临床试验数（en7 getClinicalNumber，用于 give 判定）
+     *
+     * @param annotationId 注释ID
+     * @param diseaseIds   父级癌种范围
+     * @return 数量
+     */
+    Integer selectRecruitingTrialCount(@Param("annotationId") Long annotationId,
+                                      @Param("diseaseIds") List<Long> diseaseIds);
 }

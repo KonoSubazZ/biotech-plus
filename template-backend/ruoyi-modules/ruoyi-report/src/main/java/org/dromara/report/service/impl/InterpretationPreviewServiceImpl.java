@@ -61,18 +61,12 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     private final InterpretationMapper interpretationMapper;
     private final NkbEvidenceMapper nkbEvidenceMapper;
     private final IInterpretationService interpretationService;
+    private final NkbDrugMatcher drugMatcher;
 
-    /** 癌种向上收敛的最大层数（MySQL 5.7 无递归 CTE，逐层查父级） */
-    private static final int MAX_DISEASE_DEPTH = 6;
-
-    /** 药物证据单次最多返回条数 */
-    private static final int MAX_EVIDENCE = 30;
+    private final NkbDiseaseScopeResolver diseaseScopeResolver;
 
     private static final Map<Integer, String> SIGNIFICANCE_LABEL = Map.of(
         1, "致病", 2, "可能致病", 3, "未知临床意义", 4, "可能良性", 5, "良性");
-
-    /** 胚系临床意义 → NKB 的 Class 口径（NKB 用 gene_variant='Class5(致病)' 表示胚系致病性） */
-    private static final Map<Integer, String> SIGNIFICANCE_CLASS = Map.of(1, "Class5", 2, "Class4");
 
     /** 圣域个性化模块编码（对齐设计书 7.7） */
     private static final String MODULE_SHENGYU_SOMATIC = "SHENGYU_SOMATIC_VARIANTS_V1";
@@ -137,12 +131,23 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         // 必须带上人工父级：它参与匹配键，漏了会把改靶后的确认写到旧键上（实测踩到）
         item.setParentMutationId(asLong(row.get("parentMutationId")));
         item.setMutationType("G");
-        // 人工确认会改变致病性档位 → 按新档位的 Class 重新匹配证据，并冻结回同一条历史
-        String classPrefix = SIGNIFICANCE_CLASS.get(significance);
-        List<PreviewDrugVo> evidence = queryEvidence(pc, item, classPrefix);
+        // 临床意义是人工确认项，不参与节点匹配（en7 无 Class 口径）：
+        // 重新跑一次 en7 匹配把当前证据重新冻结，避免历史里留旧知识库结果
+        NkbDrugMatcher.MatchResult matched = drugMatcher.match(item.getGene(), item.getVariant(),
+            item.getOriVariant(), true, pc.getDiseaseScope());
+        List<PreviewDrugVo> evidence = matched.getEvidence() == null ? List.of() : matched.getEvidence();
+        Map<String, Object> frozen = new LinkedHashMap<>();
+        frozen.put("inNkb", matched.getInNkb());
+        frozen.put("matchedNode", matched.getMatchedNode());
+        frozen.put("effectText", matched.getEffectText());
+        frozen.put("variationClass", matched.getVariationClass());
+        frozen.put("description", matched.getDescription());
+        frozen.put("evidence", evidence);
+        frozen.put("drugGroups", matched.getDrugGroups());
+        frozen.put("drugAuditList", matched.getDrugAuditList());
         String status = evidence.isEmpty() ? "NOT_MATCHED" : "MATCHED";
         int affected = interpretationMapper.updateGermlineSignificance(matchKey(pc, item), significance,
-            toJson(evidence), status, clsPrefixLabel(classPrefix));
+            toJson(frozen), status, matched.getVariationClass());
         if (affected == 0) {
             throw new ServiceException("该位点还没有匹配历史，请先预览一次再确认临床意义");
         }
@@ -178,9 +183,12 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         String disease = firstNonBlank(asString(report.get("disease")), asString(report.get("cancerType")),
             lims.getCancerType(), "未知癌种");
         Long productId = asLong(report.get("productId"));
+        String gender = normalizeGender(lims.getGender());
         Map<String, Long> diseaseIdByName = new LinkedHashMap<>();
-        List<Long> diseaseIds = resolveDiseaseScope(disease, diseaseIdByName);
-        Long diseaseId = diseaseIdByName.get(disease);
+        Long diseaseId = resolveDiseaseId(disease, diseaseIdByName);
+        // 癌种范围：本癌种 + 祖先 + 子孙，并按性别/实体瘤·血液瘤剔除（en7 getDiseaseList + solidTumorFiltration）
+        NkbDiseaseScopeResolver.DiseaseScope diseaseScope = diseaseScopeResolver.resolve(diseaseId, gender);
+        List<Long> diseaseIds = diseaseScope.diseaseIds();
 
         // 客户：LIMS 医院名优先；缺失时用分析粒度占位（避免未知客户跨样本串用同一条历史）
         String customer = firstNonBlank(lims.getHospitalName(),
@@ -196,7 +204,8 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         pc.setDisease(disease);
         pc.setDiseaseId(diseaseId);
         pc.setDiseaseIds(diseaseIds);
-        pc.setGender(normalizeGender(lims.getGender()));
+        pc.setDiseaseScope(diseaseScope);
+        pc.setGender(gender);
         pc.setCustomer(customer);
         pc.setProjectCode(firstNonBlank(asString(report.get("product")), ""));
         pc.setProductGenes(productId == null ? List.of() : interpretationMapper.selectProductGeneSymbols(productId));
@@ -204,29 +213,16 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         return pc;
     }
 
-    /** 癌种 + 全部父级 ID（逐层向上，直到没有新父级） */
-    private List<Long> resolveDiseaseScope(String disease, Map<String, Long> diseaseIdByName) {
+    /** 癌种解析：只取 NKB do_id（范围展开交给 {@link NkbDiseaseScopeResolver}） */
+    private Long resolveDiseaseId(String disease, Map<String, Long> diseaseIdByName) {
         Map<String, Object> hit = nkb(() -> nkbEvidenceMapper.selectDiseaseByName(disease));
-        if (hit == null) {
-            return List.of();
+        Long rootId = null;
+        if (hit != null) {
+            rootId = asLong(hit.get("diseaseId"));
+            diseaseIdByName.put(disease, rootId);
         }
-        Long rootId = asLong(hit.get("diseaseId"));
-        diseaseIdByName.put(disease, rootId);
-        List<Long> scope = new ArrayList<>(List.of(rootId));
-        List<Long> current = List.of(rootId);
-        for (int depth = 0; depth < MAX_DISEASE_DEPTH; depth++) {
-            if (current.isEmpty()) {
-                break;
-            }
-            // lambda 捕获的必须是 final：把当前层拷一份
-            List<Long> layer = current;
-            List<Long> parents = nkb(() -> nkbEvidenceMapper.selectParentDiseaseIds(layer));
-            List<Long> fresh = parents == null ? List.of()
-                : parents.stream().filter(id -> id != null && !scope.contains(id)).toList();
-            scope.addAll(fresh);
-            current = fresh;
-        }
-        return scope;
+        // 允许 null：癌种没配到知识库时按空范围处理（预览仍出「无证据」）
+        return rootId;
     }
 
     // ---------------------------------------------------------------- 匹配
@@ -238,7 +234,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             item.setMutationType(mutationTypeCode(item.getSourceType(), asString(row.get("mutationTypeRaw"))));
             item.setFrequency(asString(row.get("frequency")));
             item.setDepth(asString(row.get("depth")));
-            matchWithHistory(pc, item, null, null);
+            matchWithHistory(pc, item, null);
             items.add(item);
         }
         return items;
@@ -257,7 +253,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             Integer significance = resolveSignificance(pc, item);
             item.setClinicalSignificance(significance);
             item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(significance));
-            matchWithHistory(pc, item, significance, SIGNIFICANCE_CLASS.get(significance));
+            matchWithHistory(pc, item, significance);
             items.add(item);
         }
         return items;
@@ -268,55 +264,70 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
      *
      * @param item             位点（已填好 gene/variant/oriVariant/mutationType）
      * @param significance     胚系临床意义（体细胞传 null）
-     * @param classPrefix      胚系按 Class 匹配的前缀（体细胞传 null）
      */
-    private void matchWithHistory(PreviewContext pc, PreviewVariantVo item, Integer significance, String classPrefix) {
+    private void matchWithHistory(PreviewContext pc, PreviewVariantVo item, Integer significance) {
         String matchKey = matchKey(pc, item);
         boolean germline = "CR_ALL".equals(item.getSourceType());
         Map<String, Object> history = germline
             ? interpretationMapper.selectGermlineHistory(matchKey)
             : interpretationMapper.selectSomaticHistory(matchKey);
-        if (history != null) {
+        NkbDrugMatcher.MatchResult frozen = history == null ? null
+            : parseMatchResult(asString(history.get("match_result")));
+        if (history != null && frozen != null) {
+            // 结构可解析：按设计书复用冻结结果（知识库更新不刷新历史）
             item.setFromHistory(true);
+            applyMatchResult(item, frozen);
             item.setMatchStatus(asString(history.get("match_status")));
             item.setVariationClass(asString(history.get("variation_class")));
-            item.setDrugMatch(parseDrugMatch(asString(history.get("match_result"))));
             if (germline && history.get("clinical_significance") != null) {
-                Integer frozen = asInt(history.get("clinical_significance"));
-                item.setClinicalSignificance(frozen);
-                item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(frozen));
+                Integer clinical = asInt(history.get("clinical_significance"));
+                item.setClinicalSignificance(clinical);
+                item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(clinical));
             }
             return;
         }
 
-        List<PreviewDrugVo> evidence = queryEvidence(pc, item, classPrefix);
-        item.setFromHistory(false);
-        item.setDrugMatch(evidence);
-        item.setMatchStatus(evidence.isEmpty() ? "NOT_MATCHED" : "MATCHED");
-        item.setVariationClass(clsPrefixLabel(classPrefix));
+        // 首次匹配（或历史是旧结构）：走 en7 口径（节点四级兜底 + 自身/父级节点 + 癌种范围 + 证据过滤 + 分级）
+        NkbDrugMatcher.MatchResult matched = drugMatcher.match(item.getGene(), item.getVariant(), item.getOriVariant(),
+            germline, pc.getDiseaseScope());
+        applyMatchResult(item, matched);
+        if (history != null) {
+            // 旧结构：覆盖同一条历史，保持「一个 match_key 一条记录」
+            interpretationMapper.refreshHistory(matchKey, item.getMatchStatus(), item.getVariationClass(),
+                toJson(frozenResult(item)), germline);
+            return;
+        }
         insertHistory(pc, item, matchKey, significance);
     }
 
-    /** 查 NKB：基因 → gene_variant（精确位点或 Class 口径）→ 药物证据（癌种范围过滤） */
-    private List<PreviewDrugVo> queryEvidence(PreviewContext pc, PreviewVariantVo item, String classPrefix) {
-        if (!StringUtils.hasText(item.getGene())) {
-            return List.of();
+    /** 冻结结构（与 insertHistory 写入的 match_result 保持一致） */
+    private Map<String, Object> frozenResult(PreviewVariantVo item) {
+        Map<String, Object> frozen = new LinkedHashMap<>();
+        frozen.put("inNkb", item.getInNkb());
+        frozen.put("matchedNode", item.getMatchedNode());
+        frozen.put("effectText", item.getEffectText());
+        frozen.put("variationClass", item.getVariationClass());
+        frozen.put("description", item.getDescription());
+        frozen.put("evidence", item.getDrugMatch());
+        frozen.put("drugGroups", item.getDrugGroups());
+        frozen.put("drugAuditList", item.getDrugAuditList());
+        return frozen;
+    }
+
+    /** 把匹配结果落到位点行（首次匹配与历史复用共用的字段集合） */
+    private void applyMatchResult(PreviewVariantVo item, NkbDrugMatcher.MatchResult matched) {
+        item.setInNkb(Boolean.TRUE.equals(matched.getInNkb()));
+        item.setMatchedNode(matched.getMatchedNode());
+        item.setEffectText(matched.getEffectText());
+        List<PreviewDrugVo> evidence = matched.getEvidence() == null ? List.of() : matched.getEvidence();
+        item.setDrugMatch(evidence);
+        item.setDrugGroups(matched.getDrugGroups());
+        item.setDrugAuditList(matched.getDrugAuditList());
+        item.setMatchStatus(evidence.isEmpty() ? "NOT_MATCHED" : "MATCHED");
+        item.setVariationClass(matched.getVariationClass());
+        if (StringUtils.hasText(matched.getDescription())) {
+            item.setDescription(matched.getDescription());
         }
-        Map<String, Object> gene = nkb(() -> nkbEvidenceMapper.selectGeneBySymbol(item.getGene()));
-        if (gene == null) {
-            return List.of();
-        }
-        Long geneId = asLong(gene.get("geneId"));
-        List<Long> geneVariantIds = StringUtils.hasText(classPrefix)
-            ? nkb(() -> nkbEvidenceMapper.selectGeneVariantIdsByClass(geneId, classPrefix))
-            : nkb(() -> nkbEvidenceMapper.selectGeneVariantIdsByVariant(geneId, item.getVariant(),
-                item.getOriVariant()));
-        if (geneVariantIds == null || geneVariantIds.isEmpty()) {
-            return List.of();
-        }
-        List<PreviewDrugVo> evidence = nkb(() -> nkbEvidenceMapper.selectDrugAnnotations(
-            geneVariantIds, pc.getDiseaseIds(), MAX_EVIDENCE));
-        return evidence == null ? List.of() : evidence;
     }
 
     /** 胚系临床意义：历史已有 → 用它；否则从同条件最近一条继承；再否则默认 3（未知临床意义） */
@@ -354,7 +365,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         history.put("parentMutationId", item.getParentMutationId());
         history.put("matchStatus", item.getMatchStatus());
         history.put("variationClass", item.getVariationClass());
-        history.put("matchResult", toJson(item.getDrugMatch()));
+        history.put("matchResult", toJson(frozenResult(item)));
         history.put("sourceAnalysisId", pc.getAnalysisId());
         history.put("sourceReportId", pc.getReportId());
         history.put("sourceVariantId", item.getSourceId());

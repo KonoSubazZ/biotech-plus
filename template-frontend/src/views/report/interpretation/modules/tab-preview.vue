@@ -22,6 +22,29 @@ const props = defineProps<Props>();
 
 const { hasAuth } = useAuth();
 
+/** en7 药物等级分组键与中文标签（1-4 获益 A-D，5-8 耐药 A-D） */
+const GROUP_KEYS = [
+  'drugsA',
+  'drugsB',
+  'drugsC',
+  'drugsD',
+  'resistantDrugsA',
+  'resistantDrugsB',
+  'resistantDrugsC',
+  'resistantDrugsD'
+];
+
+const GROUP_LABELS: Record<string, string> = {
+  drugsA: '获益A级',
+  drugsB: '获益B级',
+  drugsC: '获益C级',
+  drugsD: '获益D级',
+  resistantDrugsA: '耐药A级',
+  resistantDrugsB: '耐药B级',
+  resistantDrugsC: '耐药C级',
+  resistantDrugsD: '耐药D级'
+};
+
 /** 五级临床意义（固定口径，见设计书 4.8） */
 const SIGNIFICANCE_OPTIONS = [
   { label: '1 致病', value: 1 },
@@ -226,36 +249,66 @@ function targetColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
   };
 }
 
-/** 展开行：证据列表（药物/癌种/等级/关系/说明） */
+/** 展开行：en7 口径的证据展示（分级名串 + 明细全保留） */
 function renderEvidence(row: Api.Report.PreviewVariant) {
-  if (!row.drugMatch || row.drugMatch.length === 0) {
-    return (
-      <div class="px-16px py-12px text-13px op-60">
-        该位点在当前癌种（含父级癌种）下没有查到药物证据
-        {row.variationClass ? `；变异分类：${row.variationClass}` : ''}
-      </div>
-    );
-  }
+  const groups = row.drugGroups ?? {};
+  const groupItems = GROUP_KEYS.filter(key => groups[key]);
+  const evidence = row.drugMatch ?? [];
+
   return (
     <div class="px-16px py-12px">
-      <div class="mb-8px text-13px font-medium">
-        药物证据 {row.drugMatch.length} 条
-        {row.variationClass ? ` · 变异分类 ${row.variationClass}` : ''}
+      <div class="mb-8px flex flex-wrap items-center gap-8px text-13px">
+        <span class="font-medium">知识库命中</span>
+        <NTag size="small" type={row.inNkb ? 'success' : 'default'}>
+          {row.matchedNode ?? '未收录'}
+        </NTag>
+        {row.effectText ? <NTag size="small" type="warning">{row.effectText}</NTag> : null}
+        <span class="op-60">位点分级</span>
+        <NTag size="small" type={row.variationClass === 'I类' ? 'error' : 'info'}>
+          {row.variationClass ?? '-'}
+        </NTag>
+        {evidence.length ? <span class="op-60">证据 {evidence.length} 条</span> : null}
       </div>
-      <div class="flex-col gap-8px">
-        {row.drugMatch.map((drug, index) => (
-          <div key={index} class="rounded bg-#f5f7fa p-10px">
-            <div class="mb-4px flex items-center gap-8px">
-              <span class="font-medium">{drug.drugName ?? '-'}</span>
-              <span class="text-12px op-60">{drug.disease ?? '-'}</span>
-              {drug.evidenceType ? <NTag size="small">{drug.evidenceType}</NTag> : null}
-              {drug.evidenceRanking ? <NTag size="small" type="info">{drug.evidenceRanking}</NTag> : null}
-              {drug.relationship ? <NTag size="small" type="warning">{drug.relationship}</NTag> : null}
-            </div>
-            <div class="text-12px leading-20px op-80">{drug.annotation ?? drug.comment ?? '-'}</div>
-          </div>
-        ))}
+
+      {row.description ? <div class="mb-8px text-12px op-70">说明：{row.description}</div> : null}
+
+      {groupItems.length ? (
+        <div class="mb-10px flex flex-wrap items-center gap-8px text-12px">
+          {groupItems.map(key => (
+            <span key={key} class="rounded bg-#f5f7fa px-8px py-2px">
+              {GROUP_LABELS[key]}：{groups[key]}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {evidence.length === 0 ? (
+        <div class="text-13px op-60">
+          该位点在当前癌种范围（本癌种 + 祖先 + 子孙）内没有可用药物证据
+        </div>
+      ) : (
+        <div class="flex-col gap-8px">{evidence.map((drug, index) => renderDrugCard(drug, index))}</div>
+      )}
+    </div>
+  );
+}
+
+/** 单条证据卡片（药物 × 等级 × 证据癌种，全量保留） */
+function renderDrugCard(drug: Api.Report.PreviewDrug, index: number) {
+  return (
+    <div key={index} class="rounded bg-#f5f7fa p-10px">
+      <div class="mb-4px flex flex-wrap items-center gap-8px">
+        <NTag size="small" type={drug.relation === 'RESISTANT' ? 'error' : 'success'}>
+          {drug.levelName ?? '-'} 级
+        </NTag>
+        <span class="font-medium">{drug.drugName ?? '-'}</span>
+        <span class="text-12px op-60">{drug.disease ?? '-'}</span>
+        {drug.evidencePhase ? <NTag size="small">{drug.evidencePhase}</NTag> : null}
+        {drug.relationship ? <NTag size="small" type="info">{drug.relationship}</NTag> : null}
+        {drug.fromOtherCancer ? <NTag size="small" type="warning">其他癌种获批</NTag> : null}
+        <span class="text-12px op-50">命中节点 {drug.nodeName ?? '-'}</span>
       </div>
+      <div class="text-12px leading-20px op-80">{drug.annotation ?? drug.comment ?? '-'}</div>
     </div>
   );
 }

@@ -251,16 +251,36 @@ declare namespace Api {
       pageSize: number;
     }> & { analysisId: number; params?: Record<string, unknown> };
 
-    /** 报告预览：单条药物证据 */
+    /** 报告预览：单条药物证据（对齐 report_en7 的 evidence 行） */
     interface PreviewDrug {
+      annotationId: number | null;
+      drugId: number | null;
+      /** 命中的知识库节点ID */
+      mutationId: number | null;
+      /** 命中的节点名（V559D / Exon11 Mutation / Active Mutation / Inactive Mutation） */
+      nodeName: string | null;
+      /** 是否来自「其他癌种获批药」（en7 会降格为 C 级） */
+      fromOtherCancer: boolean | null;
       drugName: string | null;
       drugNameEn: string | null;
+      diseaseId: number | null;
       disease: string | null;
+      relationship: string | null;
+      /** BENEFIT / RESISTANT */
+      relation: string | null;
       directTarget: string | null;
       evidenceType: string | null;
-      evidenceRanking: string | null;
       evidencePhase: string | null;
-      relationship: string | null;
+      evidencePhaseId: number | null;
+      evidenceRanking: string | null;
+      /** 等级码 1-8（获益A-D / 耐药A-D），9 = 其他（不输出） */
+      approveRange: number | null;
+      /** 等级名 A/B/C/D */
+      levelName: string | null;
+      give: string | null;
+      otherTestRequired: string | null;
+      hasPreviousClinicalResult: string | null;
+      approvingAgency: string | null;
       annotation: string | null;
       comment: string | null;
     }
@@ -285,7 +305,20 @@ declare namespace Api {
       /** 文件里的原始判定（CLNSIG） */
       sourceClnsig: string | null;
       classificationLovd: string | null;
+      /** 证据明细（全量保留：药物 × 等级 × 证据癌种） */
       drugMatch: PreviewDrug[];
+      /** 按等级分组的药物名串（drugsA..D / resistantDrugsA..D），去重键=药名+癌种 */
+      drugGroups: Record<string, string | null> | null;
+      /** 审核列表（{drug, relation, level, evidenceDiseaseId, evidenceDiseaseName, matchedNode}） */
+      drugAuditList: Record<string, unknown>[] | null;
+      /** 是否在知识库中命中节点 */
+      inNkb: boolean | null;
+      /** 命中的知识库节点名（父级时能看到 Active Mutation 等） */
+      matchedNode: string | null;
+      /** 知识库功能判定：激活/失活/未知/无影响 */
+      effectText: string | null;
+      /** 位点用药说明（失活/扩增/缺失/未明四段模板） */
+      description: string | null;
     }
 
     /** 报告预览：一个分节 */

@@ -83,13 +83,6 @@ final class PreviewSupport {
         return "S";
     }
 
-    static String clsPrefixLabel(String classPrefix) {
-        if ("Class5".equals(classPrefix)) {
-            return "Class5(致病)";
-        }
-        return "Class4".equals(classPrefix) ? "Class4(疑似致病)" : null;
-    }
-
     static String normalizeGender(String gender) {
         if (gender == null) {
             return "UNKNOWN";
@@ -117,16 +110,52 @@ final class PreviewSupport {
         }
     }
 
-    static List<PreviewDrugVo> parseDrugMatch(String json) {
+    /**
+     * 反序列化冻结的匹配结果（en7 口径下含 evidence / drugGroups / drugAuditList 等）。
+     * <p>
+     * 返回 {@code null} 表示这条冻结结果**不是当前结构**（例如旧规则时代写下的纯数组），
+     * 调用方应按最新规则重算并覆盖同一条历史，避免旧规则结果长期生效。
+     */
+    @SuppressWarnings("unchecked")
+    static NkbDrugMatcher.MatchResult parseMatchResult(String json) {
+        NkbDrugMatcher.MatchResult result = null;
         if (!StringUtils.hasText(json)) {
-            return List.of();
+            return result;
         }
         try {
-            return JSON.readValue(json, new TypeReference<List<PreviewDrugVo>>() {});
+            Map<String, Object> frozen = JSON.readValue(json, new TypeReference<Map<String, Object>>() {});
+            if (!frozen.containsKey("inNkb")) {
+                // 旧结构（纯数组）：交给调用方按最新规则重算并覆盖
+                log.warn("冻结的匹配结果是旧结构，需要按最新规则重算：{}", json.substring(0, Math.min(json.length(), 80)));
+                return result;
+            }
+            result = new NkbDrugMatcher.MatchResult();
+            result.setEvidence(new ArrayList<>());
+            result.setDrugGroups(new LinkedHashMap<>());
+            result.setDrugAuditList(new ArrayList<>());
+            result.setInNkb((Boolean) frozen.get("inNkb"));
+            result.setMatchedNode((String) frozen.get("matchedNode"));
+            result.setEffectText((String) frozen.get("effectText"));
+            result.setVariationClass((String) frozen.get("variationClass"));
+            result.setDescription((String) frozen.get("description"));
+            Object evidence = frozen.get("evidence");
+            if (evidence != null) {
+                result.setEvidence(JSON.convertValue(evidence, new TypeReference<List<PreviewDrugVo>>() {}));
+            }
+            Object groups = frozen.get("drugGroups");
+            if (groups != null) {
+                result.setDrugGroups(JSON.convertValue(groups, new TypeReference<Map<String, String>>() {}));
+            }
+            Object audit = frozen.get("drugAuditList");
+            if (audit != null) {
+                result.setDrugAuditList(JSON.convertValue(audit, new TypeReference<List<Map<String, Object>>>() {}));
+            }
         } catch (Exception e) {
-            log.warn("预览匹配历史反序列化失败，按无证据处理", e);
-            return List.of();
+            // 反序列化失败同样按「旧结构」处理：置空让调用方重算
+            log.warn("预览匹配历史反序列化失败，需要按最新规则重算", e);
+            result = null;
         }
+        return result;
     }
 
     static String sha256(String raw) {

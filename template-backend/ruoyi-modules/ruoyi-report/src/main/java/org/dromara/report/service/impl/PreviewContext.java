@@ -30,6 +30,9 @@ class PreviewContext {
 
     private List<Long> diseaseIds;
 
+    /** 癌种范围（本癌种 + 祖先 + 子孙，已按性别/瘤种剔除） */
+    private NkbDiseaseScopeResolver.DiseaseScope diseaseScope;
+
     private String gender;
 
     private String customer;

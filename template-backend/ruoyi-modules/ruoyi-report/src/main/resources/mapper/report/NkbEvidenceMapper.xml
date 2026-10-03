@@ -53,18 +53,34 @@
         LIMIT 5
     </select>
 
-    <select id="selectDrugAnnotations" resultType="org.dromara.report.domain.vo.PreviewDrugVo">
+    <!--
+      evidence 行公共 SELECT（本癌种 / 其他癌种两条语句共用）。
+      过滤条件与 en7 视图 snkb_var_drug_anno_view 的 where 完全一致：
+        annotation Approved、relationship ∈ {1,4,6}、evidence_phase_id > 11、evidence_type_id = 2、
+        drug 未作废(≠3)、disease 已审核(=2)。
+    -->
+    <sql id="evidenceColumns">
         SELECT
-            d.drug_name_chinese        AS drugName,
-            d.drug_name                AS drugNameEn,
-            dis.disease_name_chinese   AS disease,
-            a.direct_target_or_not     AS directTarget,
-            et.evidence_type_chinese   AS evidenceType,
+            a.annotation_id             AS annotationId,
+            a.gene_variant_id           AS mutationId,
+            gv.gene_variant             AS nodeName,
+            a.drug_id                   AS drugId,
+            d.drug_name_chinese         AS drugName,
+            d.drug_name                 AS drugNameEn,
+            a.disease_id                AS diseaseId,
+            dis.disease_name_chinese    AS disease,
+            r.relationship_chinese      AS relationship,
+            a.direct_target_or_not      AS directTarget,
+            et.evidence_type_chinese    AS evidenceType,
+            ep.evidence_phase_chinese   AS evidencePhase,
+            a.evidence_phase_id         AS evidencePhaseId,
             er.evidence_ranking_chinese AS evidenceRanking,
-            ep.evidence_phase_chinese  AS evidencePhase,
-            r.relationship_chinese     AS relationship,
-            a.annotation_chinese       AS annotation,
-            a.comment                  AS comment
+            a.other_test_required       AS otherTestRequired,
+            a.has_previous_clinical_result AS hasPreviousClinicalResult,
+            a.annotation_chinese        AS annotation,
+            a.comment                   AS comment,
+            (SELECT ad.approving_agency FROM nkb.approved_drug ad
+              WHERE ad.drug_id = a.drug_id AND ad.disease_id = a.disease_id LIMIT 1) AS approvingAgency
         FROM nkb.variant_drug_annotation a
         JOIN nkb.gene_variant gv ON gv.gene_variant_id = a.gene_variant_id
         LEFT JOIN nkb.drug d ON d.drug_id = a.drug_id
@@ -73,14 +89,95 @@
         LEFT JOIN nkb.evidence_ranking er ON er.evidence_ranking_id = a.evidence_ranking_id
         LEFT JOIN nkb.evidence_phase ep ON ep.evidence_phase_id = a.evidence_phase_id
         LEFT JOIN nkb.relationship r ON r.relationship_id = a.relationship_id
-        WHERE a.gene_variant_id IN
-        <foreach collection="geneVariantIds" item="gvId" open="(" separator="," close=")">#{gvId}</foreach>
+    </sql>
+
+    <sql id="evidenceFilters">
+        a.checking_status_id = 2
+        AND a.relationship_id IN (1, 4, 6)
+        AND a.evidence_phase_id > 11
+        AND a.evidence_type_id = 2
+        AND IFNULL(d.checking_status_id, 0) != 3
+        AND dis.checking_status_id = 2
+        AND a.mutation_type IN (#{mutationType}, 'S/G')
+    </sql>
+
+    <select id="selectDrugAnnotations" resultType="org.dromara.report.domain.vo.PreviewDrugVo">
+        <include refid="evidenceColumns"/>
+        WHERE <include refid="evidenceFilters"/>
+          AND a.gene_variant_id IN
+          <foreach collection="geneVariantIds" item="gvId" open="(" separator="," close=")">#{gvId}</foreach>
         <if test="diseaseIds != null and diseaseIds.size() > 0">
             AND a.disease_id IN
             <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
         </if>
-        ORDER BY er.evidence_ranking_id, a.annotation_id
+        ORDER BY a.evidence_phase_id DESC, a.annotation_id
         LIMIT #{limit}
+    </select>
+
+    <!-- 其他癌种「获批上市」：phase_id = 24，癌种做 NOT IN（本癌种范围 + 剔除集合） -->
+    <select id="selectOtherApprovedDrugs" resultType="org.dromara.report.domain.vo.PreviewDrugVo">
+        <include refid="evidenceColumns"/>
+        WHERE <include refid="evidenceFilters"/>
+          AND a.evidence_phase_id = 24
+          AND a.gene_variant_id IN
+          <foreach collection="geneVariantIds" item="gvId" open="(" separator="," close=")">#{gvId}</foreach>
+        <if test="diseaseIds != null and diseaseIds.size() > 0">
+            AND a.disease_id NOT IN
+            <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+        </if>
+        <if test="excludedIds != null and excludedIds.size() > 0">
+            AND a.disease_id NOT IN
+            <foreach collection="excludedIds" item="eId" open="(" separator="," close=")">#{eId}</foreach>
+        </if>
+        ORDER BY a.evidence_phase_id DESC, a.annotation_id
+        LIMIT #{limit}
+    </select>
+
+    <!-- 位点节点 + effect + 父级名称（en7 gene_variant_evw 的等价自建版） -->
+    <select id="selectVariantNode" resultType="java.util.LinkedHashMap">
+        SELECT
+            gv.gene_variant_id AS mutationId,
+            gv.gene_variant    AS variantName,
+            gv.ori_variant     AS oriVariant,
+            e.effect_chinese   AS effectText,
+            (SELECT GROUP_CONCAT(pv.gene_variant ORDER BY pv.gene_variant_id SEPARATOR ',')
+               FROM nkb.gene_variant_parent p
+               JOIN nkb.gene_variant pv ON pv.gene_variant_id = p.parent_variant_id
+              WHERE p.gene_variant_id = gv.gene_variant_id) AS parentVariants
+        FROM nkb.gene_variant gv
+        JOIN nkb.ncbi_gene g ON g.gene_id = gv.gene_id
+        JOIN nkb.checking_status cs ON cs.status_id = gv.checking_status_id
+        LEFT JOIN nkb.effect e ON e.effect_id = gv.effect_id
+        WHERE g.gene_symbol = #{geneSymbol}
+          AND gv.gene_variant = #{geneVariant}
+          AND cs.checking_status = 'Approved'
+        LIMIT 1
+    </select>
+
+    <select id="selectParentMutationIds" resultType="java.lang.Long">
+        SELECT p.parent_variant_id
+        FROM nkb.gene_variant_parent p
+        WHERE p.gene_variant_id = #{mutationId}
+    </select>
+
+    <select id="selectChildDiseaseIds" resultType="java.lang.Long">
+        SELECT DISTINCT h.do_id
+        FROM nkb.disease_hierarchy h
+        WHERE h.is_a IN
+        <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+    </select>
+
+    <!-- give 判定：该注释在父级癌种范围内「招募中」的临床试验数（en7 getClinicalNumber 原文） -->
+    <select id="selectRecruitingTrialCount" resultType="java.lang.Integer">
+        SELECT COUNT(DISTINCT ct.clinical_trial_id)
+        FROM nkb.clinical_trial ct
+        WHERE (ct.recruiting_status = 'Recruiting' OR ct.recruiting_status = 'Enrolling by invitation')
+          AND ct.checking_status_id = 2
+          AND ct.clinical_trial_id IN
+              (SELECT t.clinical_trial_id FROM nkb.variant_drug_anno_trial t WHERE t.annotation_id = #{annotationId})
+          AND ct.clinical_trial_id NOT IN
+              (SELECT e.clinical_trial_id FROM nkb.clinical_trial_exclude_disease e WHERE e.disease_id IN
+              <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>)
     </select>
 
 </mapper>

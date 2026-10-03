@@ -376,6 +376,23 @@
         ORDER BY sourceId
     </select>
 
+    <update id="refreshHistory">
+        <choose>
+            <when test="germline">
+                UPDATE history_germline
+                SET match_status = #{matchStatus}, variation_class = #{variationClass},
+                    match_result = #{matchResult}, update_time = NOW()
+                WHERE match_key = #{matchKey} AND del_flag = '0'
+            </when>
+            <otherwise>
+                UPDATE history_somatic
+                SET match_status = #{matchStatus}, variation_class = #{variationClass},
+                    match_result = #{matchResult}, update_time = NOW()
+                WHERE match_key = #{matchKey} AND del_flag = '0'
+            </otherwise>
+        </choose>
+    </update>
+
     <update id="updateGermlineSignificance">
         UPDATE history_germline
         SET clinical_significance = #{clinicalSignificance},

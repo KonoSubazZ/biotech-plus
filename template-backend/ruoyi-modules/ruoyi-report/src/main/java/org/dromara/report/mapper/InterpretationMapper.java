@@ -157,6 +157,22 @@ public interface InterpretationMapper {
     int insertGermlineHistory(@Param("h") Map<String, Object> history);
 
     /**
+     * 用新规则结果覆盖已有历史（仅用于兼容旧格式冻结结果：老结构无法解析时按最新规则重算后覆盖同一条）
+     *
+     * @param matchKey       匹配键
+     * @param matchStatus    匹配状态
+     * @param variationClass 位点分级
+     * @param matchResult    冻结结果 JSON
+     * @param germline       是否胚系（决定写哪张表）
+     * @return 影响行数
+     */
+    int refreshHistory(@Param("matchKey") String matchKey,
+                       @Param("matchStatus") String matchStatus,
+                       @Param("variationClass") String variationClass,
+                       @Param("matchResult") String matchResult,
+                       @Param("germline") boolean germline);
+
+    /**
      * 胚系临床意义继承：同客户/产品/癌种/性别/位点/合子状态下最近一条（**故意忽略人工父级 parent_mutation_id**）
      *
      * @param q 查询条件
