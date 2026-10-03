@@ -39,6 +39,8 @@ declare module "@elegant-router/types" {
     "project_quality": "/project/quality";
     "project_quality_bioinfo": "/project/quality/bioinfo";
     "project_quality_wet-lab": "/project/quality/wet-lab";
+    "report": "/report";
+    "report_sample-info": "/report/sample-info";
     "social-callback": "/social-callback";
     "system": "/system";
     "system_client": "/system/client";
@@ -98,6 +100,7 @@ declare module "@elegant-router/types" {
     | "login"
     | "monitor"
     | "project"
+    | "report"
     | "social-callback"
     | "system"
     | "tool"
@@ -136,6 +139,7 @@ declare module "@elegant-router/types" {
     | "project_qc-standard"
     | "project_quality_bioinfo"
     | "project_quality_wet-lab"
+    | "report_sample-info"
     | "system_client"
     | "system_config"
     | "system_dict"

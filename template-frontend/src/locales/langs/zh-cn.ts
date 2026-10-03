@@ -276,6 +276,8 @@ const local: App.I18n.Schema = {
     'project_quality_bioinfo': '生信质控',
     'project_qc-standard': '质控标准',
     'project_product-config': '产品配置',
+    report: '报告管理',
+    'report_sample-info': '样本信息',
     system_user: '用户管理',
     system_role: '角色管理',
     system_menu: '菜单管理',

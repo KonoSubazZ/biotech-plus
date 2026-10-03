@@ -280,6 +280,8 @@ const local: App.I18n.Schema = {
     'project_quality_bioinfo': 'Bioinformatics QC',
     'project_qc-standard': 'QC Standard',
     'project_product-config': 'Product Config',
+    report: 'Report Management',
+    'report_sample-info': 'Sample Info',
     system_user: 'User Management',
     system_role: 'Role Management',
     system_menu: 'Menu Management',

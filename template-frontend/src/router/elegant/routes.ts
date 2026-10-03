@@ -191,6 +191,26 @@ export const generatedRoutes: GeneratedRoute[] = [
     ]
   },
   {
+    name: 'report',
+    path: '/report',
+    component: 'layout.base',
+    meta: {
+      title: 'report',
+      i18nKey: 'route.report'
+    },
+    children: [
+      {
+        name: 'report_sample-info',
+        path: '/report/sample-info',
+        component: 'view.report_sample-info',
+        meta: {
+          title: 'report_sample-info',
+          i18nKey: 'route.report_sample-info'
+        }
+      }
+    ]
+  },
+  {
     name: 'social-callback',
     path: '/social-callback',
     component: 'layout.blank$view.social-callback',
