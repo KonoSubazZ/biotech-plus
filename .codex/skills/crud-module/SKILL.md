@@ -292,6 +292,43 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
     - 列表 columns 把全部列都放进去（靠右上角「列设置」关掉），列顺序保持源表顺序。
 23. **导入模板的表头直接用源表列名**（`@ExcelProperty(value = "BARCODE", index = 1)`）：
     这样从源系统导出的表格可以原样导入，不用先改名；读的时候仍按 `index`，表头被改也能读对。
+24. **搜索栏按钮要贴行最右**（一行放不下就另起一行仍贴右）—— 完整做法与两个实测坑见「搜索栏布局契约」章节，别用 NGrid 最后一格放按钮。
+
+## 搜索栏布局契约（search 组件，2026-10 用户定稿）
+
+**规则：查询 / 重置等操作按钮放在「一行的最右边」；一行放不下时就另起一行，仍然贴最右边。**
+
+照抄这段（两种情形都实测过：宽屏按钮与搜索项同一行靠右；搜索项占满整行时按钮另起一行靠右）：
+
+```vue
+<NForm ref="formRef" :model="model" label-placement="left" :label-width="90">
+  <!-- 搜索项用 flex-wrap + 每项固定宽度；按钮组 ml-auto 自动贴行尾，换行后仍贴右 -->
+  <div class="flex flex-wrap items-start">
+    <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="样本编号" path="barcode">
+      <NInput v-model:value="model.barcode" placeholder="请输入样本编号" clearable />
+    </NFormItem>
+    <!-- …其余搜索项同样一行一个… -->
+    <NFormItem class="ml-auto" :show-feedback="false">
+      <NSpace :size="16">
+        <NButton @click="reset">重置</NButton>
+        <NButton type="primary" ghost @click="search">搜索</NButton>
+      </NSpace>
+    </NFormItem>
+  </div>
+</NForm>
+```
+
+要点 / 都是实测踩过的：
+
+- **不要用 `NGrid` + 最后一个 `NFormItemGi` 放按钮**：那一格的 `justify="end"` 只在**自己的格子内**靠右，
+  字段数不是列数整数倍时按钮会悬在行中间（实测：6 个搜索项按 `span="24 s:12 m:8"` 排，按钮落在第三行中段）。
+- **搜索项宽度用百分比时配 `pr-24px`，不要用 `gap-x-24px`**：宽度是容器的百分比，再加 gap 就超过 100%，
+  每行会少放一个（实测 1680px 下 `w-1/3` + `gap-x-24px` 变成每行 2 个；改成 `pr-24px` 后正常 3 个）。
+- 按钮组也包在 `NFormItem` 里（`ml-auto` + `:show-feedback="false"`），跟搜索项同高、同一套间距；
+  用裸 `div` 会和输入框错位。
+- **验收（用户视角，两条都要过）**：量「搜索按钮右边缘 → 卡片右边缘」的距离，应等于卡片内边距（本项目 16px）；
+  再把窗口缩到搜索项换行（如 1040px）重复量一次。只看接口/只看 DOM 不算过。
+
 
 ## 真机联调与 UI 验收（本地栈，2026-10 实测）
 
