@@ -188,7 +188,11 @@ final class PreviewSupport {
     );
 
     /**
-     * 类型列展示值：`{体系/胚系}|{变异类别}|{DNA或RNA}`（核酸类型仅融合行有）
+     * 类型列展示值（用户口径）
+     * <ul>
+     *   <li>胚系（肿瘤遗传风险）统一为 `G`</li>
+     *   <li>体细胞为 `S_{变异类别}_{核酸类型}`，如 `S_Indel_DNA`；融合按 tag 判 DNA/RNA（`S_Somatic_RNA`）</li>
+     * </ul>
      *
      * @param sourceType    来源表（SNP_INDEL / CNV / FUSION / CR_ALL）
      * @param germline      是否胚系
@@ -196,12 +200,12 @@ final class PreviewSupport {
      * @return 展示值
      */
     static String typeText(String sourceType, boolean germline, String fusionQuality) {
-        StringBuilder sb = new StringBuilder(germline ? "G" : "S");
-        sb.append('|').append(VARIANT_KIND.getOrDefault(sourceType, sourceType));
-        if ("FUSION".equals(sourceType)) {
-            sb.append('|').append(nucleicAcid(fusionQuality));
+        if (germline) {
+            return "G";
         }
-        return sb.toString();
+        String kind = VARIANT_KIND.getOrDefault(sourceType, sourceType);
+        String nucleic = "FUSION".equals(sourceType) ? nucleicAcid(fusionQuality) : "DNA";
+        return String.join("_", "S", kind, nucleic);
     }
 
     /** 融合的核酸类型：fusion_quality 含 DNA → DNA；否则按 en7 口径视为 RNA */

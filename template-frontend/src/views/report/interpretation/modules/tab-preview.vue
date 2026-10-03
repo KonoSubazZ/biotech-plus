@@ -150,7 +150,7 @@ function baseColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
     { key: 'gene', title: '基因', align: 'center', width: 110, render: row => row.gene ?? '-' },
     { key: 'variant', title: '变异', align: 'center', width: 150, render: row => row.variant ?? '-' },
     // 类型：体系|变异类别|核酸类型（核酸类型只有融合有，由后端 typeText 组装）
-    { key: 'mutationType', title: '类型', align: 'center', width: 130, render: row => row.typeText ?? '-' },
+    { key: 'mutationType', title: '类型', align: 'center', width: 150, render: row => row.typeText ?? '-' },
     {
       key: 'oriVariant',
       title: '原始位点',
@@ -164,9 +164,9 @@ function baseColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
   ];
 }
 
-/** 体细胞列 = 公共列 + 操作 */
+/** 体细胞列 = 公共列 + 位点等级 + 操作 */
 function buildSomaticColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [...baseColumns(), operateColumn()];
+  return [...baseColumns(), variationLevelColumn(), operateColumn()];
 }
 
 /** 胚系列 = 公共列 + 合子/临床意义/文件判定 + 操作 */
@@ -197,8 +197,24 @@ function buildGermlineColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[
       width: 130,
       render: row => row.sourceClnsig ?? row.classificationLovd ?? '-'
     },
+    variationLevelColumn(),
     operateColumn()
   ];
+}
+
+/** 位点等级列：I / II / III（来自匹配结果的 variationClass，去掉「类」字） */
+function variationLevelColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
+  return {
+    key: 'variationLevel',
+    title: '位点等级',
+    align: 'center',
+    width: 100,
+    render: row => {
+      const short = row.variationClass ? row.variationClass.replace('类', '') : null;
+      // 等级是「类别」不是「状态」：按配色契约用中性色，不借用绿/黄/红
+      return short ? <NTag size="small">{short}</NTag> : <>-</>;
+    }
+  };
 }
 
 /**
@@ -356,9 +372,7 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
           </NTag>
           <NTag v-if="detailRow.effectText" size="small" type="warning">{{ detailRow.effectText }}</NTag>
           <span class="op-60">位点分级</span>
-          <NTag size="small" :type="detailRow.variationClass === 'I类' ? 'error' : 'info'">
-            {{ detailRow.variationClass ?? '-' }}
-          </NTag>
+          <NTag size="small">{{ detailRow.variationClass ?? '-' }}</NTag>
           <span v-if="detailRow.drugMatch?.length" class="op-60">证据 {{ detailRow.drugMatch.length }} 条</span>
         </div>
 
