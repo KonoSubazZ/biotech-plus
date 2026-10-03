@@ -1,7 +1,10 @@
 <script setup lang="tsx">
 import { ref, watch } from 'vue';
 import { NTag } from 'naive-ui';
-import { fetchGetInterpretationFileList } from '@/service/api/report/interpretation';
+import {
+  fetchGetInterpretationFileContent,
+  fetchGetInterpretationFileList
+} from '@/service/api/report/interpretation';
 import { useNaiveForm } from '@/hooks/common/form';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
@@ -69,7 +72,18 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       },
       { key: 'analysisDate', title: '分析日期', align: 'center', width: 110 },
       { key: 'fileType', title: '文件类型', align: 'center', width: 120 },
-      { key: 'mutNum', title: '文件内容数', align: 'center', width: 110 },
+      {
+        key: 'fileContent',
+        title: '文件内容',
+        align: 'center',
+        width: 100,
+        // 点这一格查看文件正文（操作列按需求仍留空）
+        render: row => (
+          <NButton text type="primary" onClick={() => handleView(row.fileId, row.fileName ?? '')}>
+            查看
+          </NButton>
+        )
+      },
       {
         key: 'status',
         title: '状态',
@@ -96,6 +110,28 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
     ]
   });
 
+/** 文件内容弹窗 */
+const contentVisible = ref(false);
+const contentLoading = ref(false);
+const content = ref<Api.Report.InterpretationFileContent | null>(null);
+
+async function handleView(fileId: number, fileName: string) {
+  contentVisible.value = true;
+  contentLoading.value = true;
+  content.value = { fileId, fileName, fileType: null, fileText: null, truncated: null, textLength: null };
+  try {
+    const { data: detail, error } = await fetchGetInterpretationFileContent({
+      fileId,
+      analysisId: props.analysisId
+    });
+    if (!error) {
+      content.value = detail;
+    }
+  } finally {
+    contentLoading.value = false;
+  }
+}
+
 async function search() {
   await validate();
   getDataByPage();
@@ -103,7 +139,6 @@ async function search() {
 
 async function reset() {
   await restoreValidation();
-  searchParams.value.fileName = null;
   searchParams.value.fileType = null;
   searchParams.value.status = null;
   getDataByPage();
@@ -125,13 +160,10 @@ watch(
   <div class="flex-col-stretch gap-12px">
     <NForm ref="formRef" :model="searchParams" label-placement="left" :label-width="80">
       <div class="flex flex-wrap items-start">
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/4" label="文件名" path="fileName">
-          <NInput v-model:value="searchParams.fileName" placeholder="请输入文件名" clearable />
-        </NFormItem>
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/4" label="文件类型" path="fileType">
+        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="文件类型" path="fileType">
           <NInput v-model:value="searchParams.fileType" placeholder="如 SNP / Indel / CNV / Fusion" clearable />
         </NFormItem>
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/4" label="状态" path="status">
+        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="状态" path="status">
           <NSelect
             v-model:value="searchParams.status"
             :options="FILE_STATUS_OPTIONS"
@@ -169,6 +201,23 @@ watch(
       remote
       size="small"
     />
+
+    <NModal
+      v-model:show="contentVisible"
+      preset="card"
+      :title="`文件内容：${content?.fileName ?? ''}`"
+      class="w-90vw max-w-1400px"
+      :bordered="false"
+    >
+      <NSpin :show="contentLoading">
+        <NAlert v-if="content?.truncated" type="warning" :bordered="false" class="mb-12px">
+          内容过长（共 {{ content.textLength }} 字符），已截断显示前 200000 字符。
+        </NAlert>
+        <pre class="max-h-70vh overflow-auto whitespace-pre-wrap break-all rounded bg-#f5f7fa p-12px text-12px">{{
+          content?.fileText ?? '（空内容）'
+        }}</pre>
+      </NSpin>
+    </NModal>
   </div>
 </template>
 
