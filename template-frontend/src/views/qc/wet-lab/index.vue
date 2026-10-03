@@ -2,7 +2,7 @@
 import QcRecordPage from '../modules/qc-record-page.vue';
 
 defineOptions({
-  name: 'ProjectQualityWetLab'
+  name: 'QcWetLab'
 });
 </script>
 

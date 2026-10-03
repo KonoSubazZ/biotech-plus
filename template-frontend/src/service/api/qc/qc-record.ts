@@ -3,7 +3,7 @@ import { request } from '@/service/request';
 /**
  * 质控记录接口层
  * <p>
- * 湿实验质控（/project/quality/wet-lab）与生信质控（/project/quality/bioinfo）共用本文件的接口，
+ * 湿实验质控（/qc/wet-lab）与生信质控（/qc/bioinfo）共用本文件的接口，
  * 只是查询参数里的 qcCategory 不同（wet_lab / bioinfo）。
  * 约定：一个实体一个文件；函数名 fetch + 动词 + 实体；返回类型写在泛型里。
  */

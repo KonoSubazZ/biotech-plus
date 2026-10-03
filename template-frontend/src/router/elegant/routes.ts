@@ -159,34 +159,35 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'project_qc-standard',
           i18nKey: 'route.project_qc-standard'
         }
+      }
+    ]
+  },
+  {
+    name: 'qc',
+    path: '/qc',
+    component: 'layout.base',
+    meta: {
+      title: 'qc',
+      i18nKey: 'route.qc'
+    },
+    children: [
+      {
+        name: 'qc_bioinfo',
+        path: '/qc/bioinfo',
+        component: 'view.qc_bioinfo',
+        meta: {
+          title: 'qc_bioinfo',
+          i18nKey: 'route.qc_bioinfo'
+        }
       },
       {
-        name: 'project_quality',
-        path: '/project/quality',
+        name: 'qc_wet-lab',
+        path: '/qc/wet-lab',
+        component: 'view.qc_wet-lab',
         meta: {
-          title: 'project_quality',
-          i18nKey: 'route.project_quality'
-        },
-        children: [
-          {
-            name: 'project_quality_bioinfo',
-            path: '/project/quality/bioinfo',
-            component: 'view.project_quality_bioinfo',
-            meta: {
-              title: 'project_quality_bioinfo',
-              i18nKey: 'route.project_quality_bioinfo'
-            }
-          },
-          {
-            name: 'project_quality_wet-lab',
-            path: '/project/quality/wet-lab',
-            component: 'view.project_quality_wet-lab',
-            meta: {
-              title: 'project_quality_wet-lab',
-              i18nKey: 'route.project_quality_wet-lab'
-            }
-          }
-        ]
+          title: 'qc_wet-lab',
+          i18nKey: 'route.qc_wet-lab'
+        }
       }
     ]
   },
