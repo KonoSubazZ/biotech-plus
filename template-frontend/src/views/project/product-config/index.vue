@@ -1,6 +1,6 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
-import { NDivider, NTag } from 'naive-ui';
+import { NButton, NDivider, NTag } from 'naive-ui';
 import { fetchBatchDeleteProductConfig, fetchGetProductConfigList } from '@/service/api/project/product-config';
 import { useAppStore } from '@/store/modules/app';
 import { useAuth } from '@/hooks/business/auth';
@@ -82,13 +82,9 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
               return null;
             }
             return (
-              <ButtonIcon
-                text
-                type="info"
-                icon="material-symbols:info-outline"
-                tooltipContent="基因详情"
-                onClick={() => handleGeneDetail(row)}
-              />
+              <NButton text type="primary" size="small" onClick={() => handleGeneDetail(row)}>
+                基因详情
+              </NButton>
             );
           };
 
