@@ -225,6 +225,45 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
     生成的 `XxxMapper.xml` 带着 `selectPageWithStandardCount` 与 `p.name / p.code / p.test_type`
     这类**别的表**的列。单表 CRUD 用不到 XML —— 只留 `namespace` 的空 mapper，别把样板留给下一个人。
 
+13. **要「导入 + 下载导入模板」时，先照抄 `views/system/user/modules/user-import-modal.vue`**
+    仓库里已经有成套先例，别自己造第二套：
+    - 前端：`NUpload`（`:action="\`${baseURL}/report/xxx/importData\`"` + `:headers` 带 token/clientid +
+      `:default-upload="false"` + `:is-error-state` 判 `code !== 200`），footer 放「下载模板 / 导入」两个按钮；
+      模板下载用 `useDownload().download('/<模块>/<实体>/importTemplate', {}, '<文件名>.xlsx')`。
+    - 后端：`POST /importTemplate`（**POST，不是 GET**）+ `ExcelUtil.exportExcel(new ArrayList<>(),
+      "导入模板", XxxExcelRow.class, response)` —— 空 list 就只写表头。
+    - 想看导入结果计数（新增/更新/失败）就别用 `R<String>` + `v-html` 的老写法，学
+      `ruoyi-project` 的 `ProductGeneImportResultVo` / `SampleInfoImportResultVo` 返回结构化 VO。
+14. **Excel 行对象可以同时当「导入模板表头」**：`@ExcelProperty(value = "中文列名", index = n)`。
+    `value` 用于生成模板表头，**读的时候按 `index`**（实测把上传文件表头文案改掉仍能正确导入）。
+    `date`/`datetime` 之外，上游本来就是字符串的日期（如 `yyyy-MM-dd`）继续用 `varchar(20)` 存，
+    别为了「像日期」改成 `date` —— 脏值会让整批导入失败。
+15. **「宽容导入」不能加 `@Transactional`**：单行 `catch` 住的异常仍会把事务标成 rollback-only，
+    最后整体提交失败 —— 越是「逐行收集错误」越不能包一个事务。每行走自动提交，
+    失败原因逐行收集返回（`errors` 列表）。
+16. **软删 + 唯一键的恢复，落地的两条手写 SQL**（第 8 条讲的是坑，这里给可复制的做法）：
+    ```xml
+    <select id="selectIdByXxxIncludeDeleted" resultType="java.lang.Long">
+        SELECT id FROM <表> WHERE <业务键> = #{xxx} ORDER BY id ASC LIMIT 1
+    </select>
+    <update id="restoreById">
+        UPDATE <表> SET del_flag = '0', update_time = NOW() WHERE id = #{id}
+    </update>
+    ```
+    服务里按「活动行 → 命中则 update；否则查含删行 → 有则 restore+update；都没有则 insert」分流。
+    手工新增路径也要单独查一次含删行，给出可读提示（否则用户看到的是数据库唯一键冲突）。
+    删除保护同理：在被引用方加一条只读 count SQL（跨模块不建依赖，见 `countQcStandardByProductId`）。
+17. **日期范围搜索的固定接线**：前端 `NDatePicker type="daterange" value-format="yyyy-MM-dd"`
+    → 写进 `model.params.beginTime / params.endTime`（axios 的 `paramsSerializer` 是 `qs.stringify`，
+    后端能绑成 `Map<String,Object> params`）；后端在 `buildQueryWrapper` 里
+    `if (params.get("beginTime") != null && params.get("endTime") != null) wrapper.between(...)`。
+18. **列表页要挂额外按钮（导入/自定义）**：`TableHeaderOperation` 有 `#prefix` 插槽，
+    放在 `NCard` 的 `#header-extra` 里包住它即可，不用改这个公共组件。
+19. **新业务域要记得加 commit scope**：`ai-rules/05-git-commit.md` 的 scope 表与
+    `tools/check_commit.py` 的 `SCOPES` 白名单是两处，必须同时加（否则提交被钩子拦下，
+    只能硬套 backend/frontend，scope 与代码归属就不一致了）。已有：
+    backend/frontend/db/system/qc/project/report/tools/rules/deps。
+
 ## 真机联调与 UI 验收（本地栈，2026-10 实测）
 
 - **登录接口开了接口加密**（`application.yml` 的 `api-decrypt.enabled: true`）：
