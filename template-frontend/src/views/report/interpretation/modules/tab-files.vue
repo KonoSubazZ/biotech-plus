@@ -1,11 +1,12 @@
 <script setup lang="tsx">
 import { ref, watch } from 'vue';
-import { NButton } from 'naive-ui';
+import { NTag } from 'naive-ui';
 import { fetchGetInterpretationFileList } from '@/service/api/report/interpretation';
 import { useNaiveForm } from '@/hooks/common/form';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
 import { handleCopy } from '@/utils/copy';
+import { FILE_STATUS_META, statusMeta } from './interpretation-status';
 
 defineOptions({
   name: 'InterpretationTabFiles'
@@ -48,35 +49,50 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       searchParams.value.pageSize = params.pageSize;
     },
     columns: () => [
-      { key: 'fileId', title: '文件ID', align: 'center', width: 100 },
+      { key: 'fileId', title: '文件ID', align: 'center', width: 84 },
       {
         key: 'filePath',
         title: '文件路径',
         align: 'left',
-        minWidth: 460,
-        // 绝对路径给一键复制：路径很长，手选容易漏字符
+        width: 360,
+        // 固定宽度 + 不展示全：容器按宽度截断（多出部分省略号），完整路径放 title；
+        // 点击字段本身就是复制（不再单独放「复制」按钮）
         render: row => (
-          <div class="flex items-center gap-6px">
-            <span class="truncate" title={row.filePath ?? ''}>
-              {row.filePath ?? '-'}
-            </span>
-            <NButton
-              text
-              type="primary"
-              size="tiny"
-              disabled={!row.filePath}
-              onClick={() => handleCopy(row.filePath ?? '')}
-            >
-              复制
-            </NButton>
+          <div
+            class="cursor-pointer truncate hover:text-primary"
+            title={row.filePath ?? ''}
+            onClick={() => handleCopy(row.filePath ?? '')}
+          >
+            {row.filePath ?? '-'}
           </div>
         )
       },
-      { key: 'analysisDate', title: '分析日期', align: 'center', minWidth: 110 },
-      { key: 'mutNum', title: '文件内容数', align: 'center', minWidth: 110 },
-      { key: 'updateTime', title: '更新时间', align: 'center', minWidth: 170 },
+      { key: 'analysisDate', title: '分析日期', align: 'center', width: 110 },
+      { key: 'fileType', title: '文件类型', align: 'center', width: 120 },
+      { key: 'mutNum', title: '文件内容数', align: 'center', width: 110 },
+      {
+        key: 'status',
+        title: '状态',
+        align: 'center',
+        width: 100,
+        render: row => {
+          // 未知值兜底：灰 + 原样显示
+          const meta = statusMeta(FILE_STATUS_META, row.status);
+          return <NTag type={meta.type}>{meta.label}</NTag>;
+        }
+      },
+      { key: 'updateTime', title: '更新时间', align: 'center', width: 170 },
+      {
+        key: 'message',
+        title: '失败原因',
+        align: 'left',
+        width: 220,
+        // 失败原因可能很长（最长 2000 字），列里只给缩略 + 悬停看全文
+        ellipsis: { tooltip: true },
+        render: row => row.message ?? '-'
+      },
       // 操作列先占位留着（按需求暂不放按钮）
-      { key: 'operate', title: $t('common.operate'), align: 'center', width: 110, fixed: 'right' }
+      { key: 'operate', title: $t('common.operate'), align: 'center', width: 100, fixed: 'right' }
     ]
   });
 
