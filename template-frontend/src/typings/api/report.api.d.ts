@@ -411,5 +411,76 @@ declare namespace Api {
       /** 每行失败原因（含行号） */
       errors: string[];
     }
+
+    // ---------------------------------------------------------------------
+    // 报告解读（报告管理 › 报告解读）
+    // 列表 = 一个分析批次（analysis_data）⟕ 该批次最新一份报告（analysis_report）
+    // ---------------------------------------------------------------------
+
+    /** 报告解读列表行（= 后端 InterpretationRowVo） */
+    interface InterpretationRow {
+      /** 分析数据ID */
+      analysisId: number;
+      /** 分析日期（YYYYMMDD） */
+      analysisDate: string | null;
+      /** 样本编号 */
+      subbarcode: string | null;
+      /** 患者编号 */
+      barcode: string | null;
+      /** 产品名称 */
+      product: string | null;
+      /** 产品ID（product_config.id） */
+      productId: number | null;
+      /** 解读人员 */
+      analyzer: string | null;
+      /** 集群驱动状态：DRIVING / LOADED / PARTIAL */
+      driveStatus: string | null;
+      /** 驱动执行时间 */
+      driveExecutedAt: string | null;
+      /** 报告ID（为空 = 该批次还没点过「解读」） */
+      reportId: number | null;
+      /** 报告状态：INTERPRETING / PENDING_REVIEW / APPROVED / REJECTED / SENT */
+      reportStatus: string | null;
+      /** 解读癌种 */
+      analysisDisease: string | null;
+      /** 模板ID */
+      templateId: number | null;
+      /** 报告模板编码 */
+      template: string | null;
+      /** 报告产出人 */
+      reportGeneratedBy: string | null;
+      /** 报告生成时间 */
+      reportGeneratedAt: string | null;
+    }
+
+    /** 报告解读分页列表（后端 TableDataInfo 的 rows/total 在顶层） */
+    type InterpretationList = Common.PaginatingQueryRecord<InterpretationRow>;
+
+    /**
+     * 报告解读搜索参数
+     * <p>
+     * 搜索栏 4 项 → 字段：样本编号 subbarcode、产品 product、报告状态 reportStatus、
+     * 分析日期走 params.beginTime / params.endTime（analysis_date 是 varchar(8) 的 YYYYMMDD，
+     * 组件里已把 yyyy-MM-dd 转成 yyyyMMdd）。
+     */
+    type InterpretationSearchParams = CommonType.RecordNullable<
+      Pick<InterpretationRow, 'subbarcode' | 'product' | 'reportStatus'> & Common.CommonSearchParams
+    >;
+
+    /** 报告头信息（= 后端 AnalysisReportVo，进详情页要用 reportId） */
+    interface InterpretationReport {
+      reportId: number;
+      analysisId: number;
+      analysisDate: string | null;
+      subbarcode: string | null;
+      product: string | null;
+      productId: number | null;
+      analysisDisease: string | null;
+      templateId: number | null;
+      template: string | null;
+      status: string;
+      comment: string | null;
+      createTime: string | null;
+    }
   }
 }
