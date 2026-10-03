@@ -550,6 +550,8 @@ declare namespace Api {
       dataType: string | null;
       /** 文件名 */
       fileName: string | null;
+      /** 文件绝对路径（可复制） */
+      filePath: string | null;
       /** 状态：Pending / Loaded / Error */
       status: string | null;
       /** 失败原因（status=Error 时） */

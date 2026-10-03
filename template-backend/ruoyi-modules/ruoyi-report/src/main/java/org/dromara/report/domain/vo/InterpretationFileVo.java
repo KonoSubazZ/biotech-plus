@@ -32,6 +32,9 @@ public class InterpretationFileVo implements Serializable {
     /** 文件名 */
     private String fileName;
 
+    /** 文件绝对路径（集群上传后的落盘路径，页面提供一键复制） */
+    private String filePath;
+
     /** 状态：Pending / Loaded / Error */
     private String status;
 

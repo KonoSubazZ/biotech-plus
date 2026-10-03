@@ -57,6 +57,7 @@
             f.file_type     AS fileType,
             f.data_type     AS dataType,
             f.file_name     AS fileName,
+            f.file_path     AS filePath,
             f.status        AS status,
             f.message       AS message,
             f.mut_num       AS mutNum,

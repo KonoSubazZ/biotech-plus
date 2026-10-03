@@ -1,13 +1,11 @@
 <script setup lang="tsx">
 import { ref, watch } from 'vue';
-import { NTag } from 'naive-ui';
-import {
-  fetchGetInterpretationFileContent,
-  fetchGetInterpretationFileList
-} from '@/service/api/report/interpretation';
+import { NButton } from 'naive-ui';
+import { fetchGetInterpretationFileList } from '@/service/api/report/interpretation';
 import { useNaiveForm } from '@/hooks/common/form';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
+import { handleCopy } from '@/utils/copy';
 
 defineOptions({
   name: 'InterpretationTabFiles'
@@ -22,13 +20,7 @@ const props = defineProps<Props>();
 
 const { formRef, validate, restoreValidation } = useNaiveForm();
 
-/** data_file_status.status：绿=已加载 / 黄=处理中 / 红=失败 */
-const FILE_STATUS_META: Record<string, { label: string; type: 'success' | 'warning' | 'error' }> = {
-  Loaded: { label: '已加载', type: 'success' },
-  Pending: { label: '处理中', type: 'warning' },
-  Error: { label: '失败', type: 'error' }
-};
-
+/** 状态筛选项（data_file_status.status） */
 const FILE_STATUS_OPTIONS = [
   { label: '已加载', value: 'Loaded' },
   { label: '处理中', value: 'Pending' },
@@ -56,69 +48,37 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       searchParams.value.pageSize = params.pageSize;
     },
     columns: () => [
-      { key: 'fileType', title: '文件类型', align: 'center', minWidth: 120 },
-      { key: 'dataType', title: '数据类别', align: 'center', minWidth: 110 },
-      { key: 'fileName', title: '文件名', align: 'left', minWidth: 300 },
+      { key: 'fileId', title: '文件ID', align: 'center', width: 100 },
       {
-        key: 'status',
-        title: '状态',
-        align: 'center',
-        minWidth: 100,
-        render: row => {
-          // 未知值兜底：灰 + 原样显示（别静默按「已加载」渲染）
-          const meta = FILE_STATUS_META[row.status ?? ''] ?? {
-            label: row.status ?? '-',
-            type: 'default' as const
-          };
-          return <NTag type={meta.type}>{meta.label}</NTag>;
-        }
-      },
-      { key: 'mutNum', title: '变异数', align: 'center', minWidth: 90 },
-      {
-        key: 'textLength',
-        title: '内容大小',
-        align: 'center',
-        minWidth: 100,
-        render: row => (row.textLength ? `${row.textLength} 字符` : '-')
+        key: 'filePath',
+        title: '文件路径',
+        align: 'left',
+        minWidth: 460,
+        // 绝对路径给一键复制：路径很长，手选容易漏字符
+        render: row => (
+          <div class="flex items-center gap-6px">
+            <span class="truncate" title={row.filePath ?? ''}>
+              {row.filePath ?? '-'}
+            </span>
+            <NButton
+              text
+              type="primary"
+              size="tiny"
+              disabled={!row.filePath}
+              onClick={() => handleCopy(row.filePath ?? '')}
+            >
+              复制
+            </NButton>
+          </div>
+        )
       },
       { key: 'analysisDate', title: '分析日期', align: 'center', minWidth: 110 },
+      { key: 'mutNum', title: '文件内容数', align: 'center', minWidth: 110 },
       { key: 'updateTime', title: '更新时间', align: 'center', minWidth: 170 },
-      {
-        key: 'operate',
-        title: $t('common.operate'),
-        align: 'center',
-        width: 110,
-        fixed: 'right',
-        render: row => (
-          <NButton text type="primary" onClick={() => handleView(row.fileId, row.fileName ?? '')}>
-            查看内容
-          </NButton>
-        )
-      }
+      // 操作列先占位留着（按需求暂不放按钮）
+      { key: 'operate', title: $t('common.operate'), align: 'center', width: 110, fixed: 'right' }
     ]
   });
-
-/** 文件内容弹窗 */
-const contentVisible = ref(false);
-const contentLoading = ref(false);
-const content = ref<Api.Report.InterpretationFileContent | null>(null);
-
-async function handleView(fileId: number, fileName: string) {
-  contentVisible.value = true;
-  contentLoading.value = true;
-  content.value = { fileId, fileName, fileType: null, fileText: null, truncated: null, textLength: null };
-  try {
-    const { data: detail, error } = await fetchGetInterpretationFileContent({
-      fileId,
-      analysisId: props.analysisId
-    });
-    if (!error) {
-      content.value = detail;
-    }
-  } finally {
-    contentLoading.value = false;
-  }
-}
 
 async function search() {
   await validate();
@@ -193,23 +153,6 @@ watch(
       remote
       size="small"
     />
-
-    <NModal
-      v-model:show="contentVisible"
-      preset="card"
-      :title="`文件内容：${content?.fileName ?? ''}`"
-      class="w-90vw max-w-1400px"
-      :bordered="false"
-    >
-      <NSpin :show="contentLoading">
-        <NAlert v-if="content?.truncated" type="warning" :bordered="false" class="mb-12px">
-          内容过长（共 {{ content.textLength }} 字符），已截断显示前 200000 字符。
-        </NAlert>
-        <pre class="max-h-70vh overflow-auto whitespace-pre-wrap break-all rounded bg-#f5f7fa p-12px text-12px">{{
-          content?.fileText ?? '（空内容）'
-        }}</pre>
-      </NSpin>
-    </NModal>
   </div>
 </template>
 
