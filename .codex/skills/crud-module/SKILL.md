@@ -309,7 +309,45 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
     （旧行搬走后旧位置就查不到了），第二次执行不会把 name/path 等字段刷回权威值 —— 脚本看着幂等，其实不收敛
     （实测：菜单名被外部改掉后，重跑脚本也改不回来）。做法：INSERT/搬迁之后，再按**当前位置**
     （`parent_id + path`）UPDATE 一次权威字段。
+27. **状态标签配色**：绿=正常 / 黄=警告 / 红=失败或错误，非状态类标签不许借用这三色 —— 完整表格与四条硬要求见「状态标签配色契约」章节。
 
+
+## 状态标签配色契约（2026-10 用户定稿）
+
+**规则：绿色 = 正常，黄色 = 警告，红色 = 失败 / 错误。非状态类标签不许借用这三个颜色。**
+
+| 语义 | `NTag` type | 颜色 | 本项目取值举例 |
+|---|---|---|---|
+| 正常 / 通过 / 启用 / 成功 / 有效 | `success` | 绿 | `passed`、`active`、`normal`、`enabled` |
+| 警告 / 待确认 / 待处理 / 进行中 | `warning` | 黄 | `pending`、`warning`、`running` |
+| 失败 / 错误 / 未通过 / 停用 / 异常 | `error` | 红 | `failed`、`error`、`inactive`、`disabled` |
+| 未知值 / 空值（兜底专用） | `default` | 灰 | 其它任何值 |
+
+写法：状态 → 颜色用一张表 + 兜底，别把颜色散在各个三元表达式里：
+
+```tsx
+/** 配色契约：绿=正常 黄=警告 红=失败/错误；灰只留给「未知值兜底」 */
+const STATUS_META: Record<string, { label: string; type: 'success' | 'warning' | 'error' }> = {
+  active: { label: '启用', type: 'success' },
+  inactive: { label: '停用', type: 'error' }
+};
+
+render: row => {
+  // 未知值兜底成灰色并原样显示，别静默按正常渲染（否则脏数据看不出来）
+  const meta = STATUS_META[row.status] ?? { label: row.status, type: 'default' as const };
+  return <NTag type={meta.type}>{meta.label}</NTag>;
+}
+```
+
+四条硬要求（都是实测踩过的）：
+
+1. **停用 / 禁用用红 `error`，不要用灰 `default`** —— 灰是「未知值兜底」的专用色，用灰会让「停用」和脏数据长得一样。
+2. **未知值兜底必须 `default` + 原样显示原值**，不要 `?? 正常`、不要空字符串。
+3. **类别 / 数量 / 说明类标签不要用 `success|warning|error`**：用 `info` 或 `default`。
+   实测踩到：质控类别「湿实验 / 生信」原本一个 `success` 一个 `info`，绿色的「湿实验」看着像「通过」；
+   同一维度内要保持同一种中性色。
+4. **字典驱动的状态优先用 `DictTag`**（颜色由 `sys_dict_data.list_class` 决定），同一状态在不同页面
+   不许出现两种颜色；改字典时检查 `list_class` 是否落在这套配色里（`success/warning/error/default`）。
 
 ## 搜索栏布局契约（search 组件，2026-10 用户定稿）
 
