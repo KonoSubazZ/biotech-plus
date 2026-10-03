@@ -278,6 +278,7 @@ const local: App.I18n.Schema = {
     'project_product-config': '产品配置',
     report: '报告管理',
     'report_sample-info': '样本信息',
+    'report_interpretation': '报告解读',
     system_user: '用户管理',
     system_role: '角色管理',
     system_menu: '菜单管理',

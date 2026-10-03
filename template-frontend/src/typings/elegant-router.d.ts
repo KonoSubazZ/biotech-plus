@@ -40,6 +40,7 @@ declare module "@elegant-router/types" {
     "qc_bioinfo": "/qc/bioinfo";
     "qc_wet-lab": "/qc/wet-lab";
     "report": "/report";
+    "report_interpretation": "/report/interpretation";
     "report_sample-info": "/report/sample-info";
     "social-callback": "/social-callback";
     "system": "/system";
@@ -140,6 +141,7 @@ declare module "@elegant-router/types" {
     | "project_qc-standard"
     | "qc_bioinfo"
     | "qc_wet-lab"
+    | "report_interpretation"
     | "report_sample-info"
     | "system_client"
     | "system_config"

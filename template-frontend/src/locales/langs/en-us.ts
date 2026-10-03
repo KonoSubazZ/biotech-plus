@@ -282,6 +282,7 @@ const local: App.I18n.Schema = {
     'project_product-config': 'Product Config',
     report: 'Report Management',
     'report_sample-info': 'Sample Info',
+    'report_interpretation': 'Report Interpretation',
     system_user: 'User Management',
     system_role: 'Role Management',
     system_menu: 'Menu Management',

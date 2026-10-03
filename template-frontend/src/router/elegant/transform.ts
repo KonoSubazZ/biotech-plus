@@ -186,6 +186,7 @@ const routeMap: RouteMap = {
   "qc_bioinfo": "/qc/bioinfo",
   "qc_wet-lab": "/qc/wet-lab",
   "report": "/report",
+  "report_interpretation": "/report/interpretation",
   "report_sample-info": "/report/sample-info",
   "social-callback": "/social-callback",
   "system": "/system",

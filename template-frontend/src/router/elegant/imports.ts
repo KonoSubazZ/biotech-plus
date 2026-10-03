@@ -32,6 +32,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   "project_qc-standard": () => import("@/views/project/qc-standard/index.vue"),
   qc_bioinfo: () => import("@/views/qc/bioinfo/index.vue"),
   "qc_wet-lab": () => import("@/views/qc/wet-lab/index.vue"),
+  report_interpretation: () => import("@/views/report/interpretation/index.vue"),
   "report_sample-info": () => import("@/views/report/sample-info/index.vue"),
   system_client: () => import("@/views/system/client/index.vue"),
   system_config: () => import("@/views/system/config/index.vue"),

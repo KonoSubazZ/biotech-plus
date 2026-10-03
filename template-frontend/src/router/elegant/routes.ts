@@ -201,6 +201,15 @@ export const generatedRoutes: GeneratedRoute[] = [
     },
     children: [
       {
+        name: 'report_interpretation',
+        path: '/report/interpretation',
+        component: 'view.report_interpretation',
+        meta: {
+          title: 'report_interpretation',
+          i18nKey: 'route.report_interpretation'
+        }
+      },
+      {
         name: 'report_sample-info',
         path: '/report/sample-info',
         component: 'view.report_sample-info',
