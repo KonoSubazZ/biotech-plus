@@ -5,6 +5,7 @@ import { fetchGetInterpretationContext } from '@/service/api/report/interpretati
 import { REPORT_STATUS_META, statusMeta } from './interpretation-status';
 import InterpretationTabFiles from './tab-files.vue';
 import InterpretationTabLims from './tab-lims.vue';
+import InterpretationTabVariants from './tab-variants.vue';
 
 defineOptions({
   name: 'InterpretationDetail'
@@ -114,6 +115,9 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
           </template>
           <template v-else-if="tab.name === 'files'">
             <InterpretationTabFiles :analysis-id="props.analysisId" />
+          </template>
+          <template v-else-if="tab.name === 'variants'">
+            <InterpretationTabVariants :analysis-id="props.analysisId" />
           </template>
           <template v-else>
             <NEmpty :description="`${tab.label}：建设中（后续页面按 Tab 逐个交付）`" />

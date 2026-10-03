@@ -4,10 +4,12 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Param;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
+import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
 import org.dromara.report.domain.vo.AnalysisSnapshotVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
+import org.dromara.report.domain.vo.InterpretationVariantVo;
 
 /**
  * 报告解读列表 / 批次快照 Mapper（跨表查询，SQL 见 resources/mapper/report/InterpretationMapper.xml）
@@ -61,4 +63,34 @@ public interface InterpretationMapper {
     InterpretationFileContentVo selectFileContent(@Param("fileId") Long fileId,
                                                  @Param("analysisId") Long analysisId,
                                                  @Param("maxLength") int maxLength);
+
+    /**
+     * 分页查询某分析批次的位点（按 sourceType 决定查哪张明细表，SQL 见 XML 的 choose 分支）。
+     *
+     * @param page       分页参数
+     * @param analysisId 分析数据ID
+     * @param query      查询条件（sourceType 必填 / gene / isReported）
+     * @return 分页结果
+     */
+    Page<InterpretationVariantVo> selectVariantPage(@Param("page") Page<InterpretationVariantVo> page,
+                                                    @Param("analysisId") Long analysisId,
+                                                    @Param("query") InterpretationVariantQueryBo query);
+
+    /**
+     * 切换位点「入报告」状态；UPDATE 带 analysisId 归属校验，返回 0 表示位点不存在或不属于该批次。
+     *
+     * @param sourceId          位点主键
+     * @param sourceType        位点类型
+     * @param analysisId        分析数据ID
+     * @param isReported        目标状态 0/1
+     * @param filteredRationale 过滤理由（可空）
+     * @param operatorId        操作人（reviewed_by / update_by）
+     * @return 受影响行数
+     */
+    int updateVariantReportStatus(@Param("sourceId") Long sourceId,
+                                 @Param("sourceType") String sourceType,
+                                 @Param("analysisId") Long analysisId,
+                                 @Param("isReported") Integer isReported,
+                                 @Param("filteredRationale") String filteredRationale,
+                                 @Param("operatorId") Long operatorId);
 }

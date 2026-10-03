@@ -93,6 +93,163 @@
           AND f.del_flag = '0'
     </select>
 
+    <!--
+      Tab③ 筛选位点：四类位点分散在四张表，用 choose 选表；JOIN data_file_status 锁定分析批次。
+      四张表的列语义不同，各自显式列出需要的字段并别名成 VO 字段（缺的字段留空）。
+    -->
+    <select id="selectVariantPage" resultType="org.dromara.report.domain.vo.InterpretationVariantVo">
+        <choose>
+            <when test="query.sourceType == 'CNV'">
+                SELECT
+                    v.id            AS sourceId,
+                    'CNV'           AS sourceType,
+                    v.file_id       AS fileId,
+                    v.gene          AS gene,
+                    v.variant       AS variant,
+                    v.ori_variant   AS oriVariant,
+                    v.copy_num      AS copyNum,
+                    v.chr           AS chromosome,
+                    v.start         AS position,
+                    v.is_reported   AS isReported,
+                    v.filtered_rationale AS filteredRationale,
+                    v.reviewed_at   AS reviewedAt
+                FROM file_CNV v
+                JOIN data_file_status f ON f.file_id = v.file_id
+            </when>
+            <when test="query.sourceType == 'FUSION'">
+                SELECT
+                    v.id             AS sourceId,
+                    'FUSION'         AS sourceType,
+                    v.file_id        AS fileId,
+                    v.gene           AS gene,
+                    v.gene1          AS gene1,
+                    v.gene2          AS gene2,
+                    v.variant        AS variant,
+                    v.ori_variant    AS oriVariant,
+                    v.tag            AS tag,
+                    v.freq           AS mutFreq,
+                    v.depth          AS mutDepth,
+                    v.fusion_reads   AS fusionReads,
+                    v.check_result   AS checkResult,
+                    v.is_reported    AS isReported,
+                    v.filtered_rationale AS filteredRationale,
+                    v.reviewed_at    AS reviewedAt
+                FROM file_Fusion v
+                JOIN data_file_status f ON f.file_id = v.file_id
+            </when>
+            <when test="query.sourceType == 'CR_ALL'">
+                SELECT
+                    v.id              AS sourceId,
+                    'CR_ALL'          AS sourceType,
+                    v.file_id         AS fileId,
+                    v.gene            AS gene,
+                    v.variant         AS variant,
+                    v.ori_variant     AS oriVariant,
+                    v.transcript_id   AS transcript,
+                    v.exon            AS exon,
+                    v.exonic_func     AS mutationType,
+                    v.chgvs           AS chgvs,
+                    v.phgvs           AS phgvs,
+                    v.zygosity        AS homHet,
+                    v.clnsig          AS clinicalSignificance,
+                    v.chr             AS chromosome,
+                    v.pos             AS position,
+                    v.depth           AS totalDepth,
+                    v.is_reported     AS isReported,
+                    v.filtered_rationale AS filteredRationale,
+                    v.reviewed_at     AS reviewedAt
+                FROM file_CR_ALL v
+                JOIN data_file_status f ON f.file_id = v.file_id
+            </when>
+            <otherwise>
+                SELECT
+                    v.id                       AS sourceId,
+                    'SNP_INDEL'                AS sourceType,
+                    v.file_id                  AS fileId,
+                    v.gene                     AS gene,
+                    v.variant                  AS variant,
+                    v.ori_variant              AS oriVariant,
+                    v.transcript               AS transcript,
+                    v.exon                     AS exon,
+                    v.exonic_func_known_gene   AS mutationType,
+                    v.chr                      AS chromosome,
+                    v.start                    AS position,
+                    v.hom_het                  AS homHet,
+                    v.mut_freq                 AS mutFreq,
+                    v.mut_depth                AS mutDepth,
+                    v.total_depth              AS totalDepth,
+                    v.is_reported              AS isReported,
+                    v.filtered_rationale       AS filteredRationale,
+                    v.reviewed_at              AS reviewedAt
+                FROM file_Somatic_SNV_Indel v
+                JOIN data_file_status f ON f.file_id = v.file_id
+            </otherwise>
+        </choose>
+        WHERE f.analysis_id = #{analysisId}
+          AND v.del_flag = '0'
+          AND f.del_flag = '0'
+        <if test="query.gene != null and query.gene != ''">
+            AND v.gene LIKE CONCAT('%', #{query.gene}, '%')
+        </if>
+        <if test="query.isReported != null">
+            AND v.is_reported = #{query.isReported}
+        </if>
+        ORDER BY v.id ASC
+    </select>
+
+    <!--
+      Tab③ 「入报告」开关：UPDATE ... JOIN 里带 analysisId 归属校验（返回 0 行即越权/不存在）。
+      四张表都有 is_reported / filtered_rationale / reviewed_by / reviewed_at，SET 子句一致，只有表名不同。
+    -->
+    <update id="updateVariantReportStatus">
+        <choose>
+            <when test="sourceType == 'CNV'">
+                UPDATE file_CNV v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.is_reported = #{isReported},
+                    v.filtered_rationale = #{filteredRationale},
+                    v.reviewed_by = #{operatorId},
+                    v.reviewed_at = NOW(),
+                    v.update_by = #{operatorId},
+                    v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <when test="sourceType == 'FUSION'">
+                UPDATE file_Fusion v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.is_reported = #{isReported},
+                    v.filtered_rationale = #{filteredRationale},
+                    v.reviewed_by = #{operatorId},
+                    v.reviewed_at = NOW(),
+                    v.update_by = #{operatorId},
+                    v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <when test="sourceType == 'CR_ALL'">
+                UPDATE file_CR_ALL v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.is_reported = #{isReported},
+                    v.filtered_rationale = #{filteredRationale},
+                    v.reviewed_by = #{operatorId},
+                    v.reviewed_at = NOW(),
+                    v.update_by = #{operatorId},
+                    v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <otherwise>
+                UPDATE file_Somatic_SNV_Indel v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.is_reported = #{isReported},
+                    v.filtered_rationale = #{filteredRationale},
+                    v.reviewed_by = #{operatorId},
+                    v.reviewed_at = NOW(),
+                    v.update_by = #{operatorId},
+                    v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </otherwise>
+        </choose>
+    </update>
+
     <!-- 批次快照：只取建报告记录需要的几列 -->
     <select id="selectAnalysisSnapshot" resultType="org.dromara.report.domain.vo.AnalysisSnapshotVo">
         SELECT

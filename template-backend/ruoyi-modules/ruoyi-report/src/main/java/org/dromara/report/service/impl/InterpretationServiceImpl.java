@@ -10,8 +10,11 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.report.domain.AnalysisReport;
 import org.dromara.report.domain.SampleInfo;
+import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
+import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
+import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.AnalysisSnapshotVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
@@ -19,6 +22,7 @@ import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
+import org.dromara.report.domain.vo.InterpretationVariantVo;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.mapper.SampleInfoMapper;
@@ -28,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,6 +59,9 @@ public class InterpretationServiceImpl implements IInterpretationService {
 
     /** 单个文件内容最多返回的字符数（超大文件在库里 LEFT() 截断，避免整个 LONGTEXT 进内存/浏览器） */
     private static final int MAX_FILE_TEXT_LENGTH = 200_000;
+
+    /** 位点类型白名单：与 history_somatic.source_type 的取值口径一致 */
+    private static final Set<String> VARIANT_SOURCE_TYPES = Set.of("SNP_INDEL", "CNV", "FUSION", "CR_ALL");
 
     private final InterpretationMapper interpretationMapper;
     private final AnalysisReportMapper analysisReportMapper;
@@ -143,6 +151,41 @@ public class InterpretationServiceImpl implements IInterpretationService {
         long textLength = content.getTextLength() == null ? 0L : content.getTextLength();
         content.setTruncated(textLength > MAX_FILE_TEXT_LENGTH);
         return content;
+    }
+
+    @Override
+    public TableDataInfo<InterpretationVariantVo> selectVariantList(Long analysisId, InterpretationVariantQueryBo bo,
+                                                                   PageQuery pageQuery) {
+        assertAnalysisExists(analysisId);
+        assertSourceType(bo.getSourceType());
+        Page<InterpretationVariantVo> page =
+            interpretationMapper.selectVariantPage(pageQuery.build(), analysisId, bo);
+        return TableDataInfo.build(page);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateVariantReportStatus(InterpretationVariantStatusBo bo) {
+        assertAnalysisExists(bo.getAnalysisId());
+        assertSourceType(bo.getSourceType());
+        Integer isReported = bo.getIsReported();
+        if (isReported == null || (isReported != 0 && isReported != 1)) {
+            throw new ServiceException("入报告状态只能是 0（否）或 1（是）");
+        }
+        // UPDATE 里带了 analysis_id 归属校验：影响行数为 0 说明位点不存在或不属于该批次
+        int affected = interpretationMapper.updateVariantReportStatus(bo.getSourceId(), bo.getSourceType(),
+            bo.getAnalysisId(), isReported, bo.getFilteredRationale(), LoginHelper.getUserId());
+        if (affected <= 0) {
+            throw new ServiceException("位点不存在或不属于该分析批次：sourceId=" + bo.getSourceId()
+                + "，sourceType=" + bo.getSourceType());
+        }
+    }
+
+    /** 位点类型必须在白名单内，避免把 sourceType 当表名拼进 SQL */
+    private void assertSourceType(String sourceType) {
+        if (!VARIANT_SOURCE_TYPES.contains(sourceType)) {
+            throw new ServiceException("不支持的位点类型：" + sourceType);
+        }
     }
 
     /** 分析批次必须存在（列表/内容都以 analysisId 为范围，避免越权看别的批次文件） */

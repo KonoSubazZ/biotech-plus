@@ -43,6 +43,30 @@ export function fetchGetInterpretationFileContent(params: { fileId: number; anal
   });
 }
 
+/** Tab③ 筛选位点：按类型分页查询位点 */
+export function fetchGetInterpretationVariantList(params: Api.Report.InterpretationVariantSearchParams) {
+  return request<Api.Common.PaginatingQueryRecord<Api.Report.InterpretationVariant>>({
+    url: '/report/interpretation/variants',
+    method: 'get',
+    params
+  });
+}
+
+/** Tab③ 切换「入报告」开关（写共享的 file_*.is_reported） */
+export function fetchUpdateVariantReportStatus(data: {
+  analysisId: number;
+  sourceType: string;
+  sourceId: number;
+  isReported: number;
+  filteredRationale?: string | null;
+}) {
+  return request<null>({
+    url: '/report/interpretation/variant-report-status',
+    method: 'post',
+    data
+  });
+}
+
 /** 进入解读：创建/复用该分析批次的「解读中」报告，返回 reportId */
 export function fetchEnterInterpretation(data: { analysisId: number }) {
   return request<Api.Report.InterpretationReport>({

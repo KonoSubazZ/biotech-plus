@@ -4,11 +4,14 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
+import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
+import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
+import org.dromara.report.domain.vo.InterpretationVariantVo;
 
 /**
  * 报告解读 业务接口
@@ -51,7 +54,8 @@ public interface IInterpretationService {
      * @param pageQuery  分页参数
      * @return 分页列表
      */
-    TableDataInfo<InterpretationFileVo> selectFileList(Long analysisId, InterpretationFileQueryBo bo, PageQuery pageQuery);
+    TableDataInfo<InterpretationFileVo> selectFileList(Long analysisId, InterpretationFileQueryBo bo,
+                                                      PageQuery pageQuery);
 
     /**
      * 查看单个文件内容（Tab②）
@@ -61,4 +65,22 @@ public interface IInterpretationService {
      * @return 文件内容
      */
     InterpretationFileContentVo queryFileContent(Long fileId, Long analysisId);
+
+    /**
+     * 分页查询位点（Tab③ 筛选位点）：按 sourceType 查对应明细表，只返回该批次的位点。
+     *
+     * @param analysisId 分析数据ID
+     * @param bo         查询条件（sourceType 必填 / gene / isReported）
+     * @param pageQuery  分页参数
+     * @return 分页列表
+     */
+    TableDataInfo<InterpretationVariantVo> selectVariantList(Long analysisId, InterpretationVariantQueryBo bo,
+                                                             PageQuery pageQuery);
+
+    /**
+     * 切换位点「入报告」状态。
+     *
+     * @param bo 入参（analysisId / sourceType / sourceId / isReported / filteredRationale）
+     */
+    void updateVariantReportStatus(InterpretationVariantStatusBo bo);
 }

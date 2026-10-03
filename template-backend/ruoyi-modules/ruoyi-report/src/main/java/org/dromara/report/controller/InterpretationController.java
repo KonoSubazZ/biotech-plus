@@ -12,11 +12,14 @@ import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.InterpretationEnterBo;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
+import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
+import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
+import org.dromara.report.domain.vo.InterpretationVariantVo;
 import org.dromara.report.service.IInterpretationService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -113,5 +116,36 @@ public class InterpretationController extends BaseController {
     @GetMapping("/file/content")
     public R<InterpretationFileContentVo> fileContent(@RequestParam Long fileId, @RequestParam Long analysisId) {
         return R.ok(interpretationService.queryFileContent(fileId, analysisId));
+    }
+
+    /**
+     * Tab③ 筛选位点：按类型分页查询位点
+     *
+     * @param analysisId 分析数据ID
+     * @param bo         查询条件（sourceType 必填 / gene / isReported）
+     * @param pageQuery  分页参数
+     * @return 分页列表
+     */
+    @SaCheckPermission("report:interpretation:query")
+    @GetMapping("/variants")
+    public TableDataInfo<InterpretationVariantVo> variants(@RequestParam Long analysisId,
+                                                          InterpretationVariantQueryBo bo,
+                                                          PageQuery pageQuery) {
+        return interpretationService.selectVariantList(analysisId, bo, pageQuery);
+    }
+
+    /**
+     * Tab③ 切换位点「入报告」状态（写共享的 file_*.is_reported）
+     *
+     * @param bo 入参（analysisId / sourceType / sourceId / isReported / filteredRationale）
+     * @return 操作结果
+     */
+    @SaCheckPermission("report:interpretation:edit")
+    @RepeatSubmit()
+    @Log(title = "报告解读-入报告", businessType = BusinessType.UPDATE)
+    @PostMapping("/variant-report-status")
+    public R<Void> variantReportStatus(@RequestBody @Validated InterpretationVariantStatusBo bo) {
+        interpretationService.updateVariantReportStatus(bo);
+        return R.ok();
     }
 }
