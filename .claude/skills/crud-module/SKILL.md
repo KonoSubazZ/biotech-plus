@@ -293,6 +293,23 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
 23. **导入模板的表头直接用源表列名**（`@ExcelProperty(value = "BARCODE", index = 1)`）：
     这样从源系统导出的表格可以原样导入，不用先改名；读的时候仍按 `index`，表头被改也能读对。
 24. **搜索栏按钮要贴行最右**（一行放不下就另起一行仍贴右）—— 完整做法与两个实测坑见「搜索栏布局契约」章节，别用 NGrid 最后一格放按钮。
+25. **[特坑] 路由页面的 `<template>` 必须是单根元素 —— 多根(fragment)会让整个布局卡死**（2026-10 实测，用户报「点菜单没数据、刷新才有、再点还是没有」）：
+    - 症状：点某个菜单进来**内容区整块空白**（连卡片都没有），**之后所有菜单都空白**，F5 刷新后又能显示一次；
+      console 里**没有任何报错**（`<Transition>` 对非单元素根只在 dev 打 warning，很难注意）。
+    - 原因：`<template>` 里「注释 + 组件」/两个同级元素 → 编译成 fragment；全局布局是
+      `<Transition mode="out-in"><KeepAlive><component :is="Component"/></KeepAlive></Transition>`，
+      out-in 过渡要求单一元素根，fragment 会让过渡状态机卡在「已 leave、未 enter」，此后每次导航都不渲染。
+    - 复现特征：两个共用同一页面组件的 wrapper，**第一个进去正常，切到第二个就空白**；
+      单根页面（如 views/report/sample-info/index.vue）来回切都正常 —— 对比就能定位。
+    - 修法：说明文字写进 `<script>` 注释，模板只留一个根元素。判据：
+      生成的编译产物里不该出现 `STABLE_FRAGMENT / DEV_ROOT_FRAGMENT`（`curl 127.0.0.1:9527/src/views/xxx/index.vue` 能看到）。
+    - 验收脚本：连续点两个菜单来回切，看内容区元素数 `document.querySelectorAll('.flex-grow.bg-layout').length` 是否始终 ≥ 1
+      （只看接口有没有数据抓不到这个 bug —— 请求根本没发出去）。
+26. **菜单/配置迁移脚本要「按当前位置再收敛一次」**：只用「旧位置」定位的 UPDATE 只能生效一次
+    （旧行搬走后旧位置就查不到了），第二次执行不会把 name/path 等字段刷回权威值 —— 脚本看着幂等，其实不收敛
+    （实测：菜单名被外部改掉后，重跑脚本也改不回来）。做法：INSERT/搬迁之后，再按**当前位置**
+    （`parent_id + path`）UPDATE 一次权威字段。
+
 
 ## 搜索栏布局契约（search 组件，2026-10 用户定稿）
 
