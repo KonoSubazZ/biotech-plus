@@ -282,6 +282,7 @@ const local: App.I18n.Schema = {
     compliance: '合规管理',
     'compliance_dev-log': '开发记录',
     'compliance_validation-records': '3Q 验证记录',
+    compliance_documents: '3Q 文档管理',
     system_user: '用户管理',
     system_role: '角色管理',
     system_menu: '菜单管理',

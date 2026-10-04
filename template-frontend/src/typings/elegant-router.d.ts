@@ -27,6 +27,7 @@ declare module "@elegant-router/types" {
     "about": "/about";
     "compliance": "/compliance";
     "compliance_dev-log": "/compliance/dev-log";
+    "compliance_documents": "/compliance/documents";
     "compliance_validation-records": "/compliance/validation-records";
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
@@ -137,6 +138,7 @@ declare module "@elegant-router/types" {
     | "user-center"
     | "about"
     | "compliance_dev-log"
+    | "compliance_documents"
     | "compliance_validation-records"
     | "home"
     | "monitor_cache"

@@ -69,6 +69,15 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'compliance_documents',
+        path: '/compliance/documents',
+        component: 'view.compliance_documents',
+        meta: {
+          title: 'compliance_documents',
+          i18nKey: 'route.compliance_documents'
+        }
+      },
+      {
         name: 'compliance_validation-records',
         path: '/compliance/validation-records',
         component: 'view.compliance_validation-records',
