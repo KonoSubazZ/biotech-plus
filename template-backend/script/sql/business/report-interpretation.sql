@@ -712,3 +712,25 @@ WHERE @template_menu_id IS NOT NULL
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, m.menu_id FROM sys_menu m
 WHERE m.menu_id = @template_menu_id OR m.parent_id = @template_menu_id;
+
+
+-- ============================================================================
+-- 按钮权限（F）：报告生成（正式生成 final JSON 并登记 report_json_path）
+-- 幂等：按 perms 判存在；父菜单仍按 path 定位，不写死 menu_id
+-- ============================================================================
+SET @report_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'report' LIMIT 1);
+SET @interpretation_menu_id = (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @report_menu_id AND path = 'interpretation' AND menu_type = 'C' LIMIT 1);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '生成报告', @interpretation_menu_id, 7, '', NULL, 1, 0, 'F', '0', '0',
+    'report:interpretation:generate', '#', 1, NOW(), '正式生成 final JSON 并登记制品路径'
+FROM (SELECT 1) AS dummy
+WHERE @interpretation_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys_menu x
+      WHERE x.parent_id = @interpretation_menu_id AND x.perms = 'report:interpretation:generate');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, m.menu_id FROM sys_menu m
+WHERE m.parent_id = @interpretation_menu_id AND m.perms = 'report:interpretation:generate';
