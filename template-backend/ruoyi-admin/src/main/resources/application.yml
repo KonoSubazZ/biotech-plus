@@ -239,4 +239,7 @@ compliance:
   validation-record:
     # 3Q 验证记录的「验证文档」附件存放目录（规则同上）
     upload-dir: /ruoyi/server/upload/compliance/validation-record
+  compliance-doc:
+    # 3Q 文档管理的「文档」附件存放目录（规则同上）
+    upload-dir: /ruoyi/server/upload/compliance/compliance-doc
 
