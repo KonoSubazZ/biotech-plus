@@ -1,0 +1,567 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  报告解读列表：analysis_data ⟕ 该批次最新一份 analysis_report。
+  约定（对齐 SampleInfoMapper.xml）：
+    · 不用 SELECT *，显式列出并别名成驼峰，和 VO 字段逐一对齐
+    · 值一律 #{param} 绑定；租户条件由租户拦截器自动附加，这里不写 tenant_id
+    · 分页由 MyBatis-Plus 分页插件接管，这里不写 LIMIT
+-->
+<mapper namespace="org.dromara.report.mapper.InterpretationMapper">
+
+    <select id="selectInterpretationPage" resultType="org.dromara.report.domain.vo.InterpretationRowVo">
+        SELECT
+            d.analysis_id         AS analysisId,
+            d.analysis_date       AS analysisDate,
+            d.subbarcode          AS subbarcode,
+            d.barcode             AS barcode,
+            d.product             AS product,
+            d.product_id          AS productId,
+            d.analyzer            AS analyzer,
+            d.drive_status        AS driveStatus,
+            d.drive_executed_at   AS driveExecutedAt,
+            r.report_id           AS reportId,
+            r.status              AS reportStatus,
+            r.analysis_disease    AS analysisDisease,
+            r.template_id         AS templateId,
+            r.template            AS template,
+            r.report_generated_by AS reportGeneratedBy,
+            r.report_generated_at AS reportGeneratedAt
+        FROM analysis_data d
+        LEFT JOIN analysis_report r
+               ON r.report_id = (
+                    SELECT MAX(r2.report_id) FROM analysis_report r2
+                    WHERE r2.analysis_id = d.analysis_id
+                      AND r2.del_flag = '0'
+                  )
+        WHERE d.del_flag = '0'
+        <if test="query != null and query.subbarcode != null and query.subbarcode != ''">
+            AND d.subbarcode LIKE CONCAT('%', #{query.subbarcode}, '%')
+        </if>
+        <if test="query != null and query.product != null and query.product != ''">
+            AND d.product LIKE CONCAT('%', #{query.product}, '%')
+        </if>
+        <if test="query != null and query.reportStatus != null and query.reportStatus != ''">
+            AND r.status = #{query.reportStatus}
+        </if>
+        <if test="beginTime != null and endTime != null">
+            AND d.analysis_date BETWEEN #{beginTime} AND #{endTime}
+        </if>
+        ORDER BY d.analysis_id DESC
+    </select>
+
+    <!-- Tab② 集群对接：某个分析批次落库的文件（不含 file_text，用 CHAR_LENGTH 只取长度） -->
+    <select id="selectFilePage" resultType="org.dromara.report.domain.vo.InterpretationFileVo">
+        SELECT
+            f.file_id       AS fileId,
+            f.file_type     AS fileType,
+            f.data_type     AS dataType,
+            f.file_name     AS fileName,
+            f.file_path     AS filePath,
+            f.status        AS status,
+            f.message       AS message,
+            f.mut_num       AS mutNum,
+            f.analysis_date AS analysisDate,
+            CHAR_LENGTH(f.file_text) AS textLength,
+            f.update_time   AS updateTime
+        FROM data_file_status f
+        WHERE f.del_flag = '0'
+          AND f.analysis_id = #{analysisId}
+        <if test="query != null and query.fileName != null and query.fileName != ''">
+            AND f.file_name LIKE CONCAT('%', #{query.fileName}, '%')
+        </if>
+        <if test="query != null and query.fileType != null and query.fileType != ''">
+            AND f.file_type LIKE CONCAT('%', #{query.fileType}, '%')
+        </if>
+        <if test="query != null and query.status != null and query.status != ''">
+            AND f.status = #{query.status}
+        </if>
+        ORDER BY f.file_id ASC
+    </select>
+
+    <!-- Tab② 查看文件内容：LEFT() 在库里截断，避免把超大 LONGTEXT 整个拉到应用层 -->
+    <select id="selectFileContent" resultType="org.dromara.report.domain.vo.InterpretationFileContentVo">
+        SELECT
+            f.file_id   AS fileId,
+            f.file_name AS fileName,
+            f.file_type AS fileType,
+            LEFT(f.file_text, #{maxLength}) AS fileText,
+            CHAR_LENGTH(f.file_text)        AS textLength
+        FROM data_file_status f
+        WHERE f.file_id = #{fileId}
+          AND f.analysis_id = #{analysisId}
+          AND f.del_flag = '0'
+    </select>
+
+    <!--
+      Tab③ 筛选位点：四类位点分散在四张表，用 choose 选表；JOIN data_file_status 锁定分析批次。
+      按需求把各明细表除公共字段（create_by/create_time/update_by/update_time/del_flag/tenant_id）
+      之外的列全部返回；列名保持数据库列名，顺序与标题由前端一份配置维护。
+      返回 Map（key = 列名）而不是定长 VO：明细表列多（SNP/Indel、CR_ALL 各 38 列），
+      用 Map 免得每加一列都要改 Java。
+      注意：XML 的 <choose> 里必须是 when* 在前、otherwise 在最后（DTD 约束），
+      否则 MyBatis 解析报 "content of element type choose must match (when*,otherwise?)" 且应用起不来。
+    -->
+    <select id="selectVariantPage" resultType="java.util.LinkedHashMap">
+        <choose>
+            <when test="query.sourceType == 'CNV'">
+                SELECT
+                    'CNV' AS source_type,
+                    v.id,
+                    v.file_id,
+                    v.gene,
+                    v.chr,
+                    v.start,
+                    v.end,
+                    v.copy_num,
+                    v.variant,
+                    v.ori_variant,
+                    v.parent_mutation_id,
+                    v.is_reported,
+                    v.filtered_rationale,
+                    v.reviewed_by,
+                    v.reviewed_at
+                FROM file_CNV v
+                JOIN data_file_status f ON f.file_id = v.file_id
+            </when>
+            <when test="query.sourceType == 'FUSION'">
+                SELECT
+                    'FUSION' AS source_type,
+                    v.id,
+                    v.file_id,
+                    v.chromosome1,
+                    v.softclip1,
+                    v.sclip1_info,
+                    v.chromosome2,
+                    v.softclip2,
+                    v.sclip2_info,
+                    v.driver_gene,
+                    v.cosmic_info,
+                    v.db_info,
+                    v.stream,
+                    v.sup_reads_hq,
+                    v.sup_reads_uniq,
+                    v.depth,
+                    v.freq,
+                    v.check_result,
+                    v.transcript,
+                    v.fusion_reads,
+                    v.sarcoma_subtypes,
+                    v.evidence_level,
+                    v.gene,
+                    v.gene1,
+                    v.bp1,
+                    v.gene2,
+                    v.bp2,
+                    v.variant,
+                    v.tag,
+                    v.ori_variant,
+                    v.parent_mutation_id,
+                    v.is_reported,
+                    v.filtered_rationale,
+                    v.reviewed_by,
+                    v.reviewed_at
+                FROM file_Fusion v
+                JOIN data_file_status f ON f.file_id = v.file_id
+            </when>
+            <when test="query.sourceType == 'CR_ALL'">
+                SELECT
+                    'CR_ALL' AS source_type,
+                    v.id,
+                    v.file_id,
+                    v.gene,
+                    v.chr,
+                    v.pos,
+                    v.transcript_id,
+                    v.exon,
+                    v.chgvs,
+                    v.phgvs,
+                    v.zygosity,
+                    v.exonic_func,
+                    v.c1000g2015aug_all,
+                    v.exac_eas,
+                    v.clinvar_id,
+                    v.sift_pred,
+                    v.polyphen2_hdiv_pred,
+                    v.mutation_taster_pred,
+                    v.depth,
+                    v.revel,
+                    v.gnomad_genome_all,
+                    v.interpro_domain,
+                    v.clnsig,
+                    v.omim_phenotypes,
+                    v.omim_id,
+                    v.hgmd_tag,
+                    v.hgmd_disease,
+                    v.hgmd_pmid,
+                    v.classification_lovd,
+                    v.clinical_significance_clinvar,
+                    v.source,
+                    v.clinical_significance_enigma,
+                    v.variant,
+                    v.ori_variant,
+                    v.parent_mutation_id,
+                    v.is_reported,
+                    v.filtered_rationale,
+                    v.reviewed_by,
+                    v.reviewed_at
+                FROM file_CR_ALL v
+                JOIN data_file_status f ON f.file_id = v.file_id
+            </when>
+            <otherwise>
+                SELECT
+                    'SNP_INDEL' AS source_type,
+                    v.id,
+                    v.file_id,
+                    v.chr,
+                    v.start,
+                    v.end,
+                    v.ref,
+                    v.alt,
+                    v.hom_het,
+                    v.mut_depth,
+                    v.total_depth,
+                    v.mut_freq,
+                    v.func_known_gene,
+                    v.gene_known_gene,
+                    v.exonic_func_known_gene,
+                    v.aa_change_known_gene,
+                    v.esp6500si_all,
+                    v.c1000g2012apr_all,
+                    v.dbsnp_rs,
+                    v.cosmic91,
+                    v.clinvar,
+                    v.check_depth,
+                    v.check_result,
+                    v.clinvar_result,
+                    v.sp_tag,
+                    v.final_check,
+                    v.database_info,
+                    v.gene,
+                    v.transcript,
+                    v.exon,
+                    v.chgvs,
+                    v.phgvs,
+                    v.variant,
+                    v.ori_variant,
+                    v.parent_mutation_id,
+                    v.is_reported,
+                    v.filtered_rationale,
+                    v.reviewed_by,
+                    v.reviewed_at
+                FROM file_Somatic_SNV_Indel v
+                JOIN data_file_status f ON f.file_id = v.file_id
+            </otherwise>
+        </choose>
+        WHERE f.analysis_id = #{analysisId}
+          AND v.del_flag = '0'
+          AND f.del_flag = '0'
+        <if test="query.gene != null and query.gene != ''">
+            AND v.gene LIKE CONCAT('%', #{query.gene}, '%')
+        </if>
+        <if test="query.isReported != null">
+            AND v.is_reported = #{query.isReported}
+        </if>
+        ORDER BY v.id ASC
+    </select>
+
+    <!--
+      Tab③ 「入报告」开关：UPDATE ... JOIN 里带 analysisId 归属校验（返回 0 行即越权/不存在）。
+      四张表都有 is_reported / filtered_rationale / reviewed_by / reviewed_at，SET 子句一致，只有表名不同。
+    -->
+    <update id="updateVariantReportStatus">
+        <choose>
+            <when test="sourceType == 'CNV'">
+                UPDATE file_CNV v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.is_reported = #{isReported},
+                    v.filtered_rationale = #{filteredRationale},
+                    v.reviewed_by = #{operatorId},
+                    v.reviewed_at = NOW(),
+                    v.update_by = #{operatorId},
+                    v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <when test="sourceType == 'FUSION'">
+                UPDATE file_Fusion v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.is_reported = #{isReported},
+                    v.filtered_rationale = #{filteredRationale},
+                    v.reviewed_by = #{operatorId},
+                    v.reviewed_at = NOW(),
+                    v.update_by = #{operatorId},
+                    v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <when test="sourceType == 'CR_ALL'">
+                UPDATE file_CR_ALL v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.is_reported = #{isReported},
+                    v.filtered_rationale = #{filteredRationale},
+                    v.reviewed_by = #{operatorId},
+                    v.reviewed_at = NOW(),
+                    v.update_by = #{operatorId},
+                    v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <otherwise>
+                UPDATE file_Somatic_SNV_Indel v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.is_reported = #{isReported},
+                    v.filtered_rationale = #{filteredRationale},
+                    v.reviewed_by = #{operatorId},
+                    v.reviewed_at = NOW(),
+                    v.update_by = #{operatorId},
+                    v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </otherwise>
+        </choose>
+    </update>
+
+    <!-- 预览用：报告 + 模板 + 分析行 -->
+    <select id="selectReportRow" resultType="java.util.LinkedHashMap">
+        SELECT r.report_id        AS reportId,
+               r.analysis_id      AS analysisId,
+               r.subbarcode       AS subbarcode,
+               r.product          AS product,
+               r.product_id       AS productId,
+               r.template         AS template,
+               r.template_id      AS templateId,
+               r.analysis_disease AS disease,
+               r.cancer_type      AS cancerType,
+               r.status           AS status,
+               t.template_code    AS templateCode,
+               t.template_version AS templateVersion,
+               t.module_code      AS moduleCode
+        FROM analysis_report r
+        LEFT JOIN report_template t ON t.template_id = r.template_id AND t.del_flag = '0'
+        WHERE r.report_id = #{reportId} AND r.del_flag = '0'
+    </select>
+
+    <!-- 预览：报出的体细胞位点（四表并集，统一成预览需要的列） -->
+    <select id="selectReportedSomaticVariants" resultType="java.util.LinkedHashMap">
+        SELECT 'SNP_INDEL' AS sourceType, v.id AS sourceId, v.gene AS gene, v.variant AS variant,
+               v.ori_variant AS oriVariant, v.exonic_func_known_gene AS mutationTypeRaw,
+               v.mut_freq AS frequency, CONCAT(IFNULL(v.mut_depth, ''), '/', IFNULL(v.total_depth, '')) AS depth,
+               f.file_type AS fileType, v.mut_freq AS freqRaw, v.cosmic91 AS cosmic,
+               v.parent_mutation_id AS parentMutationId,
+               NULL AS fusionQuality
+        FROM file_Somatic_SNV_Indel v
+        JOIN data_file_status f ON f.file_id = v.file_id
+        WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
+        UNION ALL
+        SELECT 'CNV' AS sourceType, v.id AS sourceId, v.gene AS gene, v.variant AS variant,
+               v.ori_variant AS oriVariant, 'CNV' AS mutationTypeRaw,
+               v.copy_num AS frequency, NULL AS depth,
+               f.file_type AS fileType, v.copy_num AS freqRaw, NULL AS cosmic,
+               v.parent_mutation_id AS parentMutationId,
+               NULL AS fusionQuality
+        FROM file_CNV v
+        JOIN data_file_status f ON f.file_id = v.file_id
+        WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
+        UNION ALL
+        SELECT 'FUSION' AS sourceType, v.id AS sourceId,
+               IFNULL(CONCAT(v.gene1, '-', v.gene2), v.gene) AS gene, v.variant AS variant,
+               v.ori_variant AS oriVariant, 'FUSION' AS mutationTypeRaw,
+               v.freq AS frequency, v.depth AS depth,
+               f.file_type AS fileType, v.freq AS freqRaw, v.cosmic_info AS cosmic,
+               v.parent_mutation_id AS parentMutationId,
+               v.tag AS fusionQuality
+        FROM file_Fusion v
+        JOIN data_file_status f ON f.file_id = v.file_id
+        WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
+        ORDER BY sourceId
+    </select>
+
+    <!-- 预览：报出的胚系位点 -->
+    <select id="selectReportedGermlineVariants" resultType="java.util.LinkedHashMap">
+        SELECT 'CR_ALL' AS sourceType, v.id AS sourceId, v.gene AS gene, v.variant AS variant,
+               v.ori_variant AS oriVariant, v.exonic_func AS mutationTypeRaw,
+               v.zygosity AS zygosity, v.depth AS depth, v.clnsig AS clnsig,
+               v.parent_mutation_id AS parentMutationId,
+               f.file_type AS fileType, NULL AS freqRaw, NULL AS cosmic, NULL AS fusionQuality
+        FROM file_CR_ALL v
+        JOIN data_file_status f ON f.file_id = v.file_id
+        WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
+        ORDER BY sourceId
+    </select>
+
+    <!-- 复用登记：每次命中历史都刷新「最近复用时间 + 计数」（不动已冻结的 match_result / 用药 / 位点等级） -->
+    <update id="touchHistoryReuse">
+        <choose>
+            <when test="germline">
+                UPDATE history_germline
+                SET last_reused_at = NOW(3), reuse_count = reuse_count + 1
+                WHERE match_key = #{matchKey} AND del_flag = '0'
+            </when>
+            <otherwise>
+                UPDATE history_somatic
+                SET last_reused_at = NOW(3), reuse_count = reuse_count + 1
+                WHERE match_key = #{matchKey} AND del_flag = '0'
+            </otherwise>
+        </choose>
+    </update>
+
+    <!-- 复用留痕（append-only 日志类：只增不改，无 del_flag；tenant_id 由租户拦截器自动补） -->
+    <insert id="insertReuseLog">
+        INSERT INTO history_reuse_log
+            (history_type, history_id, match_key, gene, variant, project_code, report_id, analysis_id,
+             source_variant_id, reused_by, reused_at, create_by, create_time, update_by, update_time)
+        VALUES
+            (#{log.historyType}, #{log.historyId}, #{log.matchKey}, #{log.gene}, #{log.variant},
+             #{log.projectCode}, #{log.reportId}, #{log.analysisId}, #{log.sourceVariantId},
+             #{log.reusedBy}, NOW(3), #{log.reusedBy}, NOW(), #{log.reusedBy}, NOW())
+    </insert>
+
+    <!-- 临床意义：只更新人工确认列；冻结的 match_result / 用药 / 位点等级一律不动（NKB 更新也不刷新） -->
+    <update id="updateGermlineSignificance">
+        UPDATE history_germline
+        SET clinical_significance = #{clinicalSignificance}, update_time = NOW()
+        WHERE match_key = #{matchKey} AND del_flag = '0'
+    </update>
+
+    <select id="selectGermlineVariant" resultType="java.util.LinkedHashMap">
+        SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant, v.zygosity AS zygosity,
+               v.parent_mutation_id AS parentMutationId
+        FROM file_CR_ALL v
+        JOIN data_file_status f ON f.file_id = v.file_id
+        WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+          AND v.del_flag = '0' AND f.del_flag = '0'
+    </select>
+
+    <!-- 改靶：取单个位点（校验「改靶后是否有药物证据」要 gene / variant / oriVariant） -->
+    <select id="selectVariantForTarget" resultType="java.util.LinkedHashMap">
+        <choose>
+            <when test="sourceType == 'CNV'">
+                SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
+                FROM file_CNV v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+                  AND v.del_flag = '0' AND f.del_flag = '0'
+            </when>
+            <when test="sourceType == 'FUSION'">
+                SELECT IFNULL(CONCAT(v.gene1, '-', v.gene2), v.gene) AS gene,
+                       v.variant AS variant, v.ori_variant AS oriVariant
+                FROM file_Fusion v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+                  AND v.del_flag = '0' AND f.del_flag = '0'
+            </when>
+            <when test="sourceType == 'CR_ALL'">
+                SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
+                FROM file_CR_ALL v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+                  AND v.del_flag = '0' AND f.del_flag = '0'
+            </when>
+            <otherwise>
+                SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
+                FROM file_Somatic_SNV_Indel v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+                  AND v.del_flag = '0' AND f.del_flag = '0'
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 改靶：把人工父级写回源位点表（逗号分隔的多父级；null 表示取消改靶） -->
+    <update id="updateParentMutation">
+        <choose>
+            <when test="sourceType == 'CNV'">
+                UPDATE file_CNV v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <when test="sourceType == 'FUSION'">
+                UPDATE file_Fusion v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <when test="sourceType == 'CR_ALL'">
+                UPDATE file_CR_ALL v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <otherwise>
+                UPDATE file_Somatic_SNV_Indel v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </otherwise>
+        </choose>
+    </update>
+
+    <select id="selectProductGeneSymbols" resultType="java.lang.String">
+        SELECT gene_symbol FROM product_gene WHERE product_id = #{productId} AND del_flag = '0' ORDER BY id
+    </select>
+
+    <select id="selectSomaticHistory" resultType="java.util.LinkedHashMap">
+        SELECT id, match_status, variation_class, match_result
+        FROM history_somatic
+        WHERE match_key = #{matchKey} AND del_flag = '0'
+        LIMIT 1
+    </select>
+
+    <select id="selectGermlineHistory" resultType="java.util.LinkedHashMap">
+        SELECT id, match_status, variation_class, match_result, clinical_significance
+        FROM history_germline
+        WHERE match_key = #{matchKey} AND del_flag = '0'
+        LIMIT 1
+    </select>
+
+    <insert id="insertSomaticHistory">
+        INSERT IGNORE INTO history_somatic
+            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
+             source_type, mutation_type, measurement, parent_mutation_id, match_status, variation_class,
+             match_result, source_analysis_id, source_report_id, source_variant_id, knowledge_matched_at,
+             create_time, update_time)
+        VALUES
+            (#{h.matchKey}, #{h.keyVersion}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
+             #{h.customer}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
+             #{h.parentMutationId}, #{h.matchStatus}, #{h.variationClass}, #{h.matchResult},
+             #{h.sourceAnalysisId}, #{h.sourceReportId}, #{h.sourceVariantId}, NOW(), NOW(), NOW())
+    </insert>
+
+    <insert id="insertGermlineHistory">
+        INSERT IGNORE INTO history_germline
+            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
+             source_type, mutation_type, measurement, parent_mutation_id, match_status, variation_class,
+             match_result, clinical_significance, source_analysis_id, source_report_id, source_variant_id,
+             knowledge_matched_at, create_time, update_time)
+        VALUES
+            (#{h.matchKey}, #{h.keyVersion}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
+             #{h.customer}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
+             #{h.parentMutationId}, #{h.matchStatus}, #{h.variationClass}, #{h.matchResult}, #{h.clinicalSignificance},
+             #{h.sourceAnalysisId}, #{h.sourceReportId}, #{h.sourceVariantId}, NOW(), NOW(), NOW())
+    </insert>
+
+    <!-- 临床意义继承：与匹配键对齐（产品 + 癌种 + 性别 + 位点），忽略 parent_mutation_id（改靶继承，设计书 4.8 第 4 条） -->
+    <select id="selectInheritedGermlineSignificance" resultType="java.lang.Integer">
+        SELECT clinical_significance
+        FROM history_germline
+        WHERE gene = #{q.gene} AND variant = #{q.variant} AND disease = #{q.disease}
+          AND gender = #{q.gender} AND project_code = #{q.projectCode}
+          AND del_flag = '0'
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 批次快照：只取建报告记录需要的几列 -->
+    <select id="selectAnalysisSnapshot" resultType="org.dromara.report.domain.vo.AnalysisSnapshotVo">
+        SELECT
+            d.analysis_id  AS analysisId,
+            d.analysis_date AS analysisDate,
+            d.subbarcode   AS subbarcode,
+            d.barcode      AS barcode,
+            d.product      AS product,
+            d.product_id   AS productId,
+            d.analyzer     AS analyzer
+        FROM analysis_data d
+        WHERE d.analysis_id = #{analysisId}
+          AND d.del_flag = '0'
+    </select>
+
+</mapper>

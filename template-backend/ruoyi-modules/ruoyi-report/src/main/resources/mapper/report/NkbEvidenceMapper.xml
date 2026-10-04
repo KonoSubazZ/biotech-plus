@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.report.mapper.NkbEvidenceMapper">
+
+    <!-- 癌种解析：先用中文名精确匹配 -->
+    <select id="selectDiseaseByName" resultType="java.util.LinkedHashMap">
+        SELECT do_id AS diseaseId, disease_name_chinese AS diseaseName
+        FROM nkb.disease
+        WHERE disease_name_chinese = #{diseaseName}
+        LIMIT 1
+    </select>
+
+    <select id="selectDiseaseNames" resultType="java.lang.String">
+        SELECT disease_name_chinese
+        FROM nkb.disease
+        WHERE do_id IN
+        <foreach collection="diseaseIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="selectParentDiseaseIds" resultType="java.lang.Long">
+        SELECT DISTINCT is_a
+        FROM nkb.disease_hierarchy
+        WHERE do_id IN
+        <foreach collection="diseaseIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="selectGeneBySymbol" resultType="java.util.LinkedHashMap">
+        SELECT gene_id AS geneId, gene_symbol AS geneSymbol
+        FROM nkb.ncbi_gene
+        WHERE gene_symbol = #{geneSymbol}
+        LIMIT 1
+    </select>
+
+    <!-- 体细胞：规范化位点或原始位点命中即为同一变异 -->
+    <select id="selectGeneVariantIdsByVariant" resultType="java.lang.Long">
+        SELECT gene_variant_id
+        FROM nkb.gene_variant
+        WHERE gene_id = #{geneId}
+          AND (gene_variant = #{variant}
+               OR (#{oriVariant} IS NOT NULL AND ori_variant = #{oriVariant})
+               OR (#{variant} IS NOT NULL AND ori_variant LIKE CONCAT('%(', #{variant}, ')'))
+               OR gene_variant LIKE CONCAT('%(', #{variant}, ')'))
+        ORDER BY gene_variant_id
+        LIMIT 5
+    </select>
+
+    <!-- 胚系：NKB 以 Class5(致病)/Class4(疑似致病) 口径表达致病性 -->
+    <select id="selectGeneVariantIdsByClass" resultType="java.lang.Long">
+        SELECT gene_variant_id
+        FROM nkb.gene_variant
+        WHERE gene_id = #{geneId} AND gene_variant LIKE CONCAT(#{classPrefix}, '%')
+        ORDER BY gene_variant_id
+        LIMIT 5
+    </select>
+
+    <!--
+      evidence 行公共 SELECT（本癌种 / 其他癌种两条语句共用）。
+      过滤条件与 en7 视图 snkb_var_drug_anno_view 的 where 完全一致：
+        annotation Approved、relationship ∈ {1,4,6}、evidence_phase_id > 11、evidence_type_id = 2、
+        drug 未作废(≠3)、disease 已审核(=2)。
+    -->
+    <sql id="evidenceColumns">
+        SELECT
+            a.annotation_id             AS annotationId,
+            a.gene_variant_id           AS mutationId,
+            gv.gene_variant             AS nodeName,
+            a.drug_id                   AS drugId,
+            d.drug_name_chinese         AS drugName,
+            d.drug_name                 AS drugNameEn,
+            a.disease_id                AS diseaseId,
+            dis.disease_name_chinese    AS disease,
+            r.relationship_chinese      AS relationship,
+            a.relationship_id           AS relationshipId,
+            a.direct_target_or_not      AS directTarget,
+            et.evidence_type_chinese    AS evidenceType,
+            ep.evidence_phase_chinese   AS evidencePhase,
+            a.evidence_phase_id         AS evidencePhaseId,
+            er.evidence_ranking_chinese AS evidenceRanking,
+            a.other_test_required       AS otherTestRequired,
+            a.has_previous_clinical_result AS hasPreviousClinicalResult,
+            a.annotation_chinese        AS annotation,
+            (SELECT ad.approving_agency FROM nkb.approved_drug ad
+              WHERE ad.drug_id = a.drug_id AND ad.disease_id = a.disease_id LIMIT 1) AS approvingAgency
+        FROM nkb.variant_drug_annotation a
+        JOIN nkb.gene_variant gv ON gv.gene_variant_id = a.gene_variant_id
+        LEFT JOIN nkb.drug d ON d.drug_id = a.drug_id
+        LEFT JOIN nkb.disease dis ON dis.do_id = a.disease_id
+        LEFT JOIN nkb.evidence_type et ON et.evidence_type_id = a.evidence_type_id
+        LEFT JOIN nkb.evidence_ranking er ON er.evidence_ranking_id = a.evidence_ranking_id
+        LEFT JOIN nkb.evidence_phase ep ON ep.evidence_phase_id = a.evidence_phase_id
+        LEFT JOIN nkb.relationship r ON r.relationship_id = a.relationship_id
+    </sql>
+
+    <sql id="evidenceFilters">
+        a.checking_status_id = 2
+        AND a.relationship_id IN (1, 4, 6)
+        AND a.evidence_phase_id > 11
+        AND a.evidence_type_id = 2
+        AND IFNULL(d.checking_status_id, 0) != 3
+        AND dis.checking_status_id = 2
+        AND a.mutation_type IN (#{mutationType}, 'S/G')
+    </sql>
+
+    <select id="selectDrugAnnotations" resultType="org.dromara.report.domain.vo.PreviewDrugVo">
+        <include refid="evidenceColumns"/>
+        WHERE <include refid="evidenceFilters"/>
+          AND a.gene_variant_id IN
+          <foreach collection="geneVariantIds" item="gvId" open="(" separator="," close=")">#{gvId}</foreach>
+        <if test="diseaseIds != null and diseaseIds.size() > 0">
+            AND a.disease_id IN
+            <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+        </if>
+        ORDER BY a.evidence_phase_id DESC, a.annotation_id
+        LIMIT #{limit}
+    </select>
+
+    <!-- 其他癌种「获批上市」：phase_id = 24，癌种做 NOT IN（本癌种范围 + 剔除集合） -->
+    <select id="selectOtherApprovedDrugs" resultType="org.dromara.report.domain.vo.PreviewDrugVo">
+        <include refid="evidenceColumns"/>
+        WHERE <include refid="evidenceFilters"/>
+          AND a.evidence_phase_id = 24
+          AND a.gene_variant_id IN
+          <foreach collection="geneVariantIds" item="gvId" open="(" separator="," close=")">#{gvId}</foreach>
+        <if test="diseaseIds != null and diseaseIds.size() > 0">
+            AND a.disease_id NOT IN
+            <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+        </if>
+        <if test="excludedIds != null and excludedIds.size() > 0">
+            AND a.disease_id NOT IN
+            <foreach collection="excludedIds" item="eId" open="(" separator="," close=")">#{eId}</foreach>
+        </if>
+        ORDER BY a.evidence_phase_id DESC, a.annotation_id
+        LIMIT #{limit}
+    </select>
+
+    <!-- 位点节点 + effect + 父级名称（en7 gene_variant_evw 的等价自建版） -->
+    <select id="selectVariantNode" resultType="java.util.LinkedHashMap">
+        SELECT
+            gv.gene_variant_id AS mutationId,
+            gv.gene_variant    AS variantName,
+            gv.ori_variant     AS oriVariant,
+            e.effect_chinese   AS effectText,
+            (SELECT GROUP_CONCAT(pv.gene_variant ORDER BY pv.gene_variant_id SEPARATOR ',')
+               FROM nkb.gene_variant_parent p
+               JOIN nkb.gene_variant pv ON pv.gene_variant_id = p.parent_variant_id
+              WHERE p.gene_variant_id = gv.gene_variant_id) AS parentVariants
+        FROM nkb.gene_variant gv
+        JOIN nkb.ncbi_gene g ON g.gene_id = gv.gene_id
+        JOIN nkb.checking_status cs ON cs.status_id = gv.checking_status_id
+        LEFT JOIN nkb.effect e ON e.effect_id = gv.effect_id
+        WHERE g.gene_symbol = #{geneSymbol}
+          AND gv.gene_variant = #{geneVariant}
+          AND cs.checking_status = 'Approved'
+        LIMIT 1
+    </select>
+
+    <select id="selectParentMutationIds" resultType="java.lang.Long">
+        SELECT p.parent_variant_id
+        FROM nkb.gene_variant_parent p
+        WHERE p.gene_variant_id = #{mutationId}
+        ORDER BY p.parent_variant_id
+    </select>
+
+    <!-- 改靶候选：按关键词查 NKB 位点节点（Approved），供人工指定一个/多个父级 -->
+    <select id="selectVariantCandidates" resultType="java.util.LinkedHashMap">
+        SELECT gv.gene_variant_id AS mutationId,
+               g.gene_symbol      AS gene,
+               gv.gene_variant    AS variantName,
+               e.effect_chinese   AS effectText
+        FROM nkb.gene_variant gv
+        JOIN nkb.ncbi_gene g ON g.gene_id = gv.gene_id
+        JOIN nkb.checking_status cs ON cs.status_id = gv.checking_status_id
+        LEFT JOIN nkb.effect e ON e.effect_id = gv.effect_id
+        WHERE cs.checking_status = 'Approved'
+          AND (g.gene_symbol LIKE CONCAT(#{keyword}, '%')
+               OR gv.gene_variant LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY (g.gene_symbol = #{keyword}) DESC,
+                 (gv.gene_variant = #{keyword}) DESC,
+                 g.gene_symbol, gv.gene_variant
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      获批上市(phase 24)说明：**直接查底表 `nkb.approved_drug`**，不依赖 `approved_drug_evw` 视图
+      （视图本身只是 approved_drug ⨝ drug ⨝ checking_status；已实测两者逐行等价：572 行、差异 0）
+      状态用 `checking_status_id = 2`（Approved；1 Pending / 3 Obsolete）。
+    -->
+    <select id="selectApprovalDescriptions" resultType="java.util.LinkedHashMap">
+        SELECT a.drug_id                        AS drugId,
+               a.disease_id                     AS diseaseId,
+               a.approving_agency               AS approvingAgency,
+               a.approval_description_chinese   AS approvalDescription
+        FROM nkb.approved_drug a
+        WHERE a.checking_status_id = 2
+          AND a.drug_id IN
+          <foreach collection="drugIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+          AND a.disease_id IN
+          <foreach collection="diseaseIds" item="dzId" open="(" separator="," close=")">#{dzId}</foreach>
+    </select>
+
+    <!--
+      指南推荐(phase 23)说明：**直接查底表 `nkb.guideline_drug` + `nkb.guideline`**，不依赖 `guideline_drug_evw` 视图
+      （视图只是 guideline_drug ⨝ drug ⨝ guideline ⨝ checking_status；已实测逐行等价：1877 行、差异 0）
+      guideline_type（NCCN/CSCO）与标题在 guideline 表；描述在 guideline_drug。
+    -->
+    <select id="selectGuidelineDescriptions" resultType="java.util.LinkedHashMap">
+        SELECT a.drug_id                        AS drugId,
+               a.disease_id                     AS diseaseId,
+               g.guideline_type                 AS guidelineType,
+               g.guideline_title                AS guidelineTitle,
+               a.guideline_description_chinese  AS guidelineDescription
+        FROM nkb.guideline_drug a
+        JOIN nkb.guideline g ON g.guideline_id = a.guideline_id
+        WHERE a.checking_status_id = 2
+          AND a.drug_id IN
+          <foreach collection="drugIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+          AND a.disease_id IN
+          <foreach collection="diseaseIds" item="dzId" open="(" separator="," close=")">#{dzId}</foreach>
+        ORDER BY g.guideline_type, a.record_id
+    </select>
+
+    <!--
+      临床试验证据（第二类证据）：对齐 en7 AnalysisReportDao.getClinicalTrial
+        只取「招募中 / 邀请入组」且已审核的试验，并剔除 clinical_trial_exclude_disease 里本癌种排除的试验
+      展示字段：ID / 名称 / 肿瘤类型 / 阶段 / 药物 / 地点（实际报告「临床试验信息」表）
+    -->
+    <select id="selectClinicalTrials" resultType="java.util.LinkedHashMap">
+        SELECT t.annotation_id              AS annotationId,
+               vda.drug_id                  AS drugId,
+               d.drug_name_chinese          AS drugName,
+               ct.clinical_trial_id         AS trialId,
+               ct.official_title_chinese    AS title,
+               ct.condition_chinese         AS trialCondition,
+               ct.phase                     AS phase,
+               ct.location_chinese          AS location,
+               CASE ct.phase
+                   WHEN 'Phase IV' THEN 6
+                   WHEN 'Phase III' THEN 5
+                   WHEN 'Phase II/III' THEN 4
+                   WHEN 'Phase II' THEN 3
+                   WHEN 'Phase I/II' THEN 2
+                   WHEN 'Phase I' THEN 1
+                   ELSE 0
+               END                          AS phaseOrder
+        FROM nkb.variant_drug_anno_trial t
+        JOIN nkb.clinical_trial ct ON ct.clinical_trial_id = t.clinical_trial_id
+        JOIN nkb.variant_drug_annotation vda ON vda.annotation_id = t.annotation_id
+        LEFT JOIN nkb.drug d ON d.drug_id = vda.drug_id
+        WHERE t.annotation_id IN
+          <foreach collection="annotationIds" item="aId" open="(" separator="," close=")">#{aId}</foreach>
+          AND ct.recruiting_status IN ('Recruiting', 'Enrolling by invitation')
+          AND ct.checking_status_id = 2
+        <if test="diseaseIds != null and diseaseIds.size() > 0">
+          AND ct.clinical_trial_id NOT IN
+              (SELECT e.clinical_trial_id FROM nkb.clinical_trial_exclude_disease e
+                WHERE e.disease_id IN
+                <foreach collection="diseaseIds" item="eId" open="(" separator="," close=")">#{eId}</foreach>)
+        </if>
+        ORDER BY phaseOrder DESC, ct.clinical_trial_id
+    </select>
+
+    <!-- 按ID取节点名（人工改靶父级回显用；不排序，调用方自己按ID对齐） -->
+    <select id="selectVariantNamesByIds" resultType="java.util.LinkedHashMap">
+        SELECT gv.gene_variant_id AS mutationId,
+               gv.gene_variant    AS variantName
+        FROM nkb.gene_variant gv
+        WHERE gv.gene_variant_id IN
+        <foreach collection="mutationIds" item="mId" open="(" separator="," close=")">#{mId}</foreach>
+    </select>
+
+    <!-- 关联突变展示：一批节点ID → 节点名（按传入顺序：命中节点自身在前、父级在后） -->
+    <select id="selectVariantNames" resultType="java.lang.String">
+        SELECT gv.gene_variant
+        FROM nkb.gene_variant gv
+        JOIN nkb.checking_status cs ON cs.status_id = gv.checking_status_id
+        WHERE cs.checking_status = 'Approved'
+          AND gv.gene_variant_id IN
+        <foreach collection="mutationIds" item="mId" open="(" separator="," close=")">#{mId}</foreach>
+        ORDER BY FIELD(gv.gene_variant_id,
+        <foreach collection="mutationIds" item="mId" separator=",">#{mId}</foreach>)
+    </select>
+
+    <select id="selectChildDiseaseIds" resultType="java.lang.Long">
+        SELECT DISTINCT h.do_id
+        FROM nkb.disease_hierarchy h
+        WHERE h.is_a IN
+        <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+    </select>
+
+    <!-- 基因说明（Approved，取第一条有中文说明的） -->
+    <select id="selectGeneDescription" resultType="java.util.LinkedHashMap">
+        SELECT gd.gene_description_chinese AS geneDescription,
+               gd.related_pathway            AS relatedPathway,
+               gd.pathway_description_chinese AS pathwayDescription
+        FROM nkb.gene_description gd
+        JOIN nkb.ncbi_gene g ON g.gene_id = gd.gene_id
+        WHERE g.gene_symbol = #{geneSymbol}
+          AND gd.checking_status_id = 2
+          AND gd.gene_description_chinese IS NOT NULL
+          AND gd.gene_description_chinese != ''
+        ORDER BY gd.annotation_id
+        LIMIT 1
+    </select>
+
+    <!-- 位点说明（Approved，按命中的节点取第一条） -->
+    <select id="selectVariantDescription" resultType="java.util.LinkedHashMap">
+        SELECT d.description_chinese  AS variantDescription,
+               d.smple_desc_chinese   AS simpleDescription,
+               d.annotation_type      AS annotationType
+        FROM nkb.gene_variant_description d
+        WHERE d.gene_variant_id = #{mutationId}
+          AND d.checking_status_id = 2
+          AND d.description_chinese IS NOT NULL
+          AND d.description_chinese != ''
+        ORDER BY d.annotation_id
+        LIMIT 1
+    </select>
+
+    <!-- give 判定：该注释在父级癌种范围内「招募中」的临床试验数（en7 getClinicalNumber 原文） -->
+    <select id="selectRecruitingTrialCount" resultType="java.lang.Integer">
+        SELECT COUNT(DISTINCT ct.clinical_trial_id)
+        FROM nkb.clinical_trial ct
+        WHERE (ct.recruiting_status = 'Recruiting' OR ct.recruiting_status = 'Enrolling by invitation')
+          AND ct.checking_status_id = 2
+          AND ct.clinical_trial_id IN
+              (SELECT t.clinical_trial_id FROM nkb.variant_drug_anno_trial t WHERE t.annotation_id = #{annotationId})
+          AND ct.clinical_trial_id NOT IN
+              (SELECT e.clinical_trial_id FROM nkb.clinical_trial_exclude_disease e WHERE e.disease_id IN
+              <foreach collection="diseaseIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>)
+    </select>
+
+</mapper>

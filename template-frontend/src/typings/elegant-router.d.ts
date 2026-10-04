@@ -25,6 +25,10 @@ declare module "@elegant-router/types" {
     "404": "/404";
     "500": "/500";
     "about": "/about";
+    "compliance": "/compliance";
+    "compliance_dev-log": "/compliance/dev-log";
+    "compliance_documents": "/compliance/documents";
+    "compliance_validation-records": "/compliance/validation-records";
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
@@ -40,6 +44,7 @@ declare module "@elegant-router/types" {
     "qc_bioinfo": "/qc/bioinfo";
     "qc_wet-lab": "/qc/wet-lab";
     "report": "/report";
+    "report_interpretation": "/report/interpretation";
     "report_sample-info": "/report/sample-info";
     "social-callback": "/social-callback";
     "system": "/system";
@@ -95,6 +100,7 @@ declare module "@elegant-router/types" {
     | "404"
     | "500"
     | "about"
+    | "compliance"
     | "home"
     | "iframe-page"
     | "login"
@@ -131,6 +137,9 @@ declare module "@elegant-router/types" {
     | "social-callback"
     | "user-center"
     | "about"
+    | "compliance_dev-log"
+    | "compliance_documents"
+    | "compliance_validation-records"
     | "home"
     | "monitor_cache"
     | "monitor_logininfor"
@@ -140,6 +149,7 @@ declare module "@elegant-router/types" {
     | "project_qc-standard"
     | "qc_bioinfo"
     | "qc_wet-lab"
+    | "report_interpretation"
     | "report_sample-info"
     | "system_client"
     | "system_config"

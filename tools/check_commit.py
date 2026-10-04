@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 TYPES = ["feat", "fix", "refactor", "perf", "style", "docs", "test", "build", "ci", "chore", "revert"]
-SCOPES = ["backend", "frontend", "db", "system", "qc", "project", "report", "tools", "rules", "deps"]
+SCOPES = ["backend", "frontend", "db", "system", "qc", "project", "report", "compliance", "tools", "rules", "deps"]
 # subject 里出现这些（且没有别的信息量）就等于没写
 BAD_SUBJECTS = {"update", "updates", "fix", "fixes", "fix bug", "bugfix", "修改", "更新", "提交", "wip", "test", "临时"}
 
@@ -33,7 +33,7 @@ RULES_TEXT = """提交信息规范（依据 ai-rules/05-git-commit.md）
 格式： <type>(<scope>): <中文简述>
   · 首行 ≤ 50 字（含 type/scope 最多 72），中文，动宾短语，不加句号
   · type 必填且在白名单：feat fix refactor perf style docs test build ci chore revert
-  · scope 必填且在白名单：backend frontend db system qc project report tools rules deps
+  · scope 必填且在白名单：backend frontend db system qc project report compliance tools rules deps
     （一个 commit 只用一个 scope；跨模块请拆成多个 commit）
   · subject 要有信息量，禁止 update / fix / 修改 / 提交 / WIP 这类空话
   · 破坏性改动：type(scope)!: ...，并在 body 写 BREAKING CHANGE:
@@ -75,7 +75,7 @@ def check_message(msg: str) -> list[str]:
     if typ not in TYPES:
         errs.append(f"type {typ!r} 不在白名单：{' '.join(TYPES)}")
     if not scope:
-        errs.append("缺少 scope（一个 commit 归属哪个模块：backend/frontend/db/system/qc/project/tools/rules/deps）")
+        errs.append("缺少 scope（一个 commit 归属哪个模块：backend/frontend/db/system/qc/project/report/compliance/tools/rules/deps）")
     elif scope not in SCOPES:
         errs.append(f"scope {scope!r} 不在白名单：{' '.join(SCOPES)}（跨模块请拆成多个 commit）")
     if len(header) > 72:

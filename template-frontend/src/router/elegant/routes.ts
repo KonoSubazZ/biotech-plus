@@ -51,6 +51,44 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'compliance',
+    path: '/compliance',
+    component: 'layout.base',
+    meta: {
+      title: 'compliance',
+      i18nKey: 'route.compliance'
+    },
+    children: [
+      {
+        name: 'compliance_dev-log',
+        path: '/compliance/dev-log',
+        component: 'view.compliance_dev-log',
+        meta: {
+          title: 'compliance_dev-log',
+          i18nKey: 'route.compliance_dev-log'
+        }
+      },
+      {
+        name: 'compliance_documents',
+        path: '/compliance/documents',
+        component: 'view.compliance_documents',
+        meta: {
+          title: 'compliance_documents',
+          i18nKey: 'route.compliance_documents'
+        }
+      },
+      {
+        name: 'compliance_validation-records',
+        path: '/compliance/validation-records',
+        component: 'view.compliance_validation-records',
+        meta: {
+          title: 'compliance_validation-records',
+          i18nKey: 'route.compliance_validation-records'
+        }
+      }
+    ]
+  },
+  {
     name: 'home',
     path: '/home',
     component: 'layout.base$view.home',
@@ -200,6 +238,15 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.report'
     },
     children: [
+      {
+        name: 'report_interpretation',
+        path: '/report/interpretation',
+        component: 'view.report_interpretation',
+        meta: {
+          title: 'report_interpretation',
+          i18nKey: 'route.report_interpretation'
+        }
+      },
       {
         name: 'report_sample-info',
         path: '/report/sample-info',

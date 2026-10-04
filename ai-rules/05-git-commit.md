@@ -63,6 +63,7 @@
 | `qc` | 质控标准（及将来的 qc_record） |
 | `project` | 项目管理（产品配置等） |
 | `report` | 报告管理（样本信息等） |
+| `compliance` | 合规管理（开发记录 / 3Q 验证记录 / 3Q 文档管理） |
 | `tools` | `tools/` 下的闸门与脚手架 |
 | `rules` | `ai-rules/`、`AGENTS.md`、`ai-templates/` |
 | `deps` | 依赖升级 |
