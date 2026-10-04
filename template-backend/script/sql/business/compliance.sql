@@ -1,14 +1,17 @@
--- 开发记录表（dev_log）+「合规管理」菜单（一级目录）与「开发记录」页面、权限点位
--- 依据：docs/context/设计文档/dev-log.md
+-- 「合规管理」菜单模块的建表与菜单/权限（一个菜单模块一个文件）
+--   1) 开发记录表 dev_log        + 菜单/权限（2026-10 已落地）
+--   2) 3Q 验证记录表 validation_record + 菜单/权限（2026-10 新增）
+--   3) 3Q 文档管理表 compliance_document + 菜单/权限（待实现，继续追加到本文件）
+--
+-- 依据：docs/context/设计文档/{dev-log,validation-record}.md
 --       原文是 PG/Prisma 写法（uuid 主键、_created_at/_updated_at/_updated_by），
 --       类型已按 ai-rules/04-db-schema.md §7 映射到本仓（bigint 自增 + 公共字段四件套）。
--- 合规口径：开发记录属「不可篡改的追溯证据」→ append-only，**不加 del_flag**、
+-- 合规口径：开发记录 / 验证记录都属「不可篡改的追溯证据」→ append-only，**不加 del_flag**、
 --       不建「删除」按钮、后端不提供删除接口（ai-rules/04-db-schema.md §2「谁加 del_flag」）。
+--       （3Q 文档管理属记录类，届时可带 del_flag 与删除）
 -- 规范：ai-rules/04-db-schema.md      模板：ai-templates/db/table-template.sql
 -- 体检：python3 tools/check_db_schema.py（error 必须为 0）
--- 说明：「合规管理」下还有「3Q 验证记录 / 3Q 文档管理」两页，后续实现时把各自的建表与菜单
---       追加到本文件（一个菜单模块一个文件），不要另起并列 SQL。
--- 菜单位置：「合规管理」是根目录下的一级菜单，页面路由 /compliance/dev-log
+-- 菜单位置：「合规管理」是根目录下的一级菜单
 
 SET NAMES utf8mb4;
 
@@ -132,3 +135,101 @@ INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, m.menu_id FROM sys_menu m
 WHERE m.menu_id IN (@compliance_id, @dev_log_id)
    OR m.parent_id = @dev_log_id;
+
+
+-- ============================================================================
+-- 5. 3Q 验证记录表 validation_record
+--    依据：docs/context/设计文档/validation-record.md §1（PG/Prisma 写法，类型按 ai-rules/04 §7 映射）
+--    无 del_flag：合规 append-only（ai-rules/04-db-schema.md §2）
+--    file_name：本次验证的「验证文档」文件名（原文件名，附件存服务器固定目录；
+--               配置项 compliance.validation-record.upload-dir），重名即替换、库里不存路径
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `validation_record` (
+    id               bigint       NOT NULL AUTO_INCREMENT           COMMENT '主键',
+    validation_type  varchar(20)  NOT NULL                          COMMENT '验证类型（IQ 安装确认 / OQ 运行确认 / PQ 性能确认）',
+    title            varchar(200) NOT NULL                          COMMENT '验证标题',
+    version          varchar(50)                                    COMMENT '版本号（本次验证对应的方案/镜像版本）',
+    executed_by      varchar(80)                                    COMMENT '执行人',
+    executed_date    date                                           COMMENT '执行日期',
+    result           varchar(20)  NOT NULL DEFAULT 'passed'         COMMENT '结果（passed 通过 / failed 未通过 / na 不适用）',
+    summary          text                                           COMMENT '验证摘要',
+    file_name        varchar(255)                                   COMMENT '验证文档文件名（原文件名，附件存服务器固定目录）',
+
+    create_by        bigint                                         COMMENT '创建者',
+    create_time      datetime                                       COMMENT '创建时间',
+    update_by        bigint                                         COMMENT '更新者',
+    update_time      datetime                                       COMMENT '更新时间',
+
+    tenant_id        varchar(20)  NOT NULL DEFAULT '000000'         COMMENT '租户编号',
+
+    PRIMARY KEY (id),
+    KEY idx_tenant_id (tenant_id),
+    -- 设计文档的 idx_validation_record_type / _date；规范要求 tenant_id 打头
+    KEY idx_validation_record_type (tenant_id, validation_type),
+    KEY idx_validation_record_date (tenant_id, executed_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='3Q 验证记录';
+
+
+-- ============================================================================
+-- 6. 菜单：合规管理 > 3Q 验证记录
+--    component 两层：compliance/validation-records/index → 路由名 compliance_validation-records
+--    perms 与 ValidationRecordController 的 @SaCheckPermission 逐字一致
+-- ============================================================================
+SET @compliance_id_vr = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'compliance' LIMIT 1);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT 'route.compliance_validation-records', @compliance_id_vr, 1, 'validation-records',
+    'compliance/validation-records/index', 1, 0,
+    'C', '0', '0', 'compliance:validationRecord:list', 'local-icon-my-task', 1, NOW(), '3Q 验证记录'
+FROM (SELECT 1) AS dummy
+WHERE @compliance_id_vr IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @compliance_id_vr AND path = 'validation-records') AS exists_check);
+
+-- 收敛到当前定义（脚本可重复执行）
+UPDATE sys_menu
+SET parent_id = @compliance_id_vr, menu_name = 'route.compliance_validation-records',
+    component = 'compliance/validation-records/index', path = 'validation-records',
+    order_num = 1, menu_type = 'C', update_by = 1, update_time = NOW()
+WHERE parent_id = @compliance_id_vr AND path = 'validation-records';
+
+-- 菜单顺序按母计划：3Q 验证记录在前、开发记录在后（只改 order_num，menu_id 不动，授权不受影响）
+UPDATE sys_menu SET order_num = 2, update_by = 1, update_time = NOW()
+WHERE parent_id = @compliance_id_vr AND path = 'dev-log';
+
+SET @vr_menu_id = (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @compliance_id_vr AND path = 'validation-records' LIMIT 1);
+
+-- F 按钮：查询 / 新增 / 修改（append-only，**不建「删除」**）
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '查询', @vr_menu_id, 1, '', NULL, 1, 0, 'F', '0', '0', 'compliance:validationRecord:query', '#', 1, NOW(), '查询'
+FROM (SELECT 1) AS dummy
+WHERE @vr_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @vr_menu_id AND perms = 'compliance:validationRecord:query') AS exists_check);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '新增', @vr_menu_id, 2, '', NULL, 1, 0, 'F', '0', '0', 'compliance:validationRecord:add', '#', 1, NOW(), '新增'
+FROM (SELECT 1) AS dummy
+WHERE @vr_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @vr_menu_id AND perms = 'compliance:validationRecord:add') AS exists_check);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '修改', @vr_menu_id, 3, '', NULL, 1, 0, 'F', '0', '0', 'compliance:validationRecord:edit', '#', 1, NOW(), '修改'
+FROM (SELECT 1) AS dummy
+WHERE @vr_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @vr_menu_id AND perms = 'compliance:validationRecord:edit') AS exists_check);
+
+
+-- ============================================================================
+-- 7. 授权给超级管理员（设计矩阵里的 4 个业务角色本机不存在，先只授 superadmin）
+-- ============================================================================
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, m.menu_id FROM sys_menu m
+WHERE m.menu_id = @vr_menu_id OR m.parent_id = @vr_menu_id;
