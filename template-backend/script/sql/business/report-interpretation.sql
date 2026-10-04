@@ -547,6 +547,7 @@ CREATE TABLE IF NOT EXISTS `report_template` (
     `customer_code` VARCHAR(120) DEFAULT NULL COMMENT '客户编码',
     `report_type` VARCHAR(40) NOT NULL COMMENT '报告类型',
     `module_code` VARCHAR(500) NULL DEFAULT NULL COMMENT '有序个性化Java报告模块编码列表，分号分隔；公共模块无需配置',
+    `report_name` VARCHAR(500) DEFAULT NULL COMMENT '报告命名模板：静态文本 + {{路径}} 动态取值；空=用默认命名',
     `template_path` VARCHAR(1000) NOT NULL COMMENT '项目内或受控模板路径',
     `template_sha256` CHAR(64) DEFAULT NULL COMMENT '模板文件SHA-256',
     `status` VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT 'ENABLED/DISABLED',
