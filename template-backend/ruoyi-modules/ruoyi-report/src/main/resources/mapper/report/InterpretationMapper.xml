@@ -329,6 +329,8 @@
                r.template_id      AS templateId,
                r.analysis_disease AS disease,
                r.cancer_type      AS cancerType,
+               r.analysis_date    AS analysisDate,
+               r.report_type      AS reportType,
                r.status           AS status,
                t.template_code    AS templateCode,
                t.template_version AS templateVersion,
@@ -563,5 +565,55 @@
         WHERE d.analysis_id = #{analysisId}
           AND d.del_flag = '0'
     </select>
+
+    <!-- 圣域质控：样本质控（该批次 file_qc 最新一条；列别名 = JSON 字段名） -->
+    <select id="selectSampleQc" resultType="java.util.LinkedHashMap">
+        SELECT q.tumor_cell_content        AS tumorCellContent,
+               q.dna_total_ng              AS dnaTotal,
+               q.dna_degradation           AS dnaDegradation,
+               q.pre_library_total_ng      AS preLibraryTotal,
+               q.sequencing_data_volume    AS sequencingDataVolume,
+               q.mean_sequencing_depth     AS meanDepth,
+               q.coverage_uniformity       AS coverageUniformity,
+               q.target_region_coverage    AS targetRegionCoverage,
+               q.genome_alignment_rate     AS genomeAlignmentRate,
+               q.base_quality_q30_rate     AS baseQualityQ30Rate
+        FROM file_qc q
+        JOIN data_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
+        WHERE f.analysis_id = #{analysisId} AND q.del_flag = '0'
+        ORDER BY q.id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 圣域质控：对照质控（该批次 file_qc_control 最新一条） -->
+    <select id="selectControlQc" resultType="java.util.LinkedHashMap">
+        SELECT q.tumor_cell_content        AS tumorCellContent,
+               q.dna_total_ng              AS dnaTotal,
+               q.dna_degradation           AS dnaDegradation,
+               q.pre_library_total_ng      AS preLibraryTotal,
+               q.sequencing_data_volume    AS sequencingDataVolume,
+               q.mean_sequencing_depth     AS meanDepth,
+               q.coverage_uniformity       AS coverageUniformity,
+               q.target_region_coverage    AS targetRegionCoverage,
+               q.genome_alignment_rate     AS genomeAlignmentRate,
+               q.base_quality_q30_rate     AS baseQualityQ30Rate
+        FROM file_qc_control q
+        JOIN data_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
+        WHERE f.analysis_id = #{analysisId} AND q.del_flag = '0'
+        ORDER BY q.id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 正式生成：登记 JSON 制品路径与所用模板 -->
+    <update id="updateReportJsonArtifact">
+        UPDATE analysis_report
+        SET template_id         = #{templateId},
+            template            = #{templateCode},
+            report_json_path    = #{jsonPath},
+            report_generated_by = #{generatedBy},
+            report_generated_at = NOW(),
+            update_time         = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+    </update>
 
 </mapper>

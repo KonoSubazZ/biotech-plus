@@ -235,4 +235,36 @@ public interface InterpretationMapper {
                                  @Param("isReported") Integer isReported,
                                  @Param("filteredRationale") String filteredRationale,
                                  @Param("operatorId") Long operatorId);
+
+    /**
+     * 取该分析批次的样本质控（file_qc 最新一条）。
+     *
+     * @param analysisId 分析数据ID
+     * @return 指标行（列已别名成 JSON 字段名）；没有则 null
+     */
+    Map<String, Object> selectSampleQc(@Param("analysisId") Long analysisId);
+
+    /**
+     * 取该分析批次的对照质控（file_qc_control 最新一条）。
+     *
+     * @param analysisId 分析数据ID
+     * @return 指标行（列已别名成 JSON 字段名）；没有则 null
+     */
+    Map<String, Object> selectControlQc(@Param("analysisId") Long analysisId);
+
+    /**
+     * 正式生成：登记本次 JSON 制品路径与所用模板（不覆盖旧文件，只把库里的路径指向最新制品）。
+     *
+     * @param reportId    报告ID
+     * @param templateId  模板ID
+     * @param templateCode 模板编码
+     * @param jsonPath    JSON 制品路径
+     * @param generatedBy 产出人
+     * @return 影响行数
+     */
+    int updateReportJsonArtifact(@Param("reportId") Long reportId,
+                                 @Param("templateId") Long templateId,
+                                 @Param("templateCode") String templateCode,
+                                 @Param("jsonPath") String jsonPath,
+                                 @Param("generatedBy") String generatedBy);
 }

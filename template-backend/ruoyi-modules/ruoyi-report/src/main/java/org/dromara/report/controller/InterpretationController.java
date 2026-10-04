@@ -21,12 +21,13 @@ import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
-import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
+import org.dromara.report.domain.vo.ReportTemplateData;
 
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IInterpretationService;
+import org.dromara.report.service.impl.ReportGenerationService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -60,6 +61,8 @@ public class InterpretationController extends BaseController {
     private final IInterpretationService interpretationService;
 
     private final IInterpretationPreviewService previewService;
+
+    private final ReportGenerationService reportGenerationService;
 
     /**
      * 分页查询报告解读列表
@@ -169,8 +172,24 @@ public class InterpretationController extends BaseController {
      */
     @SaCheckPermission("report:interpretation:preview")
     @PostMapping("/preview")
-    public R<InterpretationPreviewVo> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
+    public R<ReportTemplateData> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
         return R.ok(previewService.buildPreview(bo));
+    }
+
+    /**
+     * 正式生成：重新组装 JSON 并写制品文件、登记 analysis_report.report_json_path。
+     * <p>
+     * 当前阶段只出 final JSON（DOCX/PDF 渲染后置）；不接受前端回传的预览 JSON。
+     *
+     * @param bo 入参（analysisId / reportId / templateCode）
+     * @return 含 reportId / templateCode / fileName / jsonPath 的结果
+     */
+    @SaCheckPermission("report:interpretation:generate")
+    @Log(title = "报告生成", businessType = BusinessType.INSERT)
+    @RepeatSubmit()
+    @PostMapping("/generate")
+    public R<Map<String, Object>> generate(@RequestBody @Validated InterpretationPreviewBo bo) {
+        return R.ok(reportGenerationService.generate(bo));
     }
 
     /**

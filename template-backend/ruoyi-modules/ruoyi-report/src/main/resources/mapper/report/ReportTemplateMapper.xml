@@ -51,6 +51,52 @@
         ORDER BY pt.template_id, pt.sort_order, pt.id
     </select>
 
+    <!-- 预览/生成：按模板编码取启用中的模板 -->
+    <select id="selectEnabledByCode" resultType="org.dromara.report.domain.vo.ReportTemplateVo">
+        SELECT t.template_id      AS templateId,
+               t.template_code    AS templateCode,
+               t.template_name    AS templateName,
+               t.template_version AS templateVersion,
+               t.customer_code    AS customerCode,
+               t.report_type      AS reportType,
+               t.module_code      AS moduleCode,
+               t.template_path    AS templatePath,
+               t.template_sha256  AS templateSha256,
+               t.status           AS status
+        FROM report_template t
+        WHERE t.template_code = #{templateCode} AND t.status = 'ENABLED' AND t.del_flag = '0'
+        LIMIT 1
+    </select>
+
+    <!-- 预览/生成：报告产品在 product_template 里配置的模板（默认优先） -->
+    <select id="selectDefaultByProductId" resultType="org.dromara.report.domain.vo.ReportTemplateVo">
+        SELECT t.template_id      AS templateId,
+               t.template_code    AS templateCode,
+               t.template_name    AS templateName,
+               t.template_version AS templateVersion,
+               t.customer_code    AS customerCode,
+               t.report_type      AS reportType,
+               t.module_code      AS moduleCode,
+               t.template_path    AS templatePath,
+               t.template_sha256  AS templateSha256,
+               t.status           AS status
+        FROM product_template pt
+        JOIN report_template t ON t.template_id = pt.template_id AND t.del_flag = '0'
+        WHERE pt.product_id = #{productId} AND pt.del_flag = '0' AND pt.enabled = 1
+          AND t.status = 'ENABLED'
+        ORDER BY pt.is_default DESC, pt.sort_order, t.template_id
+        LIMIT 1
+    </select>
+
+    <!-- 报告产品：product_id 为空时按产品名/编码定位 product_config.id -->
+    <select id="selectProductIdByName" resultType="java.lang.Long">
+        SELECT id
+        FROM product_config
+        WHERE del_flag = '0' AND (name = #{name} OR code = #{name})
+        ORDER BY id
+        LIMIT 1
+    </select>
+
     <!-- 产品下拉选项（product_config 跨模块只读，不引 Maven 依赖） -->
     <select id="selectProductOptions" resultType="java.util.LinkedHashMap">
         SELECT id AS id, name AS name, code AS code, status AS status

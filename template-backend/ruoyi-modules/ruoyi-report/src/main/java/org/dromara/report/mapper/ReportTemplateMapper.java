@@ -66,6 +66,30 @@ public interface ReportTemplateMapper extends BaseMapperPlus<ReportTemplate, Rep
     List<Map<String, Object>> selectProductRelationsByTemplateIds(@Param("templateIds") List<Long> templateIds);
 
     /**
+     * 按模板编码取启用中的模板（预览/生成按编码解析模板用）。
+     *
+     * @param templateCode 模板编码
+     * @return 模板；不存在或已停用返回 null
+     */
+    ReportTemplateVo selectEnabledByCode(@Param("templateCode") String templateCode);
+
+    /**
+     * 取某产品在 product_template 里配置的模板（默认优先，其次 sort_order）。
+     *
+     * @param productId 产品ID（product_config.id）
+     * @return 模板；没有配置返回 null
+     */
+    ReportTemplateVo selectDefaultByProductId(@Param("productId") Long productId);
+
+    /**
+     * 按产品名/编码定位 product_config.id（scanner 只写产品名，product_id 可能为空）。
+     *
+     * @param name 产品名或产品编码
+     * @return 产品ID；定位不到返回 null
+     */
+    Long selectProductIdByName(@Param("name") String name);
+
+    /**
      * 产品下拉选项（product_config；跨模块只读，不走 Maven 依赖）。
      *
      * @return 每行含 id / name / code / status
