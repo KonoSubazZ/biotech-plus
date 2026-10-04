@@ -85,8 +85,23 @@ public class ReportTemplateDataService {
                 return byId;
             }
         }
-        Long resolvedProductId = productId != null ? productId : reportTemplateMapper.selectProductIdByName(productName);
+        Long resolvedProductId = resolveProductId(productId, productName);
         return resolvedProductId == null ? null : reportTemplateMapper.selectDefaultByProductId(resolvedProductId);
+    }
+
+    /**
+     * 解析产品ID：报告里的 product_id 为空时按产品名/编码定位 product_config
+     * （scanner 只写产品名，product_id 常为空）。
+     *
+     * @param productId   报告上的产品ID（可空）
+     * @param productName 报告上的产品名（可空）
+     * @return product_config.id；定位不到返回 null
+     */
+    public Long resolveProductId(Long productId, String productName) {
+        if (productId != null) {
+            return productId;
+        }
+        return StringUtils.hasText(productName) ? reportTemplateMapper.selectProductIdByName(productName) : null;
     }
 
     /** 该模板的流水线里是否有 Handler 需要「产品启用基因」 */
