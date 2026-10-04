@@ -344,9 +344,21 @@ function nodeTagText(gene: string | null | undefined, nodeName: string | null | 
 /**
  * 证据「循证医学信息」：按分期取说明（对齐 en7 getVarDrugNote 的取数口径，后端已填好）
  * 指南推荐(23) → 指南说明；获批上市(24) → 批准说明；其余（含耐药）→ annotation_chinese
+ * <p>
+ * 都没有时返回空串（模板里 `v-if` 直接不渲染说明行——en7 的报告里这类证据只出现在等级药名串里）
  */
 function drugDescription(drug: Api.Report.PreviewDrug): string {
-  return drug.guidelineDescription ?? drug.approvalDescription ?? drug.annotation ?? drug.comment ?? '-';
+  return drug.guidelineDescription ?? drug.approvalDescription ?? drug.annotation ?? drug.comment ?? '';
+}
+
+/** 该证据是否带说明（决定是否打「说明」tag、是否渲染说明行） */
+function hasDescription(drug: Api.Report.PreviewDrug): boolean {
+  return drugDescription(drug) !== '';
+}
+
+/** 该证据的注释是否挂着临床试验（决定是否打「临床试验」tag） */
+function hasClinicalTrial(drug: Api.Report.PreviewDrug): boolean {
+  return (detailRow.value?.trials ?? []).some(trial => trial.annotationId != null && trial.annotationId === drug.annotationId);
 }
 
 /** 临床试验表列（对齐实际报告「临床试验信息」表：ID / 名称 / 肿瘤类型 / 阶段 / 药物 / 地点） */
@@ -568,6 +580,9 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
               <NTag v-if="drug.evidencePhase" size="small">{{ drug.evidencePhase }}</NTag>
               <NTag v-if="drug.relationship" size="small" type="info">{{ drug.relationship }}</NTag>
               <NTag v-if="drug.fromOtherCancer" size="small" type="warning">其他癌种获批</NTag>
+              <!-- 证据类型：有说明 → 说明；说明为空但挂着招募中试验 → 临床试验 -->
+              <NTag v-if="hasDescription(drug)" size="small" type="success" :bordered="false">说明</NTag>
+              <NTag v-if="hasClinicalTrial(drug)" size="small" type="warning" :bordered="false">临床试验</NTag>
               <NTag v-for="type in drug.guidelineTypes ?? []" :key="type" size="small" type="info">{{ type }}指南</NTag>
               <NTag v-if="drug.approvingAgency" size="small" type="success">{{ drug.approvingAgency }}</NTag>
               <NTag
@@ -579,13 +594,19 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
                 {{ nodeTagText(detailRow.gene, drug.nodeName) }}
               </NTag>
             </div>
-            <div class="whitespace-pre-wrap text-12px leading-20px op-80">{{ drugDescription(drug) }}</div>
+            <!-- 说明为空就不渲染这一行（en7 报告里这类证据只出现在等级药名串里） -->
+            <div v-if="hasDescription(drug)" class="whitespace-pre-wrap text-12px leading-20px op-80">
+              {{ drugDescription(drug) }}
+            </div>
           </div>
         </div>
 
         <!-- 临床试验证据（第二类证据）：ID / 名称 / 肿瘤类型 / 阶段 / 药物 / 地点 -->
         <div v-if="detailRow.trials?.length" class="mt-14px">
-          <div class="mb-6px text-13px font-medium">临床试验信息（{{ detailRow.trials.length }} 条）</div>
+          <div class="mb-6px flex items-center gap-6px text-13px font-medium">
+            <NTag size="small" type="warning" :bordered="false">临床试验</NTag>
+            <span>临床试验信息（{{ detailRow.trials.length }} 条）</span>
+          </div>
           <NDataTable
             :columns="TRIAL_COLUMNS"
             :data="detailRow.trials"
