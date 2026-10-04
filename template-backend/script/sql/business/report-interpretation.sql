@@ -649,11 +649,15 @@ WHERE m.menu_id = @report_menu_id OR m.menu_id = @menu_id OR m.parent_id = @menu
 -- ============================================================================
 -- 种子：报告模板 + 产品模板关系（Tab④ 报告预览按 template_code 取模板）
 -- 本地 product_config 现只有一条：id=2 / code=BTP001 / novopm2_tis_1238_shengyu
+-- 名称/客户/报告类型/模板 sha 对齐参考工程（biotech 库 report_template 唯一那行）：
+--   同源重组修复（HRR）通路基因检测报告-圣域 / customer_code=圣域 / report_type=HRR
+-- 模板实体随仓交付：ruoyi-report/src/main/resources/report-templates/pharma-shengyu/v1/template.docx
 -- ============================================================================
 INSERT INTO report_template (template_code, template_name, template_version, customer_code, report_type,
-    module_code, template_path, status, create_by, create_time, tenant_id)
-SELECT 'pharma-shengyu', '圣域 1238 报告', 'v1', NULL, 'SOMATIC',
-    NULL, 'report-templates/pharma-shengyu/v1/template.docx', 'ENABLED', 1, NOW(), '000000'
+    module_code, template_path, template_sha256, status, create_by, create_time, tenant_id)
+SELECT 'pharma-shengyu', '同源重组修复（HRR）通路基因检测报告-圣域', 'v1', '圣域', 'HRR',
+    NULL, 'report-templates/pharma-shengyu/v1/template.docx',
+    '2518E0A35427833FB9A26570129C215BAEAFF57A5644A2909A4065F45B5E396D', 'ENABLED', 1, NOW(), '000000'
 FROM (SELECT 1) AS dummy
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT template_id FROM report_template
     WHERE template_code = 'pharma-shengyu') AS c1);
