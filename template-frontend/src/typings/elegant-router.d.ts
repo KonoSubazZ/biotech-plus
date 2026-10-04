@@ -46,6 +46,7 @@ declare module "@elegant-router/types" {
     "report": "/report";
     "report_interpretation": "/report/interpretation";
     "report_sample-info": "/report/sample-info";
+    "report_template": "/report/template";
     "social-callback": "/social-callback";
     "system": "/system";
     "system_client": "/system/client";
@@ -151,6 +152,7 @@ declare module "@elegant-router/types" {
     | "qc_wet-lab"
     | "report_interpretation"
     | "report_sample-info"
+    | "report_template"
     | "system_client"
     | "system_config"
     | "system_dict"
