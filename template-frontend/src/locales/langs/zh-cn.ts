@@ -279,7 +279,7 @@ const local: App.I18n.Schema = {
     report: '报告管理',
     'report_sample-info': '样本信息',
     'report_interpretation': '报告解读',
-    'report_template': '报告模板配置',
+    'report_template': '模板配置',
     compliance: '合规管理',
     'compliance_dev-log': '开发记录',
     'compliance_validation-records': '3Q 验证记录',

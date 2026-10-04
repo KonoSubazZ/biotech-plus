@@ -164,7 +164,7 @@ async function handleDelete(templateId: CommonType.IdType) {
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
     <ReportTemplateSearch v-model:model="searchParams" @search="getDataByPage" />
 
-    <NCard title="报告模板配置" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
+    <NCard title="模板配置" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation
           v-model:columns="columnChecks"
