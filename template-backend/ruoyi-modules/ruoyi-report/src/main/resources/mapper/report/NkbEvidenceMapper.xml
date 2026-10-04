@@ -180,34 +180,43 @@
         LIMIT #{limit}
     </select>
 
-    <!-- 获批上市(phase 24)说明：nkb.approved_drug_evw（明文视图，en7 走加密版 + AES 解密） -->
+    <!--
+      获批上市(phase 24)说明：**直接查底表 `nkb.approved_drug`**，不依赖 `approved_drug_evw` 视图
+      （视图本身只是 approved_drug ⨝ drug ⨝ checking_status；已实测两者逐行等价：572 行、差异 0）
+      状态用 `checking_status_id = 2`（Approved；1 Pending / 3 Obsolete）。
+    -->
     <select id="selectApprovalDescriptions" resultType="java.util.LinkedHashMap">
-        SELECT ade.drug_id                     AS drugId,
-               ade.disease_id                  AS diseaseId,
-               ade.approving_agency            AS approvingAgency,
-               ade.approval_description_chinese AS approvalDescription
-        FROM nkb.approved_drug_evw ade
-        WHERE ade.checking_status = 'Approved'
-          AND ade.drug_id IN
+        SELECT a.drug_id                        AS drugId,
+               a.disease_id                     AS diseaseId,
+               a.approving_agency               AS approvingAgency,
+               a.approval_description_chinese   AS approvalDescription
+        FROM nkb.approved_drug a
+        WHERE a.checking_status_id = 2
+          AND a.drug_id IN
           <foreach collection="drugIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
-          AND ade.disease_id IN
+          AND a.disease_id IN
           <foreach collection="diseaseIds" item="dzId" open="(" separator="," close=")">#{dzId}</foreach>
     </select>
 
-    <!-- 指南推荐(phase 23)说明：nkb.guideline_drug_evw，按 guideline_type（NCCN/CSCO）在 Java 侧拼装 -->
+    <!--
+      指南推荐(phase 23)说明：**直接查底表 `nkb.guideline_drug` + `nkb.guideline`**，不依赖 `guideline_drug_evw` 视图
+      （视图只是 guideline_drug ⨝ drug ⨝ guideline ⨝ checking_status；已实测逐行等价：1877 行、差异 0）
+      guideline_type（NCCN/CSCO）与标题在 guideline 表；描述在 guideline_drug。
+    -->
     <select id="selectGuidelineDescriptions" resultType="java.util.LinkedHashMap">
-        SELECT g.drug_id                        AS drugId,
-               g.disease_id                     AS diseaseId,
+        SELECT a.drug_id                        AS drugId,
+               a.disease_id                     AS diseaseId,
                g.guideline_type                 AS guidelineType,
                g.guideline_title                AS guidelineTitle,
-               g.guideline_description_chinese  AS guidelineDescription
-        FROM nkb.guideline_drug_evw g
-        WHERE g.checking_status = 'Approved'
-          AND g.drug_id IN
+               a.guideline_description_chinese  AS guidelineDescription
+        FROM nkb.guideline_drug a
+        JOIN nkb.guideline g ON g.guideline_id = a.guideline_id
+        WHERE a.checking_status_id = 2
+          AND a.drug_id IN
           <foreach collection="drugIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
-          AND g.disease_id IN
+          AND a.disease_id IN
           <foreach collection="diseaseIds" item="dzId" open="(" separator="," close=")">#{dzId}</foreach>
-        ORDER BY g.guideline_type, g.record_id
+        ORDER BY g.guideline_type, a.record_id
     </select>
 
     <!--

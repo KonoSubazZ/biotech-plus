@@ -70,8 +70,8 @@ public class VariantDescriptionEnricher {
      * 证据说明按分期分流（对齐 en7 {@code getVarDrugNote}，注意 en7 是 if/else if、**耐药分支在最前**）：
      * <ul>
      *   <li>耐药（approveRange ≥ 5）→ 保持 {@code annotation_chinese}（en7 走「耐药说明」段，**不取指南说明**）</li>
-     *   <li>获益 + phase 23 指南推荐 → 指南说明（{@code guideline_drug_evw}，按 NCCN/CSCO 拼装，**不用 annotation**）</li>
-     *   <li>获益 + phase 24 获批上市 → 批准说明（{@code approved_drug_evw.approval_description_chinese}）+ 获批机构</li>
+     *   <li>获益 + phase 23 指南推荐 → 指南说明（底表 {@code guideline_drug} + {@code guideline}，按 NCCN/CSCO 拼装，**不用 annotation**）</li>
+     *   <li>获益 + phase 24 获批上市 → 批准说明（底表 {@code approved_drug.approval_description_chinese}）+ 获批机构</li>
      *   <li>其余获益 → {@code annotation_chinese}</li>
      * </ul>
      * 这些字段**不进 match_result 冻结**，每次预览重算，保证历史复用与首次匹配一致。

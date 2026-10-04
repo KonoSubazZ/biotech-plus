@@ -95,14 +95,14 @@ public class PreviewDrugVo implements Serializable {
     private String approvingAgency;
 
     /**
-     * 获批上市(phase 24)说明：`approved_drug_evw.approval_description_chinese`。
+     * 获批上市(phase 24)说明：底表 `nkb.approved_drug.approval_description_chinese`（不查视图）。
      * 实际报告的「循证医学信息」列在获批上市行用的就是它（en7 模块化链路 §11.3）。
      */
     private String approvalDescription;
 
     /**
      * 指南推荐(phase 23)说明：按 NCCN/CSCO 拼好的中文串。
-     * en7 getVarDrugNote 对获益的 phase 23 行**不用** annotation，改取 `guideline_drug_evw.guideline_description`。
+     * en7 getVarDrugNote 对获益的 phase 23 行**不用** annotation，改取底表 `nkb.guideline_drug.guideline_description`（NCCN/CSCO 见 `nkb.guideline`）。
      */
     private String guidelineDescription;
 
