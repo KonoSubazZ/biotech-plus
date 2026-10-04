@@ -70,6 +70,7 @@
             a.disease_id                AS diseaseId,
             dis.disease_name_chinese    AS disease,
             r.relationship_chinese      AS relationship,
+            a.relationship_id           AS relationshipId,
             a.direct_target_or_not      AS directTarget,
             et.evidence_type_chinese    AS evidenceType,
             ep.evidence_phase_chinese   AS evidencePhase,

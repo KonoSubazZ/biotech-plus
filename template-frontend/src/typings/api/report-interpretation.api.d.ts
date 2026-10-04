@@ -277,6 +277,8 @@ declare namespace Api {
       diseaseId: number | null;
       disease: string | null;
       relationship: string | null;
+      /** 关系字典ID：1 敏感性增加 / 4 有益的 / 6 抗药性（判断耐药用它） */
+      relationshipId: number | null;
       /** BENEFIT / RESISTANT */
       relation: string | null;
       directTarget: string | null;

@@ -188,10 +188,26 @@ public class NkbDrugMatcher {
 
     // ---------------------------------------------------------------- 分级 / 去重
 
+    /** 耐药关系字典ID（nkb.relationship：1 敏感性增加 / 4 有益的 / 6 抗药性） */
+    private static final int RESISTANT_RELATION_ID = 6;
+
+    /**
+     * 是否耐药证据。
+     * <p>
+     * ⚠️ 只能按字典ID判：SQL 取的是 `relationship_chinese`（展示用中文），
+     * 早先按 `"Resistant".equals(...)` 比中文，恒为 false → 抗药性证据被当获益药（已修）。
+     *
+     * @param drug 证据行
+     * @return 是否抗药性
+     */
+    private boolean isResistant(PreviewDrugVo drug) {
+        return drug.getRelationshipId() != null && drug.getRelationshipId() == RESISTANT_RELATION_ID;
+    }
+
     /** 按 en7 getDrugLevel 计算等级码，并补 give / relation / levelName */
     private void buildGrades(List<PreviewDrugVo> list, List<Long> parentDiseaseIds, boolean otherCancer) {
         for (PreviewDrugVo drug : list) {
-            boolean resistant = "Resistant".equals(drug.getRelationship());
+            boolean resistant = isResistant(drug);
             drug.setFromOtherCancer(otherCancer);
             drug.setRelation(resistant ? "RESISTANT" : "BENEFIT");
             if (otherCancer) {
@@ -216,7 +232,7 @@ public class NkbDrugMatcher {
         if (phase == null) {
             return 9;
         }
-        if ("Resistant".equals(drug.getRelationship()) && phase >= 12) {
+        if (isResistant(drug) && phase >= 12) {
             return resistantLevel(phase, () -> give(drug, parentDiseaseIds));
         }
         if (phase > 22) {
@@ -297,21 +313,28 @@ public class NkbDrugMatcher {
     }
 
     /**
-     * en7 filterDrugList：同一（药物 × 癌种）只保留**最高等级**（等级码最小）那条，等级 9 丢弃；
-     * 其余证据行全部保留（不同癌种/不同等级都在）。
+     * en7 filterDrugList：**获益 / 耐药各自一个桶**，同一（药物 × 癌种）在各自桶里只保留**最高等级**（等级码最小）那条；
+     * 等级 9 丢弃。所以同一个药可以同时出现在获益组和耐药组（关系不同，属两条不同证据）。
      */
     private void dedupeByDrugAndDisease(List<PreviewDrugVo> evidence) {
-        Map<String, Integer> best = new LinkedHashMap<>();
+        Map<String, Integer> benefitBest = new LinkedHashMap<>();
+        Map<String, Integer> resistantBest = new LinkedHashMap<>();
         for (PreviewDrugVo drug : evidence) {
             if (drug.getApproveRange() == null || drug.getApproveRange() == 9) {
                 continue;
             }
-            String key = drug.getDrugId() + "&" + drug.getDiseaseId();
-            best.merge(key, drug.getApproveRange(), Math::min);
+            Map<String, Integer> bucket = isResistant(drug) ? resistantBest : benefitBest;
+            bucket.merge(drug.getDrugId() + "&" + drug.getDiseaseId(), drug.getApproveRange(), Math::min);
         }
         evidence.removeIf(drug -> drug.getApproveRange() == null || drug.getApproveRange() == 9
-            || !drug.getApproveRange().equals(best.get(drug.getDrugId() + "&" + drug.getDiseaseId())));
+            || !drug.getApproveRange().equals(bestOf(drug, benefitBest, resistantBest)));
         evidence.sort(Comparator.comparing(PreviewDrugVo::getApproveRange));
+    }
+
+    /** 取该证据所属桶（获益/耐药）的最优等级，用于去重判定 */
+    private Integer bestOf(PreviewDrugVo drug, Map<String, Integer> benefitBest, Map<String, Integer> resistantBest) {
+        Map<String, Integer> bucket = isResistant(drug) ? resistantBest : benefitBest;
+        return bucket.get(drug.getDrugId() + "&" + drug.getDiseaseId());
     }
 
     // ---------------------------------------------------------------- 输出结构

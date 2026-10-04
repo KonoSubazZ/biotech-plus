@@ -51,8 +51,11 @@ public class PreviewDrugVo implements Serializable {
     /** 证据癌种名 */
     private String disease;
 
-    /** 用药关系（敏感性增加/有益的/抗药性） */
+    /** 用药关系（中文展示：敏感性增加/有益的/抗药性） */
     private String relationship;
+
+    /** 关系字典ID（1 敏感性增加 / 4 有益的 / 6 抗药性）；判断耐药用它，别拿中文比 */
+    private Integer relationshipId;
 
     /** 关系分类：BENEFIT / RESISTANT */
     private String relation;
