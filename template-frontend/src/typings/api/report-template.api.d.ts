@@ -23,6 +23,8 @@ declare namespace Api {
       reportType: string | null;
       /** 有序个性化模块编码列表（分号分隔） */
       moduleCode: string | null;
+      /** 报告命名模板：静态文本 + {{路径}} 动态取值；空 = 用默认命名 */
+      reportName: string | null;
       /** DOCX 模板文件路径 */
       templatePath: string;
       /** 模板文件 SHA-256 */
@@ -51,11 +53,18 @@ declare namespace Api {
       customerCode: string;
       reportType: string;
       moduleCode: string;
+      reportName: string;
       templatePath: string;
       templateSha256: string;
       status: string;
       /** 关联产品ID集合 */
       productIds: number[];
+    }
+
+    /** 报告命名可用变量（后端 ReportNameCatalog）：catalog=可引用路径，sample=样例值 */
+    interface ReportNameVars {
+      catalog: string[];
+      sample: Record<string, unknown>;
     }
 
     /** 产品下拉选项（product_config） */

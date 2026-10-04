@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { jsonClone } from '@sa/utils';
 import {
   fetchCreateReportTemplate,
+  fetchGetReportNameVars,
   fetchGetProductOptions,
   fetchUpdateReportTemplate
 } from '@/service/api/report/template';
@@ -55,6 +56,7 @@ const EMPTY_FORM: Api.Report.ReportTemplateForm = {
   customerCode: '',
   reportType: 'SOMATIC',
   moduleCode: '',
+  reportName: '',
   templatePath: '',
   templateSha256: '',
   status: 'ENABLED',
@@ -89,12 +91,37 @@ function handleUpdateModelWhenEdit() {
       customerCode: row.customerCode ?? '',
       reportType: row.reportType ?? 'SOMATIC',
       moduleCode: row.moduleCode ?? '',
+      reportName: row.reportName ?? '',
       templatePath: row.templatePath ?? '',
       templateSha256: row.templateSha256 ?? '',
       status: row.status ?? 'ENABLED',
       productIds: row.productIds ?? []
     };
   }
+}
+
+/** 报告命名字典：可用路径 + 样例值都来自后端，前端不自己维护变量清单 */
+const nameVars = ref<string[]>([]);
+const nameSample = ref<Record<string, unknown>>({});
+
+const nameVarOptions = computed(() => nameVars.value);
+
+/** 试算：{{a.b}} 替换样例值；未知路径显示 ⚠，仅示意，真正校验在后端保存时 */
+const namePreview = computed(() => {
+  const pattern = model.value.reportName;
+  if (!pattern) return '';
+  return pattern.replace(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g, (_matched: string, path: string) => {
+    const value = nameSample.value[path];
+    return value === undefined || value === null ? `⚠${path}` : String(value);
+  });
+});
+
+async function loadNameVars() {
+  if (nameVars.value.length) return;
+  const { data, error } = await fetchGetReportNameVars();
+  if (error) return;
+  nameVars.value = data?.catalog ?? [];
+  nameSample.value = data?.sample ?? {};
 }
 
 async function loadProductOptions() {
@@ -137,6 +164,7 @@ watch(visible, () => {
     handleUpdateModelWhenEdit();
     restoreValidation();
     loadProductOptions();
+    loadNameVars();
   }
 });
 </script>
@@ -186,6 +214,18 @@ watch(visible, () => {
             :placeholder="`分号分隔的有序个性化模块编码，顺序即执行顺序；留空 = 只输出公共字段。已注册：${MODULE_CODE_HINT}`"
           />
         </NFormItem>
+        <NFormItem label="报告命名" path="reportName">
+          <NInput
+            v-model:value="model.reportName"
+            placeholder="如 圣域_{{template.customerCode}}_{{sampleInfo.sampleCode}}_{{reportId}}；留空用默认命名"
+          />
+        </NFormItem>
+        <div class="ml-130px -mt-14px mb-16px text-12px text-gray-500">
+          可用变量：{{ nameVarOptions.length ? nameVarOptions.join('、') : '加载中…' }}
+          <template v-if="namePreview">
+            ｜试算：{{ namePreview }}（仅示意，以生成结果为准）
+          </template>
+        </div>
         <NFormItem label="模板文件路径" path="templatePath">
           <NInput
             v-model:value="model.templatePath"

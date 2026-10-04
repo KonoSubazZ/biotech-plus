@@ -32,6 +32,14 @@ export function fetchGetProductOptions() {
   });
 }
 
+/** 报告命名可用变量（模板表单的提示与试算用；同一份字典也是后端保存期校验口径） */
+export function fetchGetReportNameVars() {
+  return request<Api.Report.ReportNameVars>({
+    url: '/report/template/name-vars',
+    method: 'get'
+  });
+}
+
 /** 新增 */
 export function fetchCreateReportTemplate(data: Api.Report.ReportTemplateForm) {
   return request<null>({
