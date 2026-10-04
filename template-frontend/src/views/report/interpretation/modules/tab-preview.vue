@@ -583,8 +583,7 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
               <NTag v-if="drug.evidencePhase" size="small">{{ drug.evidencePhase }}</NTag>
               <NTag v-if="drug.relationship" size="small" type="info">{{ drug.relationship }}</NTag>
               <NTag v-if="drug.fromOtherCancer" size="small" type="warning">其他癌种获批</NTag>
-              <!-- 证据类型：有说明 → 说明；说明为空但挂着招募中试验 → 临床试验 -->
-              <NTag v-if="hasDescription(drug)" size="small" type="success" :bordered="false">说明</NTag>
+              <!-- 证据类型：说明为空但挂着招募中试验 → 临床试验（有说明的不打 tag，说明正文本身就是标识） -->
               <NTag v-if="hasClinicalTrial(drug)" size="small" type="warning" :bordered="false">临床试验</NTag>
               <NTag v-for="type in drug.guidelineTypes ?? []" :key="type" size="small" type="info">{{ type }}指南</NTag>
               <NTag v-if="drug.approvingAgency" size="small" type="success">{{ drug.approvingAgency }}</NTag>
