@@ -386,6 +386,16 @@ function mutationTexts(row: Api.Report.PreviewVariant | null): string[] {
   return [row?.mutationExplanation, row?.variantDescription || row?.description].filter(Boolean) as string[];
 }
 
+/** 详情用：分级项标签 —— 胚系看「临床意义」（五级人工确认），体细胞看「位点分级」（I/II/III 类） */
+function gradeLabel(row: Api.Report.PreviewVariant | null): string {
+  return row?.sourceType === 'CR_ALL' ? '临床意义' : '位点分级';
+}
+
+/** 详情用：分级项取值（与 {@link gradeLabel} 配套） */
+function gradeValue(row: Api.Report.PreviewVariant | null): string {
+  return row?.sourceType === 'CR_ALL' ? row.clinicalSignificanceLabel ?? '-' : row?.variationClass ?? '-';
+}
+
 const sectionMeta = computed(() => [
   {
     key: 'somatic',
@@ -455,7 +465,7 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
       />
     </NCard>
 
-    <!-- 详情：标签行（关联突变 / 药物信息 / 位点分级 / 证据条数）+ 说明 + 证据明细全量 -->
+    <!-- 详情：标签行（关联突变 / 药物信息 / 位点分级·临床意义 / 证据条数）+ 说明 + 证据明细全量 -->
     <NModal
       v-model:show="detailVisible"
       preset="card"
@@ -489,8 +499,8 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
             </NTag>
           </div>
           <div class="flex flex-wrap items-center gap-6px">
-            <span class="op-60">位点分级</span>
-            <NTag size="small">{{ detailRow.variationClass ?? '-' }}</NTag>
+            <span class="op-60">{{ gradeLabel(detailRow) }}</span>
+            <NTag size="small">{{ gradeValue(detailRow) }}</NTag>
           </div>
           <span v-if="detailRow.drugMatch?.length" class="op-60">证据 {{ detailRow.drugMatch.length }} 条</span>
         </div>
