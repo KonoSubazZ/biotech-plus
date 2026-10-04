@@ -434,6 +434,7 @@ CREATE TABLE IF NOT EXISTS `file_chemical` (
 CREATE TABLE IF NOT EXISTS `history_somatic` (
     `id` bigint NOT NULL AUTO_INCREMENT,
     `match_key` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '规范化匹配条件SHA-256',
+    `key_version` tinyint NOT NULL DEFAULT 1 COMMENT '复用键口径版本：1=旧键(含customer)，2=按产品项目+位点+癌种+性别+改靶父级',
     `gene` varchar(100) NOT NULL,
     `variant` varchar(500) NOT NULL,
     `ori_variant` varchar(1000) NOT NULL,
@@ -449,6 +450,8 @@ CREATE TABLE IF NOT EXISTS `history_somatic` (
     `match_status` varchar(32) NOT NULL,
     `variation_class` varchar(32) DEFAULT NULL,
     `match_result` json NOT NULL COMMENT '冻结的ReportDrugPreview.Item JSON',
+    `last_reused_at` datetime(3) DEFAULT NULL COMMENT '最近一次被复用的时间',
+    `reuse_count` int NOT NULL DEFAULT 0 COMMENT '被复用次数',
     `source_analysis_id` bigint NOT NULL,
     `source_report_id` bigint NOT NULL,
     `source_variant_id` bigint NOT NULL,
@@ -471,6 +474,7 @@ CREATE TABLE IF NOT EXISTS `history_somatic` (
 CREATE TABLE IF NOT EXISTS `history_germline` (
     `id` bigint NOT NULL AUTO_INCREMENT,
     `match_key` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '规范化匹配条件SHA-256',
+    `key_version` tinyint NOT NULL DEFAULT 1 COMMENT '复用键口径版本：1=旧键(含customer)，2=按产品项目+位点+癌种+性别+改靶父级',
     `gene` varchar(100) NOT NULL,
     `variant` varchar(500) NOT NULL,
     `ori_variant` varchar(1000) NOT NULL,
@@ -487,6 +491,8 @@ CREATE TABLE IF NOT EXISTS `history_germline` (
     `variation_class` varchar(32) DEFAULT NULL,
     `clinical_significance` tinyint NOT NULL DEFAULT 3 COMMENT '临床意义：1致病，2可能致病，3未知临床意义，4可能良性，5良性',
     `match_result` json NOT NULL COMMENT '冻结的ReportDrugPreview.Item JSON',
+    `last_reused_at` datetime(3) DEFAULT NULL COMMENT '最近一次被复用的时间',
+    `reuse_count` int NOT NULL DEFAULT 0 COMMENT '被复用次数',
     `source_analysis_id` bigint NOT NULL,
     `source_report_id` bigint NOT NULL,
     `source_variant_id` bigint NOT NULL,
@@ -504,6 +510,33 @@ CREATE TABLE IF NOT EXISTS `history_germline` (
     KEY `idx_history_germline_variant` (`gene`, `variant`(120), `del_flag`),
     KEY idx_tenant_id (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='胚系位点药物匹配历史';
+
+-- history_reuse_log（位点匹配历史复用留痕；append-only 日志类，按 ai-rules/04 §2 不加 del_flag）
+CREATE TABLE IF NOT EXISTS `history_reuse_log` (
+    `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `history_type` varchar(16) NOT NULL COMMENT 'SOMATIC / GERMLINE',
+    `history_id` bigint NOT NULL COMMENT 'history_somatic / history_germline.id',
+    `match_key` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '规范化匹配键',
+    `gene` varchar(100) NOT NULL COMMENT '基因',
+    `variant` varchar(500) NOT NULL COMMENT '规范化位点',
+    `project_code` varchar(120) NOT NULL COMMENT 'analysis_data.product',
+    `report_id` bigint NOT NULL COMMENT '复用时的报告ID',
+    `analysis_id` bigint NOT NULL COMMENT '复用时的分析批次ID',
+    `source_variant_id` bigint DEFAULT NULL COMMENT '复用时的来源位点ID',
+    `reused_by` bigint DEFAULT NULL COMMENT '操作人 sys_user.user_id',
+    `reused_at` datetime(3) NOT NULL COMMENT '复用时间',
+    `create_by` bigint COMMENT '创建者',
+    `create_time` datetime COMMENT '创建时间',
+    `update_by` bigint COMMENT '更新者',
+    `update_time` datetime COMMENT '更新时间',
+    `tenant_id` varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
+
+    PRIMARY KEY (`id`),
+    KEY `idx_history_reuse_log_history` (`history_type`, `history_id`, `reused_at`),
+    KEY `idx_history_reuse_log_report` (`report_id`, `reused_at`),
+    KEY `idx_history_reuse_log_match_key` (`match_key`),
+    KEY `idx_tenant_id` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='位点匹配历史复用留痕';
 
 -- report_template
 CREATE TABLE IF NOT EXISTS `report_template` (
