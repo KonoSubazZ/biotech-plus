@@ -60,6 +60,7 @@
                t.customer_code    AS customerCode,
                t.report_type      AS reportType,
                t.module_code      AS moduleCode,
+               t.report_name      AS reportName,
                t.template_path    AS templatePath,
                t.template_sha256  AS templateSha256,
                t.status           AS status
@@ -77,6 +78,7 @@
                t.customer_code    AS customerCode,
                t.report_type      AS reportType,
                t.module_code      AS moduleCode,
+               t.report_name      AS reportName,
                t.template_path    AS templatePath,
                t.template_sha256  AS templateSha256,
                t.status           AS status

@@ -46,6 +46,9 @@ public class ReportTemplate extends BaseEntity {
     /** 有序个性化模块编码列表（分号分隔）；空 = 只输出公共字段 */
     private String moduleCode;
 
+    /** 报告命名模板：静态文本 + {{路径}} 动态取值；空 = 用默认命名 */
+    private String reportName;
+
     /** DOCX 模板文件路径（预留：相对受控目录或绝对路径） */
     private String templatePath;
 

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.2",
+  "templateCode": "pharma-shengyu",
+  "templateVersion": "v1",
+  "analysisId": 123,
+  "reportId": 456,
+  "reportInfo": {
+    "reportDate": "2026-10-04",
+    "specimentType": "tissue",
+    "reportName": "圣域_shengyu_YKHS260031036-1AT_456"
+  },
+  "showTissueBloodSample": false,
+  "showBloodOnlySample": true,
+  "sampleInfo": {
+    "researchCenterName": "XX医院",
+    "participantNumber": "P001",
+    "gender": "女",
+    "birthYear": "1980",
+    "disease": "非小细胞肺癌",
+    "visitCycle": null,
+    "sampleCode": "YKHS260031036-1AT",
+    "sampleType": "组织+全血",
+    "tissueCollectionDate": "2026-09-01",
+    "sectionDate": null,
+    "bloodCollectionDate": null,
+    "receivedDate": "2026-09-03"
+  },
+  "somaticVariants": {
+    "summary": {},
+    "items": []
+  },
+  "germlineVariants": {
+    "summary": {},
+    "items": []
+  },
+  "qualityControl": {
+    "specimenType": "组织",
+    "sampleQc": {
+      "meanDepth": "1000",
+      "coverageUniformity": "98%"
+    },
+    "controlQc": {
+      "meanDepth": "800"
+    }
+  },
+  "warnings": []
+}

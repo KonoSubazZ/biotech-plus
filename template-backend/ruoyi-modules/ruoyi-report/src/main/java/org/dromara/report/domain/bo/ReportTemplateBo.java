@@ -61,6 +61,10 @@ public class ReportTemplateBo extends BaseEntity {
     @Size(max = 500, message = "模块编码长度不能超过 500", groups = {AddGroup.class, EditGroup.class})
     private String moduleCode;
 
+    /** 报告命名模板：静态文本 + {{路径}} 动态取值；空 = 用默认命名 */
+    @Size(max = 500, message = "报告命名模板长度不能超过 500", groups = {AddGroup.class, EditGroup.class})
+    private String reportName;
+
     /** DOCX 模板文件路径（预留） */
     @NotBlank(message = "模板路径不能为空", groups = {AddGroup.class, EditGroup.class})
     @Size(max = 1000, message = "模板路径长度不能超过 1000", groups = {AddGroup.class, EditGroup.class})

@@ -16,6 +16,7 @@ import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.ReportTemplateBo;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.service.IReportTemplateService;
+import org.dromara.report.service.ReportNameCatalog;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,6 +47,8 @@ import java.util.Map;
 public class ReportTemplateController extends BaseController {
 
     private final IReportTemplateService reportTemplateService;
+
+    private final ReportNameCatalog reportNameCatalog;
 
     /**
      * 分页查询报告模板列表
@@ -67,6 +72,23 @@ public class ReportTemplateController extends BaseController {
     @GetMapping("/productOptions")
     public R<List<Map<String, Object>>> productOptions() {
         return R.ok(reportTemplateService.selectProductOptions());
+    }
+
+    /**
+     * 报告命名可用变量（模板表单的「报告命名」提示与试算用）。
+     * <p>
+     * catalog = 可引用的叶子路径；sample = 样例值。同一份字典也用于保存期校验，
+     * 前端不要再自己维护变量清单。
+     *
+     * @return 变量字典
+     */
+    @SaCheckPermission("report:template:query")
+    @GetMapping("/name-vars")
+    public R<Map<String, Object>> nameVars() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("catalog", new ArrayList<>(reportNameCatalog.getPaths()));
+        result.put("sample", reportNameCatalog.getSample());
+        return R.ok(result);
     }
 
     /**

@@ -41,6 +41,9 @@ public class ReportTemplateVo {
     /** 有序个性化模块编码列表（分号分隔） */
     private String moduleCode;
 
+    /** 报告命名模板：静态文本 + {{路径}} 动态取值 */
+    private String reportName;
+
     /** DOCX 模板文件路径 */
     private String templatePath;
 
