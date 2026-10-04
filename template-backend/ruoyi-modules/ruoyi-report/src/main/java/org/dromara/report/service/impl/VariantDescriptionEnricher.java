@@ -7,6 +7,8 @@ import org.dromara.report.mapper.NkbEvidenceMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,8 +46,36 @@ public class VariantDescriptionEnricher {
             Map<String, Object> node = nkb(() -> nkbEvidenceMapper.selectVariantDescription(nodeId));
             item.setVariantDescription(node == null ? null : PreviewSupport.asString(node.get("variantDescription")));
         }
+        item.setRelatedMutations(relatedMutations(nodeId));
         String freq = "CR_ALL".equals(item.getSourceType()) ? null : PreviewSupport.translationFreq(freqRaw);
         item.setMutationExplanation(HgvsTranslator.translate(item.getGene(), item.getOriVariant(), freq));
+    }
+
+    /**
+     * 关联突变节点名：命中节点自身 + 一层父级（en7 的 mutationIdList）。
+     * <p>
+     * 只依赖冻结的 matchedMutationId，所以历史复用与首次匹配产出完全一致
+     * （不进 match_result，避免改动冻结结构）。
+     *
+     * @param nodeId 命中的节点ID；未收录时为 null
+     * @return 节点名列表（未收录时为空）
+     */
+    private List<String> relatedMutations(Long nodeId) {
+        List<String> names = new ArrayList<>();
+        if (nodeId == null) {
+            return names;
+        }
+        List<Long> ids = new ArrayList<>();
+        ids.add(nodeId);
+        List<Long> parents = nkb(() -> nkbEvidenceMapper.selectParentMutationIds(nodeId));
+        if (parents != null) {
+            ids.addAll(parents);
+        }
+        List<String> hit = nkb(() -> nkbEvidenceMapper.selectVariantNames(ids));
+        if (hit != null) {
+            names.addAll(hit);
+        }
+        return names;
     }
 
     /**

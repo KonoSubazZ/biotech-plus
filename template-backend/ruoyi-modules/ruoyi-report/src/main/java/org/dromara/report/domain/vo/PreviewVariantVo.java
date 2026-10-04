@@ -97,6 +97,12 @@ public class PreviewVariantVo implements Serializable {
     /** 知识库命中节点名（自身或父级，如 V559D / Active Mutation / Inactive Mutation） */
     private String matchedNode;
 
+    /**
+     * 关联突变节点名列表：命中节点自身 + 一层父级（en7 的 mutationIdList 口径）。
+     * 知识库未收录时为空列表；`基因 位点` 那一条由前端追加。
+     */
+    private List<String> relatedMutations;
+
     /** 知识库功能判定（effect 字典：激活/失活/未知/无影响） */
     private String effectText;
 

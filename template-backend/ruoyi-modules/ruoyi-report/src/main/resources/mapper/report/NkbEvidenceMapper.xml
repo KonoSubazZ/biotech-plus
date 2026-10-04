@@ -158,6 +158,19 @@
         SELECT p.parent_variant_id
         FROM nkb.gene_variant_parent p
         WHERE p.gene_variant_id = #{mutationId}
+        ORDER BY p.parent_variant_id
+    </select>
+
+    <!-- 关联突变展示：一批节点ID → 节点名（按传入顺序：命中节点自身在前、父级在后） -->
+    <select id="selectVariantNames" resultType="java.lang.String">
+        SELECT gv.gene_variant
+        FROM nkb.gene_variant gv
+        JOIN nkb.checking_status cs ON cs.status_id = gv.checking_status_id
+        WHERE cs.checking_status = 'Approved'
+          AND gv.gene_variant_id IN
+        <foreach collection="mutationIds" item="mId" open="(" separator="," close=")">#{mId}</foreach>
+        ORDER BY FIELD(gv.gene_variant_id,
+        <foreach collection="mutationIds" item="mId" separator=",">#{mId}</foreach>)
     </select>
 
     <select id="selectChildDiseaseIds" resultType="java.lang.Long">

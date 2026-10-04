@@ -144,6 +144,14 @@ public interface NkbEvidenceMapper {
     Map<String, Object> selectVariantDescription(@Param("mutationId") Long mutationId);
 
     /**
+     * 一批节点ID → 节点名（关联突变展示用；按传入顺序返回，Approved 之外的不返回）
+     *
+     * @param mutationIds 节点ID列表（命中节点自身 + 一层父级）
+     * @return 节点名列表
+     */
+    List<String> selectVariantNames(@Param("mutationIds") List<Long> mutationIds);
+
+    /**
      * 某注释在给定癌种范围内「招募中」的临床试验数（en7 getClinicalNumber，用于 give 判定）
      *
      * @param annotationId 注释ID

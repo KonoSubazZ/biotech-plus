@@ -315,6 +315,8 @@ declare namespace Api {
       inNkb: boolean | null;
       /** 命中的知识库节点名（父级时能看到 Active Mutation 等） */
       matchedNode: string | null;
+      /** 关联突变节点名：命中节点自身 + 一层父级（未收录时为空，`基因 位点` 由前端追加） */
+      relatedMutations: string[] | null;
       /** 知识库功能判定：激活/失活/未知/无影响 */
       effectText: string | null;
       /** 位点用药说明（失活/扩增/缺失/未明四段模板） */
