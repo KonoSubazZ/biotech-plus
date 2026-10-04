@@ -279,6 +279,8 @@ const local: App.I18n.Schema = {
     report: '报告管理',
     'report_sample-info': '样本信息',
     'report_interpretation': '报告解读',
+    compliance: '合规管理',
+    'compliance_dev-log': '开发记录',
     system_user: '用户管理',
     system_role: '角色管理',
     system_menu: '菜单管理',

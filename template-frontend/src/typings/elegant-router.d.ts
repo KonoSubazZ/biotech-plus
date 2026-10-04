@@ -25,6 +25,8 @@ declare module "@elegant-router/types" {
     "404": "/404";
     "500": "/500";
     "about": "/about";
+    "compliance": "/compliance";
+    "compliance_dev-log": "/compliance/dev-log";
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
@@ -96,6 +98,7 @@ declare module "@elegant-router/types" {
     | "404"
     | "500"
     | "about"
+    | "compliance"
     | "home"
     | "iframe-page"
     | "login"
@@ -132,6 +135,7 @@ declare module "@elegant-router/types" {
     | "social-callback"
     | "user-center"
     | "about"
+    | "compliance_dev-log"
     | "home"
     | "monitor_cache"
     | "monitor_logininfor"

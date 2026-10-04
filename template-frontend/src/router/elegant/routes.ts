@@ -51,6 +51,26 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'compliance',
+    path: '/compliance',
+    component: 'layout.base',
+    meta: {
+      title: 'compliance',
+      i18nKey: 'route.compliance'
+    },
+    children: [
+      {
+        name: 'compliance_dev-log',
+        path: '/compliance/dev-log',
+        component: 'view.compliance_dev-log',
+        meta: {
+          title: 'compliance_dev-log',
+          i18nKey: 'route.compliance_dev-log'
+        }
+      }
+    ]
+  },
+  {
     name: 'home',
     path: '/home',
     component: 'layout.base$view.home',
