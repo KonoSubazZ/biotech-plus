@@ -345,10 +345,13 @@ function nodeTagText(gene: string | null | undefined, nodeName: string | null | 
  * 证据「循证医学信息」：按分期取说明（对齐 en7 getVarDrugNote 的取数口径，后端已填好）
  * 指南推荐(23) → 指南说明；获批上市(24) → 批准说明；其余（含耐药）→ annotation_chinese
  * <p>
- * 都没有时返回空串（模板里 `v-if` 直接不渲染说明行——en7 的报告里这类证据只出现在等级药名串里）
+ * ⚠️ **不要兜底到 `comment`**：那是 NKB 内部维护备注（「新增 NCT… LSF 20210129」「修改证据等级为…」），
+ * 报告里从不输出，en7 的取数 SQL 也从不 select 它。
+ * <p>
+ * 都没有时返回空串（模板里 `v-if` 直接不渲染说明行——en7 报告里这类证据只出现在等级药名串里）
  */
 function drugDescription(drug: Api.Report.PreviewDrug): string {
-  return drug.guidelineDescription ?? drug.approvalDescription ?? drug.annotation ?? drug.comment ?? '';
+  return drug.guidelineDescription ?? drug.approvalDescription ?? drug.annotation ?? '';
 }
 
 /** 该证据是否带说明（决定是否打「说明」tag、是否渲染说明行） */

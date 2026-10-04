@@ -79,7 +79,6 @@
             a.other_test_required       AS otherTestRequired,
             a.has_previous_clinical_result AS hasPreviousClinicalResult,
             a.annotation_chinese        AS annotation,
-            a.comment                   AS comment,
             (SELECT ad.approving_agency FROM nkb.approved_drug ad
               WHERE ad.drug_id = a.drug_id AND ad.disease_id = a.disease_id LIMIT 1) AS approvingAgency
         FROM nkb.variant_drug_annotation a

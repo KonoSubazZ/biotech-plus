@@ -324,6 +324,7 @@ declare namespace Api {
       guidelineTypes: string[] | null;
       /** 说明（annotation_chinese），无指南/批准说明时界面显示它 */
       annotation: string | null;
+      /** NKB 内部维护备注（变更记录）——不展示、后端已不再取数，仅兼容历史冻结 JSON */
       comment: string | null;
     }
 

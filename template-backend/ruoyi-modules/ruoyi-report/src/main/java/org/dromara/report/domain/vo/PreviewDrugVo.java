@@ -112,6 +112,11 @@ public class PreviewDrugVo implements Serializable {
     /** 证据说明（中文，= variant_drug_annotation.annotation_chinese）；无指南/批准说明时界面就显示它 */
     private String annotation;
 
-    /** 备注 */
+    /**
+     * NKB 内部维护备注（变更记录，如「新增 NCT… LSF 20210129」「修改证据等级为…」）。
+     * <p>
+     * **不展示、也不再取数**（en7 的取数 SQL 从不 select 它，实际报告里也从不输出）；
+     * 字段保留仅为兼容历史冻结 JSON。
+     */
     private String comment;
 }
