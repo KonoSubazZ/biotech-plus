@@ -270,20 +270,32 @@ function groupItemsOf(row: Api.Report.PreviewVariant | null): string[] {
   return GROUP_KEYS.filter(key => groups[key]);
 }
 
-/** 详情用：关联突变 tag = 知识库节点（自身 + 一层父级），末尾追加「基因 位点」 */
+/**
+ * 详情用：关联突变 tag = 命中节点自身 + 一层父级，**每个都带基因前缀**（如 `KIT V559D`）。
+ * <p>
+ * 末尾补一条 `基因 位点`：精确命中时它和第一条节点相同（节点名就是位点名）→ 去重不重复；
+ * 未收录（节点列表为空）或兜底命中父级节点（如 Inactive Mutation）时它才有意义。
+ */
 function relatedMutationTags(row: Api.Report.PreviewVariant | null): string[] {
-  const tags = [...(row?.relatedMutations ?? [])];
+  const gene = row?.gene ?? '';
+  const tags = (row?.relatedMutations ?? []).map(name => [gene, name].filter(Boolean).join(' '));
   const locus = [row?.gene, row?.variant].filter(Boolean).join(' ');
-  if (locus) {
+  if (locus && !tags.includes(locus)) {
     tags.push(locus);
   }
   return tags;
 }
 
+/** 详情用：节点 tag 文本（关联突变 / 证据行命中节点共用，带基因前缀） */
+function nodeTagText(gene: string | null | undefined, nodeName: string | null | undefined): string | null {
+  const text = [gene, nodeName].filter(Boolean).join(' ');
+  return text || null;
+}
+
 /**
- * 详情用：药物信息 tag（获益 A-D / 耐药 A-D 分开，各自按去重药名计数，只出有数据的等级）
+ * 详情用：药物信息 tag（获益 / 耐药分开，各自按去重药名计数，只出有数据的等级）
  *
- * @returns [{ key, label, resistant }]，label 形如 `A级(3)` / `耐药B级(1)`
+ * @returns [{ key, label, resistant }]，label 形如 `获益D级(4)` / `耐药A级(1)`
  */
 function drugLevelTags(row: Api.Report.PreviewVariant | null) {
   const buckets = new Map<string, Set<string>>();
@@ -299,7 +311,7 @@ function drugLevelTags(row: Api.Report.PreviewVariant | null) {
     buckets.set(key, names);
   }
   const tags: { key: string; label: string; resistant: boolean }[] = [];
-  for (const prefix of ['B', 'R']) {
+  for (const prefix of ['R', 'B']) {
     for (const level of ['A', 'B', 'C', 'D']) {
       const count = buckets.get(`${prefix}${level}`)?.size ?? 0;
       if (count === 0) {
@@ -307,7 +319,7 @@ function drugLevelTags(row: Api.Report.PreviewVariant | null) {
       }
       tags.push({
         key: `${prefix}${level}`,
-        label: `${prefix === 'R' ? '耐药' : ''}${level}级(${count})`,
+        label: `${prefix === 'R' ? '耐药' : '获益'}${level}级(${count})`,
         resistant: prefix === 'R'
       });
     }
@@ -315,9 +327,14 @@ function drugLevelTags(row: Api.Report.PreviewVariant | null) {
   return tags;
 }
 
-/** 详情用：突变说明 = 原突变说明 + 位点说明合并后的正文（位点说明可能没有，只出有内容的） */
+/**
+ * 详情用：突变说明正文（对齐 en7 `getVarDrugNote` 的拼装）。
+ * <p>
+ * en7 是 `mutDesc + variantDescription`：HGVS 译文 + 位点说明，
+ * 其中位点说明取 NKB `gene_variant_description`，**NKB 没有时才用四段兜底文案**（`description`）。
+ */
 function mutationTexts(row: Api.Report.PreviewVariant | null): string[] {
-  return [row?.mutationExplanation, row?.variantDescription].filter(Boolean) as string[];
+  return [row?.mutationExplanation, row?.variantDescription || row?.description].filter(Boolean) as string[];
 }
 
 const sectionMeta = computed(() => [
@@ -401,7 +418,15 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
         <div class="mb-10px flex flex-wrap items-center gap-x-16px gap-y-8px text-13px">
           <div class="flex flex-wrap items-center gap-6px">
             <span class="op-60">关联突变</span>
-            <NTag v-for="name in relatedMutationTags(detailRow)" :key="name" size="small">{{ name }}</NTag>
+            <NTag
+              v-for="name in relatedMutationTags(detailRow)"
+              :key="name"
+              size="small"
+              type="info"
+              :bordered="false"
+            >
+              {{ name }}
+            </NTag>
           </div>
           <div v-if="drugLevelTags(detailRow).length" class="flex flex-wrap items-center gap-6px">
             <span class="op-60">药物信息</span>
@@ -421,7 +446,7 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
           <span v-if="detailRow.drugMatch?.length" class="op-60">证据 {{ detailRow.drugMatch.length }} 条</span>
         </div>
 
-        <!-- 三段说明：基因说明 / 信号通路说明 / 突变说明（原突变说明 + 位点说明合并） -->
+        <!-- 三段说明：基因说明 / 信号通路说明 / 突变说明（en7 拼装：HGVS 译文 + 位点说明，NKB 优先、四段兜底） -->
         <div
           v-if="detailRow.geneDescription || detailRow.pathwayDescription || mutationTexts(detailRow).length"
           class="mb-10px flex-col gap-6px text-12px"
@@ -446,8 +471,6 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
           </div>
         </div>
 
-        <div v-if="detailRow.description" class="mb-8px text-12px op-70">说明：{{ detailRow.description }}</div>
-
         <div v-if="groupItemsOf(detailRow).length" class="mb-10px flex flex-wrap items-center gap-8px text-12px">
           <span v-for="key in groupItemsOf(detailRow)" :key="key" class="rounded bg-#f5f7fa px-8px py-2px">
             {{ GROUP_LABELS[key] }}：{{ detailRow.drugGroups?.[key] }}
@@ -468,7 +491,14 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
               <NTag v-if="drug.evidencePhase" size="small">{{ drug.evidencePhase }}</NTag>
               <NTag v-if="drug.relationship" size="small" type="info">{{ drug.relationship }}</NTag>
               <NTag v-if="drug.fromOtherCancer" size="small" type="warning">其他癌种获批</NTag>
-              <span class="text-12px op-50">命中节点 {{ drug.nodeName ?? '-' }}</span>
+              <NTag
+                v-if="nodeTagText(detailRow.gene, drug.nodeName)"
+                size="small"
+                type="info"
+                :bordered="false"
+              >
+                {{ nodeTagText(detailRow.gene, drug.nodeName) }}
+              </NTag>
             </div>
             <div class="text-12px leading-20px op-80">{{ drug.annotation ?? drug.comment ?? '-' }}</div>
           </div>
