@@ -4,6 +4,9 @@ import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
+import org.dromara.report.domain.vo.NkbVariantNodeVo;
+
+import java.util.List;
 
 /**
  * 报告预览（设计书 §8：只组装返回，不落库、不写预览文件）
@@ -28,9 +31,20 @@ public interface IInterpretationPreviewService {
     void updateGermlineSignificance(InterpretationGermlineSignificanceBo bo);
 
     /**
-     * 胚系改靶：更新人工父级，产生新的匹配键（下次预览会走继承逻辑）
+     * 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点，
+     * 写入源位点表 parent_mutation_id（逗号分隔）→ 产生新的匹配键，下次预览走继承逻辑。
+     * <p>
+     * 保存前按 en7 口径校验「改靶后必须能出药物证据」，出不来直接拒绝。
      *
-     * @param bo 入参（analysisId / sourceId / parentMutationId）
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds，空列表 = 取消改靶）
      */
-    void updateGermlineTarget(InterpretationTargetBo bo);
+    void updateVariantTarget(InterpretationTargetBo bo);
+
+    /**
+     * 改靶候选：按关键词查 NKB 位点节点（Approved），供人工指定父级
+     *
+     * @param keyword 关键词（基因符号 / 节点名片段）
+     * @return 候选节点列表
+     */
+    List<NkbVariantNodeVo> searchParentNodes(String keyword);
 }

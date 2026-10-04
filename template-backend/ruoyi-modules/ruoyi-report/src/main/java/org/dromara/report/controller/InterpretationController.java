@@ -23,6 +23,7 @@ import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
+import org.dromara.report.domain.vo.NkbVariantNodeVo;
 
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IInterpretationService;
@@ -33,6 +34,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 import java.util.Map;
 
@@ -177,18 +180,30 @@ public class InterpretationController extends BaseController {
      * @return 操作结果
      */
     /**
-     * 胚系改靶 / 调整改靶：更新 file_CR_ALL.parent_mutation_id
+     * 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点
      *
-     * @param bo 入参（analysisId / sourceId / parentMutationId，null 表示取消改靶）
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds，空列表 = 取消改靶）
      * @return 操作结果
      */
     @SaCheckPermission("report:interpretation:edit")
     @RepeatSubmit()
-    @Log(title = "报告解读-胚系改靶", businessType = BusinessType.UPDATE)
-    @PostMapping("/germline-target")
-    public R<Void> germlineTarget(@RequestBody @Validated InterpretationTargetBo bo) {
-        previewService.updateGermlineTarget(bo);
+    @Log(title = "报告解读-改靶", businessType = BusinessType.UPDATE)
+    @PostMapping("/variant-target")
+    public R<Void> variantTarget(@RequestBody @Validated InterpretationTargetBo bo) {
+        previewService.updateVariantTarget(bo);
         return R.ok();
+    }
+
+    /**
+     * 改靶候选：按关键词查 NKB 位点节点（父级由知识库查询到）
+     *
+     * @param keyword 关键词（基因符号 / 节点名片段）
+     * @return 候选节点列表
+     */
+    @SaCheckPermission("report:interpretation:edit")
+    @GetMapping("/parent-candidates")
+    public R<List<NkbVariantNodeVo>> parentCandidates(@RequestParam("keyword") String keyword) {
+        return R.ok(previewService.searchParentNodes(keyword));
     }
 
     @SaCheckPermission("report:interpretation:edit")

@@ -152,6 +152,27 @@ public interface NkbEvidenceMapper {
     List<String> selectVariantNames(@Param("mutationIds") List<Long> mutationIds);
 
     /**
+     * 按ID取节点名（人工改靶父级回显用；不排序，调用方按ID自己对齐）
+     *
+     * @param mutationIds 节点ID列表
+     * @return {mutationId, variantName} 列表
+     */
+    List<Map<String, Object>> selectVariantNamesByIds(@Param("mutationIds") List<Long> mutationIds);
+
+    /**
+     * 改靶候选：按关键词查 NKB 位点节点（Approved）
+     * <p>
+     * 匹配「基因符号前缀」或「节点名包含」，所以传基因符号（KIT）会列出该基因的全部节点，
+     * 传具体位点（V559）会做模糊定位。
+     *
+     * @param keyword 关键词（基因符号 / 节点名片段）
+     * @param limit   最多返回条数
+     * @return {mutationId, gene, variantName, effectText} 列表
+     */
+    List<Map<String, Object>> selectVariantCandidates(@Param("keyword") String keyword,
+                                                     @Param("limit") int limit);
+
+    /**
      * 某注释在给定癌种范围内「招募中」的临床试验数（en7 getClinicalNumber，用于 give 判定）
      *
      * @param annotationId 注释ID

@@ -67,8 +67,14 @@ public class PreviewVariantVo implements Serializable {
     @JsonIgnore
     private Boolean fromHistory;
 
-    /** 人工改靶：file_CR_ALL.parent_mutation_id（参与匹配键，用于区分改靶前后） */
-    private Long parentMutationId;
+    /** 人工改靶：源位点表 parent_mutation_id（逗号分隔的 NKB 节点ID，可多个；参与匹配键，用于区分改靶前后） */
+    private List<Long> parentMutationIds;
+
+    /**
+     * 人工改靶父级的节点名，**与 {@link #parentMutationIds} 同序**（取不到时该位为 null）。
+     * 只给界面回显用（候选列表按关键词截断，选中的节点可能不在里面）。
+     */
+    private List<String> parentMutationNames;
 
     /** 文件里给出的原始临床判定（CR_ALL.clnsig，如 Pathogenic），仅供人工参考 */
     private String sourceClnsig;

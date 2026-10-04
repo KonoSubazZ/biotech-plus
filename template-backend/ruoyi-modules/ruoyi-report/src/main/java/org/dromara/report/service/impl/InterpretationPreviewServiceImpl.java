@@ -13,6 +13,7 @@ import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
+import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.PreviewDrugVo;
 import org.dromara.report.domain.vo.PreviewSectionVo;
 import org.dromara.report.domain.vo.PreviewVariantVo;
@@ -30,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -131,12 +133,12 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         item.setOriVariant(asString(row.get("oriVariant")));
         item.setZygosity(asString(row.get("zygosity")));
         // 必须带上人工父级：它参与匹配键，漏了会把改靶后的确认写到旧键上（实测踩到）
-        item.setParentMutationId(asLong(row.get("parentMutationId")));
+        item.setParentMutationIds(parseParentMutationIds(row.get("parentMutationId")));
         item.setMutationType("G");
         // 临床意义是人工确认项，不参与节点匹配（en7 无 Class 口径）：
         // 重新跑一次 en7 匹配把当前证据重新冻结，避免历史里留旧知识库结果
         NkbDrugMatcher.MatchResult matched = drugMatcher.match(item.getGene(), item.getVariant(),
-            item.getOriVariant(), true, pc.getDiseaseScope());
+            item.getOriVariant(), true, pc.getDiseaseScope(), item.getParentMutationIds());
         List<PreviewDrugVo> evidence = matched.getEvidence() == null ? List.of() : matched.getEvidence();
         Map<String, Object> frozen = new LinkedHashMap<>();
         frozen.put("inNkb", matched.getInNkb());
@@ -157,12 +159,117 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateGermlineTarget(InterpretationTargetBo bo) {
-        int affected = interpretationMapper.updateGermlineParentMutation(bo.getSourceId(), bo.getAnalysisId(),
-            bo.getParentMutationId());
-        if (affected == 0) {
-            throw new ServiceException("胚系位点不存在或不属于该分析批次：sourceId=" + bo.getSourceId());
+    public void updateVariantTarget(InterpretationTargetBo bo) {
+        Map<String, Object> row = interpretationMapper.selectVariantForTarget(bo.getSourceType(), bo.getSourceId(),
+            bo.getAnalysisId());
+        if (row == null) {
+            throw new ServiceException("位点不存在或不属于该分析批次：" + bo.getSourceType() + "#" + bo.getSourceId());
         }
+        List<Long> parentIds = distinctIds(bo.getParentMutationIds());
+        if (!parentIds.isEmpty()) {
+            requireApprovedNodes(parentIds);
+            requireDrugEvidence(bo, row, parentIds);
+        }
+        String parentIdsText = parentIds.isEmpty() ? null : parentMutationKey(parentIds);
+        int affected = interpretationMapper.updateParentMutation(bo.getSourceType(), bo.getSourceId(),
+            bo.getAnalysisId(), parentIdsText);
+        if (affected == 0) {
+            throw new ServiceException("改靶失败：位点不存在或不属于该分析批次");
+        }
+    }
+
+    @Override
+    public List<NkbVariantNodeVo> searchParentNodes(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            throw new ServiceException("请输入基因或位点关键词");
+        }
+        List<Map<String, Object>> rows = nkb(() -> nkbEvidenceMapper.selectVariantCandidates(keyword.trim(), 50));
+        List<NkbVariantNodeVo> result = new ArrayList<>();
+        if (rows == null) {
+            return result;
+        }
+        for (Map<String, Object> row : rows) {
+            NkbVariantNodeVo vo = new NkbVariantNodeVo();
+            vo.setMutationId(asLong(row.get("mutationId")));
+            vo.setGene(asString(row.get("gene")));
+            vo.setVariantName(asString(row.get("variantName")));
+            vo.setEffectText(asString(row.get("effectText")));
+            result.add(vo);
+        }
+        return result;
+    }
+
+    /**
+     * 校验父级都来自知识库（Approved 节点）。人工改靶必须挂到知识库里有的节点上。
+     *
+     * @param parentIds 父级节点ID（已去重）
+     */
+    private void requireApprovedNodes(List<Long> parentIds) {
+        List<String> names = nkb(() -> nkbEvidenceMapper.selectVariantNames(parentIds));
+        if (names == null || names.size() < parentIds.size()) {
+            throw new ServiceException("有父级节点在知识库中不存在或未审核，请重新选择");
+        }
+    }
+
+    /**
+     * en7 口径（`GeneticMarkerVwServiceImpl.hasTargetDrugInfo`）：**改靶后必须能出药物证据**，
+     * 出不来直接拒绝保存。
+     *
+     * @param bo        改靶入参
+     * @param row       源位点行（gene / variant / oriVariant）
+     * @param parentIds 人工父级节点ID
+     */
+    private void requireDrugEvidence(InterpretationTargetBo bo, Map<String, Object> row, List<Long> parentIds) {
+        Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
+        InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
+        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), null, report, context);
+        boolean germline = "CR_ALL".equals(bo.getSourceType());
+        NkbDrugMatcher.MatchResult matched = drugMatcher.match(asString(row.get("gene")), asString(row.get("variant")),
+            asString(row.get("oriVariant")), germline, pc.getDiseaseScope(), parentIds);
+        List<PreviewDrugVo> evidence = matched.getEvidence() == null ? List.of() : matched.getEvidence();
+        if (evidence.isEmpty()) {
+            throw new ServiceException("改靶后无药物信息，此操作无法保存");
+        }
+    }
+
+    /** 父级ID去重（保持传入顺序，忽略 null） */
+    private List<Long> distinctIds(List<Long> ids) {
+        List<Long> result = new ArrayList<>();
+        if (ids == null) {
+            return result;
+        }
+        for (Long id : ids) {
+            if (id != null && !result.contains(id)) {
+                result.add(id);
+            }
+        }
+        return result;
+    }
+
+    /** 源位点表 parent_mutation_id（逗号分隔）→ 父级ID列表；空段忽略 */
+    private List<Long> parseParentMutationIds(Object raw) {
+        List<Long> ids = new ArrayList<>();
+        if (raw == null) {
+            return ids;
+        }
+        for (String part : String.valueOf(raw).split(",")) {
+            String value = part.trim();
+            if (!value.isEmpty()) {
+                ids.add(Long.valueOf(value));
+            }
+        }
+        return ids;
+    }
+
+    /** 匹配键与入库用的人工父级串：去重后升序拼串（顺序不影响匹配键，同输入必同键） */
+    private String parentMutationKey(List<Long> ids) {
+        List<Long> sorted = distinctIds(ids);
+        Collections.sort(sorted);
+        List<String> parts = new ArrayList<>();
+        for (Long id : sorted) {
+            parts.add(String.valueOf(id));
+        }
+        return String.join(",", parts);
     }
 
     // ---------------------------------------------------------------- 上下文
@@ -236,6 +343,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             item.setMutationType(mutationTypeCode(item.getSourceType(), asString(row.get("mutationTypeRaw"))));
             item.setFrequency(asString(row.get("frequency")));
             item.setDepth(asString(row.get("depth")));
+            item.setParentMutationIds(parseParentMutationIds(row.get("parentMutationId")));
             matchWithHistory(pc, item, null);
             PreviewSupport.decorate(row, item, false);
             descriptionEnricher.enrich(item, row.get("freqRaw"));
@@ -252,7 +360,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             item.setZygosity(asString(row.get("zygosity")));
             item.setDepth(asString(row.get("depth")));
             item.setSourceClnsig(asString(row.get("clnsig")));
-            item.setParentMutationId(asLong(row.get("parentMutationId")));
+            item.setParentMutationIds(parseParentMutationIds(row.get("parentMutationId")));
             item.setClassificationLovd(null);
             Integer significance = resolveSignificance(pc, item);
             item.setClinicalSignificance(significance);
@@ -293,9 +401,9 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             return;
         }
 
-        // 首次匹配（或历史是旧结构）：走 en7 口径（节点四级兜底 + 自身/父级节点 + 癌种范围 + 证据过滤 + 分级）
+        // 首次匹配（或历史是旧结构）：走 en7 口径（节点四级兜底 + 自身/父级节点 + 人工改靶父级 + 癌种范围 + 证据过滤 + 分级）
         NkbDrugMatcher.MatchResult matched = drugMatcher.match(item.getGene(), item.getVariant(), item.getOriVariant(),
-            germline, pc.getDiseaseScope());
+            germline, pc.getDiseaseScope(), item.getParentMutationIds());
         applyMatchResult(item, matched);
         if (history != null) {
             // 旧结构：覆盖同一条历史，保持「一个 match_key 一条记录」
@@ -370,7 +478,9 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         history.put("sourceType", item.getSourceType());
         history.put("mutationType", nz(item.getMutationType()));
         history.put("measurement", item.getZygosity());
-        history.put("parentMutationId", item.getParentMutationId());
+        // 人工父级按「去重升序逗号串」入库（与匹配键同口径），未改靶存 null
+        String parentIdsText = parentMutationKey(item.getParentMutationIds());
+        history.put("parentMutationId", parentIdsText.isEmpty() ? null : parentIdsText);
         history.put("matchStatus", item.getMatchStatus());
         history.put("variationClass", item.getVariationClass());
         history.put("matchResult", toJson(frozenResult(item)));
@@ -396,7 +506,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             pc.getDiseaseId() == null ? "" : pc.getDiseaseId().toString(), pc.getDisease(),
             pc.getGender(), pc.getCustomer(), pc.getProjectCode(),
             nz(item.getSourceType()), nz(item.getMutationType()), nz(item.getZygosity()),
-            item.getParentMutationId() == null ? "" : item.getParentMutationId().toString());
+            parentMutationKey(item.getParentMutationIds()));
         return sha256(raw);
     }
 

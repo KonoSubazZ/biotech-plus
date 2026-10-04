@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,34 +47,69 @@ public class VariantDescriptionEnricher {
             Map<String, Object> node = nkb(() -> nkbEvidenceMapper.selectVariantDescription(nodeId));
             item.setVariantDescription(node == null ? null : PreviewSupport.asString(node.get("variantDescription")));
         }
-        item.setRelatedMutations(relatedMutations(nodeId));
+        item.setRelatedMutations(relatedMutations(nodeId, item.getParentMutationIds()));
+        item.setParentMutationNames(parentMutationNames(item.getParentMutationIds()));
         String freq = "CR_ALL".equals(item.getSourceType()) ? null : PreviewSupport.translationFreq(freqRaw);
         item.setMutationExplanation(HgvsTranslator.translate(item.getGene(), item.getOriVariant(), freq));
     }
 
     /**
-     * 关联突变节点名：命中节点自身 + 一层父级（en7 的 mutationIdList）。
+     * 关联突变节点名：命中节点自身 + 一层父级 + 人工改靶父级（en7 的 mutationIdList 口径）。
      * <p>
-     * 只依赖冻结的 matchedMutationId，所以历史复用与首次匹配产出完全一致
-     * （不进 match_result，避免改动冻结结构）。
+     * 只依赖冻结的 matchedMutationId 与父级ID，所以历史复用与首次匹配产出完全一致
+     * （不进 match_result，避免改动冻结结构）。改靶后的父级要出现在这里，否则界面看不出改靶生效。
      *
-     * @param nodeId 命中的节点ID；未收录时为 null
-     * @return 节点名列表（未收录时为空）
+     * @param nodeId    命中的节点ID；未收录时为 null
+     * @param parentIds 人工改靶父级节点ID；未改靶时为空
+     * @return 节点名列表（都没有时为空）
      */
-    private List<String> relatedMutations(Long nodeId) {
+    private List<String> relatedMutations(Long nodeId, List<Long> parentIds) {
+        List<Long> ids = new ArrayList<>();
+        if (nodeId != null) {
+            ids.add(nodeId);
+            List<Long> parents = nkb(() -> nkbEvidenceMapper.selectParentMutationIds(nodeId));
+            if (parents != null) {
+                ids.addAll(parents);
+            }
+        }
+        if (parentIds != null) {
+            for (Long parentId : parentIds) {
+                if (parentId != null && !ids.contains(parentId)) {
+                    ids.add(parentId);
+                }
+            }
+        }
         List<String> names = new ArrayList<>();
-        if (nodeId == null) {
+        if (!ids.isEmpty()) {
+            List<String> hit = nkb(() -> nkbEvidenceMapper.selectVariantNames(ids));
+            if (hit != null) {
+                names.addAll(hit);
+            }
+        }
+        return names;
+    }
+
+    /**
+     * 人工改靶父级的节点名（**与传入ID同序**，取不到时该位为 null）：界面回显用。
+     *
+     * @param parentIds 人工父级节点ID；未改靶时为空
+     * @return 节点名列表；未改靶时为空列表
+     */
+    private List<String> parentMutationNames(List<Long> parentIds) {
+        List<String> names = new ArrayList<>();
+        if (parentIds == null || parentIds.isEmpty()) {
             return names;
         }
-        List<Long> ids = new ArrayList<>();
-        ids.add(nodeId);
-        List<Long> parents = nkb(() -> nkbEvidenceMapper.selectParentMutationIds(nodeId));
-        if (parents != null) {
-            ids.addAll(parents);
+        Map<Long, String> namesById = new HashMap<>();
+        List<Map<String, Object>> rows = nkb(() -> nkbEvidenceMapper.selectVariantNamesByIds(parentIds));
+        if (rows != null) {
+            for (Map<String, Object> row : rows) {
+                namesById.put(PreviewSupport.asLong(row.get("mutationId")),
+                    PreviewSupport.asString(row.get("variantName")));
+            }
         }
-        List<String> hit = nkb(() -> nkbEvidenceMapper.selectVariantNames(ids));
-        if (hit != null) {
-            names.addAll(hit);
+        for (Long parentId : parentIds) {
+            names.add(namesById.get(parentId));
         }
         return names;
     }

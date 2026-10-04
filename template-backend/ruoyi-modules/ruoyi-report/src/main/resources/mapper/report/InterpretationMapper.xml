@@ -344,6 +344,7 @@
                v.ori_variant AS oriVariant, v.exonic_func_known_gene AS mutationTypeRaw,
                v.mut_freq AS frequency, CONCAT(IFNULL(v.mut_depth, ''), '/', IFNULL(v.total_depth, '')) AS depth,
                f.file_type AS fileType, v.mut_freq AS freqRaw, v.cosmic91 AS cosmic,
+               v.parent_mutation_id AS parentMutationId,
                NULL AS fusionQuality
         FROM file_Somatic_SNV_Indel v
         JOIN data_file_status f ON f.file_id = v.file_id
@@ -353,6 +354,7 @@
                v.ori_variant AS oriVariant, 'CNV' AS mutationTypeRaw,
                v.copy_num AS frequency, NULL AS depth,
                f.file_type AS fileType, v.copy_num AS freqRaw, NULL AS cosmic,
+               v.parent_mutation_id AS parentMutationId,
                NULL AS fusionQuality
         FROM file_CNV v
         JOIN data_file_status f ON f.file_id = v.file_id
@@ -363,6 +365,7 @@
                v.ori_variant AS oriVariant, 'FUSION' AS mutationTypeRaw,
                v.freq AS frequency, v.depth AS depth,
                f.file_type AS fileType, v.freq AS freqRaw, v.cosmic_info AS cosmic,
+               v.parent_mutation_id AS parentMutationId,
                v.tag AS fusionQuality
         FROM file_Fusion v
         JOIN data_file_status f ON f.file_id = v.file_id
@@ -419,12 +422,69 @@
           AND v.del_flag = '0' AND f.del_flag = '0'
     </select>
 
-    <update id="updateGermlineParentMutation">
-        UPDATE file_CR_ALL v
-        JOIN data_file_status f ON f.file_id = v.file_id
-        SET v.parent_mutation_id = #{parentMutationId},
-            v.update_time = NOW()
-        WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+    <!-- 改靶：取单个位点（校验「改靶后是否有药物证据」要 gene / variant / oriVariant） -->
+    <select id="selectVariantForTarget" resultType="java.util.LinkedHashMap">
+        <choose>
+            <when test="sourceType == 'CNV'">
+                SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
+                FROM file_CNV v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+                  AND v.del_flag = '0' AND f.del_flag = '0'
+            </when>
+            <when test="sourceType == 'FUSION'">
+                SELECT IFNULL(CONCAT(v.gene1, '-', v.gene2), v.gene) AS gene,
+                       v.variant AS variant, v.ori_variant AS oriVariant
+                FROM file_Fusion v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+                  AND v.del_flag = '0' AND f.del_flag = '0'
+            </when>
+            <when test="sourceType == 'CR_ALL'">
+                SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
+                FROM file_CR_ALL v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+                  AND v.del_flag = '0' AND f.del_flag = '0'
+            </when>
+            <otherwise>
+                SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
+                FROM file_Somatic_SNV_Indel v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
+                  AND v.del_flag = '0' AND f.del_flag = '0'
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 改靶：把人工父级写回源位点表（逗号分隔的多父级；null 表示取消改靶） -->
+    <update id="updateParentMutation">
+        <choose>
+            <when test="sourceType == 'CNV'">
+                UPDATE file_CNV v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <when test="sourceType == 'FUSION'">
+                UPDATE file_Fusion v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <when test="sourceType == 'CR_ALL'">
+                UPDATE file_CR_ALL v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </when>
+            <otherwise>
+                UPDATE file_Somatic_SNV_Indel v
+                JOIN data_file_status f ON f.file_id = v.file_id
+                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
+                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
+            </otherwise>
+        </choose>
     </update>
 
     <select id="selectProductGeneSymbols" resultType="java.lang.String">

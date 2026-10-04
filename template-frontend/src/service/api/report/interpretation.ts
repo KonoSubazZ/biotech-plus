@@ -90,16 +90,27 @@ export function fetchUpdateGermlineSignificance(data: {
   });
 }
 
-/** 胚系改靶 / 取消改靶 */
-export function fetchUpdateGermlineTarget(data: {
+/** 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点；空数组 = 取消改靶 */
+export function fetchUpdateVariantTarget(data: {
   analysisId: number;
+  reportId: number;
+  sourceType: string;
   sourceId: number;
-  parentMutationId: number | null;
+  parentMutationIds: number[];
 }) {
   return request<null>({
-    url: '/report/interpretation/germline-target',
+    url: '/report/interpretation/variant-target',
     method: 'post',
     data
+  });
+}
+
+/** 改靶候选：按关键词（基因符号 / 节点名片段）查 NKB 位点节点 */
+export function fetchParentCandidates(keyword: string) {
+  return request<Api.Report.NkbVariantNode[]>({
+    url: '/report/interpretation/parent-candidates',
+    method: 'get',
+    params: { keyword }
   });
 }
 

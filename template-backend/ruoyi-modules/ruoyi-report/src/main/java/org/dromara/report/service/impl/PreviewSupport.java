@@ -226,8 +226,9 @@ final class PreviewSupport {
      * @return 中文展示值；空时返回 null
      */
     static String variantTypeText(String exonicFunc) {
+        String empty = null;
         if (!StringUtils.hasText(exonicFunc)) {
-            return null;
+            return empty;
         }
         String value = exonicFunc.trim();
         return switch (value) {

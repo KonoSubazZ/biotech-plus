@@ -59,20 +59,22 @@ public class NkbDrugMatcher {
     /**
      * 匹配主流程
      *
-     * @param gene        基因
-     * @param variant     位点短名（如 V559D）
-     * @param oriVariant  原始位点描述
-     * @param germline    是否胚系（决定 mutation_type：S / G）
-     * @param scope       癌种范围（由 {@link NkbDiseaseScopeResolver} 解析）
+     * @param gene            基因
+     * @param variant         位点短名（如 V559D）
+     * @param oriVariant      原始位点描述
+     * @param germline        是否胚系（决定 mutation_type：S / G）
+     * @param scope           癌种范围（由 {@link NkbDiseaseScopeResolver} 解析）
+     * @param manualParentIds 人工改靶指定的父级节点ID（可多个；en7 的 parent_mutID，未知/未收录的位点靠它出证据）
      * @return 匹配结果
      */
     public MatchResult match(String gene, String variant, String oriVariant, boolean germline,
-                             NkbDiseaseScopeResolver.DiseaseScope scope) {
+                             NkbDiseaseScopeResolver.DiseaseScope scope, List<Long> manualParentIds) {
         Node node = resolveNode(gene, variant, oriVariant);
-        if (node == null) {
+        List<Long> nodeIds = node == null ? new ArrayList<>() : nodesWithParents(node.mutationId());
+        appendManualParents(nodeIds, manualParentIds);
+        if (nodeIds.isEmpty()) {
             return MatchResult.notMatched(description(variant));
         }
-        List<Long> nodeIds = nodesWithParents(node.mutationId());
         String mutationType = germline ? "G" : "S";
         List<PreviewDrugVo> evidence = new ArrayList<>(query(nkbEvidenceMapper.selectDrugAnnotations(
             nodeIds, scope.diseaseIds(), mutationType, MAX_EVIDENCE)));
@@ -84,16 +86,29 @@ public class NkbDrugMatcher {
         dedupeByDrugAndDisease(evidence);
 
         MatchResult result = new MatchResult();
-        result.setInNkb(true);
-        result.setMutationId(node.mutationId());
-        result.setMatchedNode(node.nodeName());
-        result.setEffectText(node.effectText());
+        // 改了靶但位点本身知识库未收录：inNkb 仍为 false，证据来自人工指定的父级
+        result.setInNkb(node != null);
+        result.setMutationId(node == null ? null : node.mutationId());
+        result.setMatchedNode(node == null ? null : node.nodeName());
+        result.setEffectText(node == null ? null : node.effectText());
         result.setEvidence(evidence);
         result.setDrugGroups(groupDrugNames(evidence));
         result.setDrugAuditList(buildDrugAuditList(evidence));
         result.setVariationClass(variationClass(geneName(gene), evidence));
         result.setDescription(description(variant));
         return result;
+    }
+
+    /** 节点集合追加人工改靶父级（en7：本地保存的 parent_mutID 逐条去重追加） */
+    private void appendManualParents(List<Long> nodeIds, List<Long> manualParentIds) {
+        if (manualParentIds == null) {
+            return;
+        }
+        for (Long id : manualParentIds) {
+            if (id != null && !nodeIds.contains(id)) {
+                nodeIds.add(id);
+            }
+        }
     }
 
     // ---------------------------------------------------------------- 节点解析

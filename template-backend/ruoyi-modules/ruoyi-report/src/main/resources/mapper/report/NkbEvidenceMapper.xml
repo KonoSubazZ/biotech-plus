@@ -161,6 +161,34 @@
         ORDER BY p.parent_variant_id
     </select>
 
+    <!-- 改靶候选：按关键词查 NKB 位点节点（Approved），供人工指定一个/多个父级 -->
+    <select id="selectVariantCandidates" resultType="java.util.LinkedHashMap">
+        SELECT gv.gene_variant_id AS mutationId,
+               g.gene_symbol      AS gene,
+               gv.gene_variant    AS variantName,
+               e.effect_chinese   AS effectText
+        FROM nkb.gene_variant gv
+        JOIN nkb.ncbi_gene g ON g.gene_id = gv.gene_id
+        JOIN nkb.checking_status cs ON cs.status_id = gv.checking_status_id
+        LEFT JOIN nkb.effect e ON e.effect_id = gv.effect_id
+        WHERE cs.checking_status = 'Approved'
+          AND (g.gene_symbol LIKE CONCAT(#{keyword}, '%')
+               OR gv.gene_variant LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY (g.gene_symbol = #{keyword}) DESC,
+                 (gv.gene_variant = #{keyword}) DESC,
+                 g.gene_symbol, gv.gene_variant
+        LIMIT #{limit}
+    </select>
+
+    <!-- 按ID取节点名（人工改靶父级回显用；不排序，调用方自己按ID对齐） -->
+    <select id="selectVariantNamesByIds" resultType="java.util.LinkedHashMap">
+        SELECT gv.gene_variant_id AS mutationId,
+               gv.gene_variant    AS variantName
+        FROM nkb.gene_variant gv
+        WHERE gv.gene_variant_id IN
+        <foreach collection="mutationIds" item="mId" open="(" separator="," close=")">#{mId}</foreach>
+    </select>
+
     <!-- 关联突变展示：一批节点ID → 节点名（按传入顺序：命中节点自身在前、父级在后） -->
     <select id="selectVariantNames" resultType="java.lang.String">
         SELECT gv.gene_variant

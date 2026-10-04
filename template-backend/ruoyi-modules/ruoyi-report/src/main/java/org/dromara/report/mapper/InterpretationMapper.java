@@ -204,16 +204,30 @@ public interface InterpretationMapper {
                                              @Param("analysisId") Long analysisId);
 
     /**
-     * 改靶：更新胚系位点的人工父级（带分析批次归属校验）
+     * 改靶：取单个位点（校验「改靶后是否有药物证据」用）
      *
+     * @param sourceType 源位点表（SNP_INDEL / CNV / FUSION / CR_ALL）
+     * @param sourceId   位点ID
+     * @param analysisId 分析数据ID（归属校验）
+     * @return gene/variant/oriVariant；不存在时 null
+     */
+    Map<String, Object> selectVariantForTarget(@Param("sourceType") String sourceType,
+                                              @Param("sourceId") Long sourceId,
+                                              @Param("analysisId") Long analysisId);
+
+    /**
+     * 改靶：把人工父级写回源位点表（逗号分隔的多父级）
+     *
+     * @param sourceType       源位点表（SNP_INDEL / CNV / FUSION / CR_ALL）
      * @param sourceId         位点ID
      * @param analysisId       分析数据ID
-     * @param parentMutationId 人工父级；null 表示取消改靶
+     * @param parentMutationIds 人工父级节点ID（逗号分隔）；null 表示取消改靶
      * @return 影响行数
      */
-    int updateGermlineParentMutation(@Param("sourceId") Long sourceId,
-                                    @Param("analysisId") Long analysisId,
-                                    @Param("parentMutationId") Long parentMutationId);
+    int updateParentMutation(@Param("sourceType") String sourceType,
+                             @Param("sourceId") Long sourceId,
+                             @Param("analysisId") Long analysisId,
+                             @Param("parentMutationIds") String parentMutationIds);
 
     int updateVariantReportStatus(@Param("sourceId") Long sourceId,
                                  @Param("sourceType") String sourceType,

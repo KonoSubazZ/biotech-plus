@@ -251,6 +251,17 @@ declare namespace Api {
       pageSize: number;
     }> & { analysisId: number; params?: Record<string, unknown> };
 
+    /** 改靶候选：NKB 位点节点（父级由知识库查到） */
+    interface NkbVariantNode {
+      /** NKB 节点ID（gene_variant_id） */
+      mutationId: number | null;
+      gene: string | null;
+      /** 节点名（V559D / Exon11 Mutation / Active Mutation） */
+      variantName: string | null;
+      /** 功能判定：激活/失活/未知/无影响 */
+      effectText: string | null;
+    }
+
     /** 报告预览：单条药物证据（对齐 report_en7 的 evidence 行） */
     interface PreviewDrug {
       annotationId: number | null;
@@ -301,7 +312,10 @@ declare namespace Api {
       /** MATCHED / NOT_MATCHED */
       matchStatus: string | null;
       variationClass: string | null;
-      parentMutationId: number | null;
+      /** 人工改靶的父级节点ID（可多个；空 = 未改靶） */
+      parentMutationIds: number[] | null;
+      /** 人工改靶父级的节点名（与 parentMutationIds 同序，取不到为 null） */
+      parentMutationNames: (string | null)[] | null;
       /** 文件里的原始判定（CLNSIG） */
       sourceClnsig: string | null;
       classificationLovd: string | null;

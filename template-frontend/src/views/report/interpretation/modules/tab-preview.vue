@@ -1,10 +1,11 @@
 <script setup lang="tsx">
 import { computed, ref, watch } from 'vue';
-import { NButton, NInputNumber, NSelect, NTag } from 'naive-ui';
+import { NButton, NSelect, NTag } from 'naive-ui';
 import {
   fetchBuildInterpretationPreview,
+  fetchParentCandidates,
   fetchUpdateGermlineSignificance,
-  fetchUpdateGermlineTarget
+  fetchUpdateVariantTarget
 } from '@/service/api/report/interpretation';
 import { useAuth } from '@/hooks/business/auth';
 import { $t } from '@/locales';
@@ -62,10 +63,13 @@ const savingId = ref<number | null>(null);
 /** 详情弹窗（原来表格展开行里的内容挪进来） */
 const detailRow = ref<Api.Report.PreviewVariant | null>(null);
 const detailVisible = ref(false);
-/** 改靶弹窗（胚系：人工父级ID；体细胞暂为占位） */
+/** 改靶弹窗（人工父级节点，可多个；父级来自知识库） */
 const targetRow = ref<Api.Report.PreviewVariant | null>(null);
 const targetVisible = ref(false);
-const targetValue = ref<number | null>(null);
+const targetIds = ref<number[]>([]);
+/** 本次弹窗内已加载的知识库候选（供 NSelect 回显与选择） */
+const candidateNodes = ref<Api.Report.NkbVariantNode[]>([]);
+const candidateLoading = ref(false);
 
 const canEdit = computed(() => hasAuth('report:interpretation:edit'));
 
@@ -116,18 +120,22 @@ async function saveSignificance(row: Api.Report.PreviewVariant, value: number) {
   }
 }
 
-async function saveTarget(row: Api.Report.PreviewVariant, parentMutationId: number | null) {
+async function saveTarget(row: Api.Report.PreviewVariant, parentMutationIds: number[]): Promise<boolean> {
   savingId.value = row.sourceId;
   try {
-    const { error } = await fetchUpdateGermlineTarget({
+    const { error } = await fetchUpdateVariantTarget({
       analysisId: props.analysisId,
-      sourceId: row.sourceId,
-      parentMutationId
+      reportId: props.reportId,
+      sourceType: row.sourceType ?? 'SNP_INDEL',
+      sourceId: row.sourceId ?? 0,
+      parentMutationIds
     });
-    if (!error) {
-      window.$message?.success(parentMutationId ? '已改靶' : '已取消改靶');
+    if (error) {
+      return false;
     }
+    window.$message?.success(parentMutationIds.length ? '已改靶' : '已取消改靶');
     await loadPreview();
+    return true;
   } finally {
     savingId.value = null;
   }
@@ -222,9 +230,7 @@ function variationLevelColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> 
 }
 
 /**
- * 操作列：详情（弹窗展示原来的展开内容）/ 匹配(占位) / 改靶
- * <p>
- * 匹配、体细胞改靶先占位（提示待实现）；胚系改靶沿用已实现的接口，点开弹窗填人工父级ID。
+ * 操作列：详情（弹窗展示原来的展开内容）/ 匹配(占位) / 改靶（体细胞与胚系共用：选知识库父级）
  */
 function operateColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
   return {
@@ -240,12 +246,7 @@ function operateColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
         <NButton text type="primary" size="small" onClick={() => showTodo('匹配')}>
           匹配
         </NButton>
-        <NButton
-          text
-          type="primary"
-          size="small"
-          onClick={() => (row.sourceType === 'CR_ALL' ? openTarget(row) : showTodo('改靶'))}
-        >
+        <NButton text type="primary" size="small" onClick={() => openTarget(row)}>
           改靶
         </NButton>
       </div>
@@ -259,22 +260,64 @@ function openDetail(row: Api.Report.PreviewVariant) {
   detailVisible.value = true;
 }
 
-/** 改靶弹窗（胚系：人工父级节点ID） */
+/**
+ * 改靶弹窗：人工指定一个/多个知识库父级节点（远程搜索 NKB，可多选）
+ * <p>
+ * 父级由知识库查到（`/parent-candidates`）；留空 = 取消改靶。保存后重新预览，走新的匹配键。
+ */
 function openTarget(row: Api.Report.PreviewVariant) {
   targetRow.value = row;
-  targetValue.value = row.parentMutationId ?? null;
+  targetIds.value = [...(row.parentMutationIds ?? [])];
   targetVisible.value = true;
+  searchCandidates(row.gene ?? '');
 }
+
+/** 远程搜索知识库父级候选（按位点基因预载，改关键词即重搜） */
+async function searchCandidates(keyword: string) {
+  const query = keyword.trim();
+  candidateNodes.value = [];
+  if (!query) {
+    return;
+  }
+  candidateLoading.value = true;
+  try {
+    const { data, error } = await fetchParentCandidates(query);
+    if (!error) {
+      candidateNodes.value = data ?? [];
+    }
+  } finally {
+    candidateLoading.value = false;
+  }
+}
+
+/** 候选选项：已选中的父级必须出现在选项里（且带名字），否则 NSelect 回显不出来 */
+const targetOptions = computed(() => {
+  const options = candidateNodes.value.map(node => ({
+    label: `${node.gene ?? '-'} ${node.variantName ?? '-'}`,
+    value: node.mutationId
+  }));
+  const ids = targetRow.value?.parentMutationIds ?? [];
+  const names = targetRow.value?.parentMutationNames ?? [];
+  const gene = targetRow.value?.gene ?? '';
+  ids.forEach((id, index) => {
+    if (!options.some(option => option.value === id)) {
+      options.push({ label: [gene, names[index] ?? `节点 ${id}`].filter(Boolean).join(' '), value: id });
+    }
+  });
+  return options;
+});
 
 async function confirmTarget() {
   if (!targetRow.value) {
     return;
   }
-  await saveTarget(targetRow.value, targetValue.value);
-  targetVisible.value = false;
+  // 保存失败（如「改靶后无药物信息」）时保留弹窗，便于调整父级
+  if (await saveTarget(targetRow.value, targetIds.value)) {
+    targetVisible.value = false;
+  }
 }
 
-/** 尚未实现的操作统一提示（匹配 / 体细胞改靶） */
+/** 尚未实现的操作统一提示（匹配） */
 function showTodo(name: string) {
   window.$message?.info(`${name}功能待实现`);
 }
@@ -521,24 +564,30 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
       </div>
     </NModal>
 
-    <!-- 改靶（胚系）：人工父级节点ID -->
+    <!-- 改靶：人工指定一个/多个知识库父级节点（留空 = 取消改靶） -->
     <NModal
       v-model:show="targetVisible"
       preset="card"
-      title="改靶（人工父级节点）"
-      class="w-40vw max-w-520px"
+      title="改靶（指定知识库父级）"
+      class="w-50vw max-w-640px"
       :bordered="false"
     >
-      <NForm label-placement="left" :label-width="110">
-        <NFormItem label="人工父级ID">
-          <NInputNumber
-            v-model:value="targetValue"
-            class="w-full"
-            placeholder="填 NKB gene_variant_id（留空=取消改靶）"
-            :disabled="!canEdit"
-          />
-        </NFormItem>
-      </NForm>
+      <div class="mb-10px text-12px op-60">
+        位点：{{ targetRow?.gene ?? '-' }} {{ targetRow?.variant ?? '-' }}
+        · 父级从知识库选（可多个），留空 = 取消改靶
+      </div>
+      <NSelect
+        v-model:value="targetIds"
+        multiple
+        filterable
+        remote
+        clearable
+        :options="targetOptions"
+        :loading="candidateLoading"
+        :disabled="!canEdit"
+        placeholder="输入基因或位点关键词搜索知识库节点"
+        @search="searchCandidates"
+      />
       <template #footer>
         <NSpace justify="end">
           <NButton @click="targetVisible = false">取消</NButton>
