@@ -19,10 +19,12 @@ CREATE TABLE IF NOT EXISTS `dev_log` (
     -- 主键：单列 bigint 自增（全局 idType=AUTO，主键列必须 AUTO_INCREMENT）
     id            bigint       NOT NULL AUTO_INCREMENT           COMMENT '主键',
 
-    -- 业务字段（设计文档 dev-log.md §1）
+    -- 业务字段（设计文档 dev-log.md §1；version / file_name 为 2026-10 页面新增，见 update_5.6.2-dev-log-version-file.sql）
     title         varchar(200) NOT NULL                          COMMENT '记录标题',
     category      varchar(20)  NOT NULL                          COMMENT '分类（feature 功能新增 / fix 缺陷修复 / change 变更调整）',
+    version       varchar(50)                                    COMMENT '版本号',
     content       text                                           COMMENT '详细内容',
+    file_name     varchar(255)                                   COMMENT '记录文档文件名（原文件名，附件存服务器固定目录）',
     developer     varchar(80)                                    COMMENT '开发人员',
     log_date      date                                           COMMENT '记录日期',
 
