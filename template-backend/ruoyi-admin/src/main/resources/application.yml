@@ -236,4 +236,7 @@ compliance:
     # 只存一份：同名文件上传即替换；库里仅记原始文件名，不存路径。
     # 生产请把该目录挂成持久化卷（deploy.sh 里已把宿主 files/ 挂到 /ruoyi/server/upload）。
     upload-dir: /ruoyi/server/upload/compliance/dev-log
+  validation-record:
+    # 3Q 验证记录的「验证文档」附件存放目录（规则同上）
+    upload-dir: /ruoyi/server/upload/compliance/validation-record
 
