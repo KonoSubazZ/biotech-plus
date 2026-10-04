@@ -395,9 +395,23 @@ declare namespace Api {
     interface PreviewSection {
       summary: { reportedCount?: number; matchedCount?: number; unmatchedCount?: number };
       items: PreviewVariant[];
+      /** 分节的癌种上下文（公共组装器写入） */
+      analysisId?: number | null;
+      reportId?: number | null;
+      diseaseId?: number | null;
+      diseaseName?: string | null;
+      gender?: string | null;
+      /** 同输入同 JSON：本仓不写时间，固定 null */
+      matchedAt?: string | null;
     }
 
-    /** 报告预览 JSON（= 后端 InterpretationPreviewVo，对齐设计书 7.6 契约） */
+    /**
+     * 报告 JSON（= 后端 ReportTemplateData，schemaVersion 1.2）
+     * <p>
+     * 公共字段（reportInfo / sampleInfo / 两个位点分节 / 开关 / warnings）由后端公共组装器写；
+     * 模板专属字段由 report_template.module_code 驱动的 Handler 挂到**顶层**
+     * （shengyuSomaticVariants / shengyuGermlineVariants / qualityControl），没有 modules.* 包装层。
+     */
     interface InterpretationPreview {
       schemaVersion: string;
       templateCode: string | null;
@@ -405,6 +419,8 @@ declare namespace Api {
       analysisId: number;
       reportId: number;
       reportInfo: Record<string, unknown>;
+      showTissueBloodSample?: boolean;
+      showBloodOnlySample?: boolean;
       sampleInfo: Record<string, unknown>;
       somaticVariants: PreviewSection;
       germlineVariants: PreviewSection;
