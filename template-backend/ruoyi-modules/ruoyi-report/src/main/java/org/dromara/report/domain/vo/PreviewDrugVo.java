@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 报告预览：单条药物证据（对齐 report_en7 的 evidence 行）
@@ -93,7 +94,22 @@ public class PreviewDrugVo implements Serializable {
     /** 获批机构（approved_drug.approving_agency） */
     private String approvingAgency;
 
-    /** 证据说明（中文） */
+    /**
+     * 获批上市(phase 24)说明：`approved_drug_evw.approval_description_chinese`。
+     * 实际报告的「循证医学信息」列在获批上市行用的就是它（en7 模块化链路 §11.3）。
+     */
+    private String approvalDescription;
+
+    /**
+     * 指南推荐(phase 23)说明：按 NCCN/CSCO 拼好的中文串。
+     * en7 getVarDrugNote 对获益的 phase 23 行**不用** annotation，改取 `guideline_drug_evw.guideline_description`。
+     */
+    private String guidelineDescription;
+
+    /** 指南类型（NCCN / CSCO），界面加标签用 */
+    private List<String> guidelineTypes;
+
+    /** 证据说明（中文，= variant_drug_annotation.annotation_chinese）；无指南/批准说明时界面就显示它 */
     private String annotation;
 
     /** 备注 */

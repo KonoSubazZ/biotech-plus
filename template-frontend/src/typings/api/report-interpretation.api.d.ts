@@ -262,6 +262,26 @@ declare namespace Api {
       effectText: string | null;
     }
 
+    /** 临床试验证据（第二类证据；对齐实际报告「临床试验信息」表） */
+    interface PreviewTrial {
+      /** 试验登记号（NCTxxxxxxxx） */
+      trialId: string | null;
+      /** 临床试验名称 */
+      title: string | null;
+      /** 肿瘤类型 */
+      trialCondition: string | null;
+      /** 阶段原值（Phase II） */
+      phase: string | null;
+      /** 阶段中文（II期） */
+      phaseText: string | null;
+      /** 地点 */
+      location: string | null;
+      /** 对应药物 */
+      drugName: string | null;
+      /** 证据注释ID */
+      annotationId: number | null;
+    }
+
     /** 报告预览：单条药物证据（对齐 report_en7 的 evidence 行） */
     interface PreviewDrug {
       annotationId: number | null;
@@ -292,8 +312,17 @@ declare namespace Api {
       levelName: string | null;
       give: string | null;
       otherTestRequired: string | null;
+      /** 既往是否有临床结果（Y / null / N；en7 getGive 用它判 1 或 0） */
       hasPreviousClinicalResult: string | null;
+      /** 获批机构（approved_drug.approving_agency） */
       approvingAgency: string | null;
+      /** 获批上市(24)说明：approved_drug_evw.approval_description_chinese */
+      approvalDescription: string | null;
+      /** 指南推荐(23)说明：按 NCCN/CSCO 拼好的中文串 */
+      guidelineDescription: string | null;
+      /** 指南类型：NCCN / CSCO */
+      guidelineTypes: string[] | null;
+      /** 说明（annotation_chinese），无指南/批准说明时界面显示它 */
       annotation: string | null;
       comment: string | null;
     }
@@ -323,6 +352,8 @@ declare namespace Api {
       classificationLovd: string | null;
       /** 证据明细（全量保留：药物 × 等级 × 证据癌种） */
       drugMatch: PreviewDrug[];
+      /** 临床试验证据（招募中/邀请入组；ID/名称/肿瘤类型/阶段/药物/地点） */
+      trials: PreviewTrial[] | null;
       /** 按等级分组的药物名串（drugsA..D / resistantDrugsA..D），去重键=药名+癌种 */
       drugGroups: Record<string, string | null> | null;
       /** 审核列表（{drug, relation, level, evidenceDiseaseId, evidenceDiseaseName, matchedNode}） */

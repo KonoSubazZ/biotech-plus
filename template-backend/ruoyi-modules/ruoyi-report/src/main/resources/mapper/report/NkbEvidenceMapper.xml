@@ -181,6 +181,76 @@
         LIMIT #{limit}
     </select>
 
+    <!-- 获批上市(phase 24)说明：nkb.approved_drug_evw（明文视图，en7 走加密版 + AES 解密） -->
+    <select id="selectApprovalDescriptions" resultType="java.util.LinkedHashMap">
+        SELECT ade.drug_id                     AS drugId,
+               ade.disease_id                  AS diseaseId,
+               ade.approving_agency            AS approvingAgency,
+               ade.approval_description_chinese AS approvalDescription
+        FROM nkb.approved_drug_evw ade
+        WHERE ade.checking_status = 'Approved'
+          AND ade.drug_id IN
+          <foreach collection="drugIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+          AND ade.disease_id IN
+          <foreach collection="diseaseIds" item="dzId" open="(" separator="," close=")">#{dzId}</foreach>
+    </select>
+
+    <!-- 指南推荐(phase 23)说明：nkb.guideline_drug_evw，按 guideline_type（NCCN/CSCO）在 Java 侧拼装 -->
+    <select id="selectGuidelineDescriptions" resultType="java.util.LinkedHashMap">
+        SELECT g.drug_id                        AS drugId,
+               g.disease_id                     AS diseaseId,
+               g.guideline_type                 AS guidelineType,
+               g.guideline_title                AS guidelineTitle,
+               g.guideline_description_chinese  AS guidelineDescription
+        FROM nkb.guideline_drug_evw g
+        WHERE g.checking_status = 'Approved'
+          AND g.drug_id IN
+          <foreach collection="drugIds" item="dId" open="(" separator="," close=")">#{dId}</foreach>
+          AND g.disease_id IN
+          <foreach collection="diseaseIds" item="dzId" open="(" separator="," close=")">#{dzId}</foreach>
+        ORDER BY g.guideline_type, g.record_id
+    </select>
+
+    <!--
+      临床试验证据（第二类证据）：对齐 en7 AnalysisReportDao.getClinicalTrial
+        只取「招募中 / 邀请入组」且已审核的试验，并剔除 clinical_trial_exclude_disease 里本癌种排除的试验
+      展示字段：ID / 名称 / 肿瘤类型 / 阶段 / 药物 / 地点（实际报告「临床试验信息」表）
+    -->
+    <select id="selectClinicalTrials" resultType="java.util.LinkedHashMap">
+        SELECT t.annotation_id              AS annotationId,
+               vda.drug_id                  AS drugId,
+               d.drug_name_chinese          AS drugName,
+               ct.clinical_trial_id         AS trialId,
+               ct.official_title_chinese    AS title,
+               ct.condition_chinese         AS trialCondition,
+               ct.phase                     AS phase,
+               ct.location_chinese          AS location,
+               CASE ct.phase
+                   WHEN 'Phase IV' THEN 6
+                   WHEN 'Phase III' THEN 5
+                   WHEN 'Phase II/III' THEN 4
+                   WHEN 'Phase II' THEN 3
+                   WHEN 'Phase I/II' THEN 2
+                   WHEN 'Phase I' THEN 1
+                   ELSE 0
+               END                          AS phaseOrder
+        FROM nkb.variant_drug_anno_trial t
+        JOIN nkb.clinical_trial ct ON ct.clinical_trial_id = t.clinical_trial_id
+        JOIN nkb.variant_drug_annotation vda ON vda.annotation_id = t.annotation_id
+        LEFT JOIN nkb.drug d ON d.drug_id = vda.drug_id
+        WHERE t.annotation_id IN
+          <foreach collection="annotationIds" item="aId" open="(" separator="," close=")">#{aId}</foreach>
+          AND ct.recruiting_status IN ('Recruiting', 'Enrolling by invitation')
+          AND ct.checking_status_id = 2
+        <if test="diseaseIds != null and diseaseIds.size() > 0">
+          AND ct.clinical_trial_id NOT IN
+              (SELECT e.clinical_trial_id FROM nkb.clinical_trial_exclude_disease e
+                WHERE e.disease_id IN
+                <foreach collection="diseaseIds" item="eId" open="(" separator="," close=")">#{eId}</foreach>)
+        </if>
+        ORDER BY phaseOrder DESC, ct.clinical_trial_id
+    </select>
+
     <!-- 按ID取节点名（人工改靶父级回显用；不排序，调用方自己按ID对齐） -->
     <select id="selectVariantNamesByIds" resultType="java.util.LinkedHashMap">
         SELECT gv.gene_variant_id AS mutationId,

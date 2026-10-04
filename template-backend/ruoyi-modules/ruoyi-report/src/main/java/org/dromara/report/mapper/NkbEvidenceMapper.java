@@ -152,6 +152,36 @@ public interface NkbEvidenceMapper {
     List<String> selectVariantNames(@Param("mutationIds") List<Long> mutationIds);
 
     /**
+     * 获批上市(24)说明：按 (药,癌种) 取批准说明 + 获批机构
+     *
+     * @param drugIds    药物ID集合
+     * @param diseaseIds 癌种ID集合
+     * @return {drugId, diseaseId, approvingAgency, approvalDescription}
+     */
+    List<Map<String, Object>> selectApprovalDescriptions(@Param("drugIds") List<Long> drugIds,
+                                                         @Param("diseaseIds") List<Long> diseaseIds);
+
+    /**
+     * 指南推荐(23)说明：按 (药,癌种) 取 NCCN/CSCO 指南描述（Java 侧按 type 拼装）
+     *
+     * @param drugIds    药物ID集合
+     * @param diseaseIds 癌种ID集合
+     * @return {drugId, diseaseId, guidelineType, guidelineTitle, guidelineDescription}
+     */
+    List<Map<String, Object>> selectGuidelineDescriptions(@Param("drugIds") List<Long> drugIds,
+                                                          @Param("diseaseIds") List<Long> diseaseIds);
+
+    /**
+     * 临床试验证据（第二类证据）：按注释ID取招募中的试验
+     *
+     * @param annotationIds 证据注释ID集合
+     * @param diseaseIds    本癌种范围（用于剔除 clinical_trial_exclude_disease）
+     * @return {annotationId, drugId, drugName, trialId, title, trialCondition, phase, location, phaseOrder}
+     */
+    List<Map<String, Object>> selectClinicalTrials(@Param("annotationIds") List<Long> annotationIds,
+                                                   @Param("diseaseIds") List<Long> diseaseIds);
+
+    /**
      * 按ID取节点名（人工改靶父级回显用；不排序，调用方按ID自己对齐）
      *
      * @param mutationIds 节点ID列表

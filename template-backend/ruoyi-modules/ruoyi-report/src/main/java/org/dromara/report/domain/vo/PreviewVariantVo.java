@@ -82,8 +82,11 @@ public class PreviewVariantVo implements Serializable {
     /** 文件里给出的分类（CR_ALL.classification_lovd，如 Class5(致病)） */
     private String classificationLovd;
 
-    /** 药物证据（全部保留：每个「药物 × 等级 × 证据癌种」一行；无证据时为空列表） */
+    /** 证据明细（全量保留） */
     private List<PreviewDrugVo> drugMatch;
+
+    /** 临床试验证据（第二类证据；招募中/邀请入组，展示 ID/名称/肿瘤类型/阶段/药物/地点） */
+    private List<PreviewTrialVo> trials;
 
     /**
      * 按等级分组的药物名串（en7 的 drugsA/drugsB/drugsC/drugsD + resistant_drugsA..D）。
