@@ -364,6 +364,25 @@ function hasClinicalTrial(drug: Api.Report.PreviewDrug): boolean {
   return (detailRow.value?.trials ?? []).some(trial => trial.annotationId != null && trial.annotationId === drug.annotationId);
 }
 
+/**
+ * 证据「关系」tag 的显示文案（按 NKB 关系字典 ID 归一，胚系/体细胞一致）：
+ * 1 敏感性增加 / 4 有益的 → **敏感性增加**（两者同属正相关、在报告里都算"获益"类）
+ * 6 抗药性 → **耐药性增加**
+ * 其余取值原样显示（2 敏感性降低 / 3 未明 / 5 无益的，当前证据过滤不会出现）
+ *
+ * @param drug 证据行（后端已带 relationshipId）
+ * @returns 展示文案；无关系时返回空串（模板 v-if 不会渲染该 tag）
+ */
+function relationshipTagText(drug: Api.Report.PreviewDrug): string {
+  if (drug.relationshipId === 6) {
+    return '耐药性增加';
+  }
+  if (drug.relationshipId === 1 || drug.relationshipId === 4) {
+    return '敏感性增加';
+  }
+  return drug.relationship ?? '';
+}
+
 /** 临床试验表列（对齐实际报告「临床试验信息」表：ID / 名称 / 肿瘤类型 / 阶段 / 药物 / 地点） */
 const TRIAL_COLUMNS: NaiveUI.TableColumn<Api.Report.PreviewTrial>[] = [
   { key: 'trialId', title: 'ID', width: 130 },
@@ -581,7 +600,7 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
               <span class="font-medium">{{ drug.drugName ?? '-' }}</span>
               <span class="text-12px op-60">{{ drug.disease ?? '-' }}</span>
               <NTag v-if="drug.evidencePhase" size="small">{{ drug.evidencePhase }}</NTag>
-              <NTag v-if="drug.relationship" size="small" type="info">{{ drug.relationship }}</NTag>
+              <NTag v-if="relationshipTagText(drug)" size="small" type="info">{{ relationshipTagText(drug) }}</NTag>
               <NTag v-if="drug.fromOtherCancer" size="small" type="warning">其他癌种获批</NTag>
               <!-- 证据类型：说明为空但挂着招募中试验 → 临床试验（有说明的不打 tag，说明正文本身就是标识） -->
               <NTag v-if="hasClinicalTrial(drug)" size="small" type="warning" :bordered="false">临床试验</NTag>
