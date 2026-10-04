@@ -327,6 +327,8 @@ declare namespace Api {
       nucleicAcid: string | null;
       /** 类型列展示值：体系|变异类别|核酸类型（如 S|Indel 、S|Somatic|RNA） */
       typeText: string | null;
+      /** 变异类型展示值（VEP ExonicFunc 中文：错义突变/移码突变…） */
+      variantTypeText: string | null;
       /** 丰度/reads 展示值：DNA → 45.47%；RNA 融合 → reads 数（无单位） */
       abundanceText: string | null;
       /** 命中的知识库节点ID（自身或父级） */

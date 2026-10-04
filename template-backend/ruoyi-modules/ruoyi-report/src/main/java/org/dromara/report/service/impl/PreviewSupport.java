@@ -217,6 +217,36 @@ final class PreviewSupport {
     }
 
     /**
+     * 变异类型展示值：VEP `ExonicFunc`（体细胞取 `exonic_func_known_gene`，胚系取 `exonic_func`）→ 中文。
+     * <p>
+     * 映射抄自 en7 `previewReportList.jsp` 的 `translateMutType`；表中没有的值原样返回
+     * （CNV / FUSION 行传进来的就是 `CNV` / `FUSION`）。
+     *
+     * @param exonicFunc VEP 变异类型（如 nonsynonymous SNV）
+     * @return 中文展示值；空时返回 null
+     */
+    static String variantTypeText(String exonicFunc) {
+        if (!StringUtils.hasText(exonicFunc)) {
+            return null;
+        }
+        String value = exonicFunc.trim();
+        return switch (value) {
+            case "nonsynonymous SNV" -> "错义突变";
+            case "synonymous SNV" -> "同义突变";
+            case "nonframeshift insertion" -> "非移码插入突变";
+            case "nonframeshift deletion" -> "非移码缺失突变";
+            case "frameshift insertion", "frameshift deletion", "frameshift indel" -> "移码突变";
+            case "nonframeshift indel" -> "非移码突变";
+            case "stopgain" -> "无义突变";
+            case "stoploss" -> "stoploss";
+            case "splicing" -> "剪接突变";
+            case "promoter" -> "启动子区变异";
+            case "unknown" -> "未知";
+            default -> value;
+        };
+    }
+
+    /**
      * 丰度/reads 展示值（对齐 en7 的 mutFreq 口径）
      * <ul>
      *   <li>扩增/缺失（拷贝数）：原值，无单位</li>
@@ -354,6 +384,7 @@ final class PreviewSupport {
         item.setFileType(asString(row.get("fileType")));
         item.setNucleicAcid("FUSION".equals(sourceType) ? nucleicAcid(fusionQuality) : null);
         item.setTypeText(typeText(sourceType, germline, fusionQuality));
+        item.setVariantTypeText(variantTypeText(asString(row.get("mutationTypeRaw"))));
         item.setAbundanceText(abundanceText(sourceType, freqRaw, fusionQuality));
         boolean fused = "FUSION".equals(sourceType);
         boolean cnvLike = "CNV".equals(sourceType)

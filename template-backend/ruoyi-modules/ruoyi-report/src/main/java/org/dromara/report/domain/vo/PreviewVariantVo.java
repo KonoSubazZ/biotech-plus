@@ -133,6 +133,9 @@ public class PreviewVariantVo implements Serializable {
     /** 类型列展示值（体系|变异类别|核酸类型，见 NkbDrugMatcher#typeText） */
     private String typeText;
 
+    /** 变异类型展示值（VEP ExonicFunc → 中文：错义突变/移码突变…，见 PreviewSupport#variantTypeText） */
+    private String variantTypeText;
+
     /** 丰度/reads 展示值：DNA → "45.47%"；RNA → reads 数（无单位）；扩增/缺失 → 拷贝数 */
     private String abundanceText;
 

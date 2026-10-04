@@ -133,7 +133,7 @@ async function saveTarget(row: Api.Report.PreviewVariant, parentMutationId: numb
   }
 }
 
-/** 位点表公共前几列（基因/变异/类型/原始位点/丰度·reads） */
+/** 位点表前四列（基因 / 变异 / 类型 / 原始位点） */
 function baseColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
   return [
     { key: 'gene', title: '基因', align: 'center', width: 110, render: row => row.gene ?? '-' },
@@ -147,21 +147,36 @@ function baseColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
       minWidth: 220,
       ellipsis: { tooltip: true },
       render: row => row.oriVariant ?? '-'
-    },
-    // 丰度/reads：DNA → 45.47%；RNA 融合 → reads 数（无单位）；扩增/缺失 → 拷贝数
-    { key: 'frequency', title: '丰度/reads', align: 'center', width: 120, render: row => row.abundanceText ?? '-' }
+    }
   ];
 }
 
-/** 体细胞列 = 公共列 + 位点等级 + 操作 */
+/** 变异类型列：VEP ExonicFunc 中文（错义突变/移码突变…，后端 variantTypeText）；插在「原始位点」之后 */
+function variantTypeColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
+  return {
+    key: 'variantType',
+    title: '变异类型',
+    align: 'center',
+    width: 130,
+    render: row => row.variantTypeText ?? '-'
+  };
+}
+
+/** 丰度/reads 列：DNA → 45.47%；RNA 融合 → reads 数（无单位）；扩增/缺失 → 拷贝数 */
+function abundanceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
+  return { key: 'frequency', title: '丰度/reads', align: 'center', width: 120, render: row => row.abundanceText ?? '-' };
+}
+
+/** 体细胞列 = 公共列 + 变异类型 + 丰度/reads + 位点等级 + 操作 */
 function buildSomaticColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [...baseColumns(), variationLevelColumn(), operateColumn()];
+  return [...baseColumns(), variantTypeColumn(), abundanceColumn(), variationLevelColumn(), operateColumn()];
 }
 
 /** 胚系列 = 公共列 + 合子/临床意义/文件判定 + 操作 */
 function buildGermlineColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
   return [
     ...baseColumns(),
+    abundanceColumn(),
     { key: 'zygosity', title: '合子', align: 'center', width: 90, render: row => row.zygosity ?? '-' },
     {
       key: 'clinicalSignificance',
