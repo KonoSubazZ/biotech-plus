@@ -1,14 +1,16 @@
 -- 「合规管理」菜单模块的建表与菜单/权限（一个菜单模块一个文件）
 --   1) 开发记录表 dev_log        + 菜单/权限（2026-10 已落地）
 --   2) 3Q 验证记录表 validation_record + 菜单/权限（2026-10 新增）
---   3) 3Q 文档管理表 compliance_document + 菜单/权限（待实现，继续追加到本文件）
+--   3) 3Q 文档管理表 compliance_document + 菜单/权限（2026-10 新增，记录类，**可删除**）
 --
--- 依据：docs/context/设计文档/{dev-log,validation-record}.md
+-- 依据：docs/context/设计文档/{dev-log,validation-record,compliance-docs}.md
 --       原文是 PG/Prisma 写法（uuid 主键、_created_at/_updated_at/_updated_by），
 --       类型已按 ai-rules/04-db-schema.md §7 映射到本仓（bigint 自增 + 公共字段四件套）。
--- 合规口径：开发记录 / 验证记录都属「不可篡改的追溯证据」→ append-only，**不加 del_flag**、
+-- 合规口径：开发记录 / 验证记录属「不可篡改的追溯证据」→ append-only，**不加 del_flag**、
 --       不建「删除」按钮、后端不提供删除接口（ai-rules/04-db-schema.md §2「谁加 del_flag」）。
---       （3Q 文档管理属记录类，届时可带 del_flag 与删除）
+--       3Q 文档管理属**记录类**（文档库，可增删改）→ 带 del_flag + @TableLogic + 删除按钮。
+-- 附件口径（三张表统一）：附件存服务器固定目录，库里**只记原文件名**，同名即替换，
+--       下载按记录 id 定位；不存设计文档里的 file_url（避免路径注入与双份真相）。
 -- 规范：ai-rules/04-db-schema.md      模板：ai-templates/db/table-template.sql
 -- 体检：python3 tools/check_db_schema.py（error 必须为 0）
 -- 菜单位置：「合规管理」是根目录下的一级菜单
@@ -233,3 +235,102 @@ WHERE @vr_menu_id IS NOT NULL
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, m.menu_id FROM sys_menu m
 WHERE m.menu_id = @vr_menu_id OR m.parent_id = @vr_menu_id;
+
+
+-- ============================================================================
+-- 8. 3Q 文档管理表 compliance_document
+--    依据：docs/context/设计文档/compliance-docs.md §1（PG/Prisma 写法，类型按 ai-rules/04 §7 映射）
+--    **记录类**：带 del_flag（0 存在 / 1 删除）+ 实体 @TableLogic，删除是「作废」语义、可恢复
+--    file_name：文档文件名（原文件名，附件存服务器固定目录；配置项 compliance.compliance-doc.upload-dir）
+--    设计文档里的 file_url（dataloom 存储地址）不落库：本仓不接 dataloom，附件按「固定目录 + 文件名」约定
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `compliance_document` (
+    id            bigint       NOT NULL AUTO_INCREMENT           COMMENT '主键',
+    doc_type      varchar(20)  NOT NULL                          COMMENT '文档类型（IQ 安装确认 / OQ 运行确认 / PQ 性能确认 / DEV_TEST 开发测试）',
+    title         varchar(200) NOT NULL                          COMMENT '文档标题',
+    version       varchar(50)  NOT NULL                          COMMENT '版本号',
+    file_name     varchar(255)                                   COMMENT '文档文件名（原文件名，附件存服务器固定目录）',
+    remark        varchar(500)                                   COMMENT '备注',
+
+    create_by     bigint                                         COMMENT '创建者',
+    create_time   datetime                                       COMMENT '创建时间',
+    update_by     bigint                                         COMMENT '更新者',
+    update_time   datetime                                       COMMENT '更新时间',
+    del_flag      char(1)      NOT NULL DEFAULT '0'              COMMENT '删除标志（0代表存在 1代表删除）',
+
+    tenant_id     varchar(20)  NOT NULL DEFAULT '000000'         COMMENT '租户编号',
+
+    PRIMARY KEY (id),
+    KEY idx_tenant_id (tenant_id),
+    -- 设计文档的 idx_compliance_doc_type；规范要求 tenant_id 打头
+    KEY idx_compliance_doc_type (tenant_id, doc_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='3Q 文档管理';
+
+
+-- ============================================================================
+-- 9. 菜单：合规管理 > 3Q 文档管理
+--    component 两层：compliance/documents/index → 路由名 compliance_documents
+--    perms 与 ComplianceDocController 的 @SaCheckPermission 逐字一致
+-- ============================================================================
+SET @compliance_id_doc = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'compliance' LIMIT 1);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT 'route.compliance_documents', @compliance_id_doc, 3, 'documents',
+    'compliance/documents/index', 1, 0,
+    'C', '0', '0', 'compliance:complianceDoc:list', 'local-icon-clipboard', 1, NOW(), '3Q 文档管理'
+FROM (SELECT 1) AS dummy
+WHERE @compliance_id_doc IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @compliance_id_doc AND path = 'documents') AS exists_check);
+
+-- 收敛到当前定义（脚本可重复执行）
+UPDATE sys_menu
+SET parent_id = @compliance_id_doc, menu_name = 'route.compliance_documents',
+    component = 'compliance/documents/index', path = 'documents',
+    order_num = 3, menu_type = 'C', update_by = 1, update_time = NOW()
+WHERE parent_id = @compliance_id_doc AND path = 'documents';
+
+SET @doc_menu_id = (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @compliance_id_doc AND path = 'documents' LIMIT 1);
+
+-- F 按钮：查询 / 新增 / 修改 / 删除（记录类，**有删除**）
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '查询', @doc_menu_id, 1, '', NULL, 1, 0, 'F', '0', '0', 'compliance:complianceDoc:query', '#', 1, NOW(), '查询'
+FROM (SELECT 1) AS dummy
+WHERE @doc_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @doc_menu_id AND perms = 'compliance:complianceDoc:query') AS exists_check);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '新增', @doc_menu_id, 2, '', NULL, 1, 0, 'F', '0', '0', 'compliance:complianceDoc:add', '#', 1, NOW(), '新增'
+FROM (SELECT 1) AS dummy
+WHERE @doc_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @doc_menu_id AND perms = 'compliance:complianceDoc:add') AS exists_check);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '修改', @doc_menu_id, 3, '', NULL, 1, 0, 'F', '0', '0', 'compliance:complianceDoc:edit', '#', 1, NOW(), '修改'
+FROM (SELECT 1) AS dummy
+WHERE @doc_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @doc_menu_id AND perms = 'compliance:complianceDoc:edit') AS exists_check);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '删除', @doc_menu_id, 4, '', NULL, 1, 0, 'F', '0', '0', 'compliance:complianceDoc:remove', '#', 1, NOW(), '删除'
+FROM (SELECT 1) AS dummy
+WHERE @doc_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @doc_menu_id AND perms = 'compliance:complianceDoc:remove') AS exists_check);
+
+
+-- ============================================================================
+-- 10. 授权给超级管理员
+-- ============================================================================
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, m.menu_id FROM sys_menu m
+WHERE m.menu_id = @doc_menu_id OR m.parent_id = @doc_menu_id;
