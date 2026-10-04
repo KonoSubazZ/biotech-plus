@@ -331,6 +331,8 @@ declare namespace Api {
       matchedMutationId: number | null;
       /** 基因说明（NKB gene_description，Approved） */
       geneDescription: string | null;
+      /** 信号通路说明（NKB gene_description.pathway_description_chinese，与基因说明同一行） */
+      pathwayDescription: string | null;
       /** 位点说明（NKB gene_variant_description，按命中的节点） */
       variantDescription: string | null;
       /** 突变说明（HGVS → 中文，移植 en7 的 translate_hgvs.pl） */

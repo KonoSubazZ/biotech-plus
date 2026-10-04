@@ -376,14 +376,18 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
           <span v-if="detailRow.drugMatch?.length" class="op-60">证据 {{ detailRow.drugMatch.length }} 条</span>
         </div>
 
-        <!-- 三段说明：基因说明 / 位点说明 / 突变说明 -->
+        <!-- 四段说明：基因说明 / 信号通路说明 / 位点说明 / 突变说明 -->
         <div
-          v-if="detailRow.geneDescription || detailRow.variantDescription || detailRow.mutationExplanation"
+          v-if="detailRow.geneDescription || detailRow.pathwayDescription || detailRow.variantDescription || detailRow.mutationExplanation"
           class="mb-10px flex-col gap-6px text-12px"
         >
           <div v-if="detailRow.geneDescription" class="rounded bg-#f5f7fa p-10px">
             <span class="font-medium">基因说明</span>
             <div class="mt-4px leading-20px op-80">{{ detailRow.geneDescription }}</div>
+          </div>
+          <div v-if="detailRow.pathwayDescription" class="rounded bg-#f5f7fa p-10px">
+            <span class="font-medium">信号通路说明</span>
+            <div class="mt-4px leading-20px op-80">{{ detailRow.pathwayDescription }}</div>
           </div>
           <div v-if="detailRow.variantDescription" class="rounded bg-#f5f7fa p-10px">
             <span class="font-medium">位点说明</span>

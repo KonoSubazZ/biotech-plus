@@ -109,6 +109,9 @@ public class PreviewVariantVo implements Serializable {
     /** 基因说明（NKB gene_description.gene_description_chinese，Approved） */
     private String geneDescription;
 
+    /** 信号通路说明（NKB gene_description.pathway_description_chinese，Approved；与基因说明同一行） */
+    private String pathwayDescription;
+
     /** 位点说明（NKB gene_variant_description.description_chinese，按命中节点） */
     private String variantDescription;
 
