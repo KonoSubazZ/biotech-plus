@@ -688,7 +688,7 @@ SET @report_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
 SELECT 'route.report_template', @report_menu_id, 3, 'template', 'report/template/index',
-    1, 0, 'C', '0', '0', 'report:template:list', 'local-icon-documentation', 1, NOW(), '报告模板配置'
+    1, 0, 'C', '0', '0', 'report:template:list', 'local-icon-documentation', 1, NOW(), '模板配置'
 FROM (SELECT 1) AS dummy
 WHERE @report_menu_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
