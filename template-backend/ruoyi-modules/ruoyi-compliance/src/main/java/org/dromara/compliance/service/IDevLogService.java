@@ -4,6 +4,10 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.compliance.domain.bo.DevLogBo;
 import org.dromara.compliance.domain.vo.DevLogVo;
+import org.springframework.web.multipart.MultipartFile;
+
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 
 /**
  * 开发记录 业务层
@@ -46,4 +50,24 @@ public interface IDevLogService {
      * @return 是否成功
      */
     Boolean updateByBo(DevLogBo bo);
+
+    /**
+     * 保存上传的「记录文档」附件
+     * <p>
+     * 附件落在服务器固定目录（配置 compliance.dev-log.upload-dir），**同名文件直接覆盖**；
+     * 库里只记原始文件名，不存路径。
+     *
+     * @param file 上传文件
+     * @return 保存后的文件名（原文件名）
+     */
+    String uploadFile(MultipartFile file);
+
+    /**
+     * 下载某条记录关联的「记录文档」
+     *
+     * @param id       记录主键
+     * @param response 响应，直接写入文件流
+     * @throws IOException 写响应流失败
+     */
+    void downloadFile(Long id, HttpServletResponse response) throws IOException;
 }

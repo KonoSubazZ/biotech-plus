@@ -228,3 +228,12 @@ websocket:
   # 设置访问源地址
   allowedOrigins: '*'
 
+---
+# 合规管理（CSV / 3Q）
+compliance:
+  dev-log:
+    # 开发记录的「记录文档」附件存放目录（服务器固定目录）。
+    # 只存一份：同名文件上传即替换；库里仅记原始文件名，不存路径。
+    # 生产请把该目录挂成持久化卷（deploy.sh 里已把宿主 files/ 挂到 /ruoyi/server/upload）。
+    upload-dir: /ruoyi/server/upload/compliance/dev-log
+

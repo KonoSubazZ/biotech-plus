@@ -43,8 +43,16 @@ public class DevLogBo extends BaseEntity {
         groups = {AddGroup.class, EditGroup.class})
     private String category;
 
+    /** 版本号 */
+    @Size(max = 50, message = "版本号长度不能超过 50", groups = {AddGroup.class, EditGroup.class})
+    private String version;
+
     /** 详细内容 */
     private String content;
+
+    /** 记录文档文件名（原文件名；由上传接口写入，表单只回填） */
+    @Size(max = 255, message = "记录文档文件名长度不能超过 255", groups = {AddGroup.class, EditGroup.class})
+    private String fileName;
 
     /** 开发人员 */
     @Size(max = 80, message = "开发人员长度不能超过 80", groups = {AddGroup.class, EditGroup.class})

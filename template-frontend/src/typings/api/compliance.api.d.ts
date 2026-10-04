@@ -18,8 +18,12 @@ declare namespace Api {
       title: string;
       /** 分类：feature 功能新增 / fix 缺陷修复 / change 变更调整 */
       category: string;
+      /** 版本号 */
+      version?: string | null;
       /** 详细内容 */
       content?: string | null;
+      /** 记录文档文件名（原文件名；附件存服务器固定目录，点击可下载） */
+      fileName?: string | null;
       /** 开发人员 */
       developer?: string | null;
       /** 记录日期（yyyy-MM-dd） */
@@ -42,7 +46,11 @@ declare namespace Api {
       title: string;
       /** 分类：feature 功能新增 / fix 缺陷修复 / change 变更调整 */
       category: string;
+      /** 版本号 */
+      version?: string | null;
       content?: string | null;
+      /** 记录文档文件名（由上传接口返回后回填，不在表单里手填） */
+      fileName?: string | null;
       developer?: string | null;
       /** 记录日期（yyyy-MM-dd） */
       logDate?: string | null;

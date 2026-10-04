@@ -48,18 +48,24 @@ async function search() {
     <NCollapse>
       <NCollapseItem :title="$t('common.search')" name="dev-log-search">
         <NForm ref="formRef" :model="model" label-placement="left" :label-width="80">
-          <NGrid responsive="screen" item-responsive>
-            <NFormItemGi span="24 s:12 m:8" label="记录标题" path="title" class="pr-24px">
+          <!--
+            搜索栏布局契约（仓库 crud skill §「搜索栏布局契约」）：
+            搜索项用 flex-wrap + 每项固定百分比宽；按钮组 ml-auto 自动贴当前行最右；
+            一行放不下整组换行后仍贴右。不要用 NGrid + 最后一格放按钮（只会在自己格子内靠右，
+            字段数不是列数整数倍时会悬在行中间）。
+          -->
+          <div class="flex flex-wrap items-start">
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="记录标题" path="title">
               <NInput v-model:value="model.title" placeholder="请输入记录标题" clearable />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" label="分类" path="category" class="pr-24px">
+            </NFormItem>
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="分类" path="category">
               <NSelect v-model:value="model.category" :options="categoryOptions" clearable placeholder="请选择分类" />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" label="开发人员" path="developer" class="pr-24px">
+            </NFormItem>
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="开发人员" path="developer">
               <NInput v-model:value="model.developer" placeholder="请输入开发人员" clearable />
-            </NFormItemGi>
-            <NFormItemGi span="24 s:12 m:8" class="pr-24px">
-              <NSpace class="w-full" justify="end">
+            </NFormItem>
+            <NFormItem class="ml-auto" :show-feedback="false">
+              <NSpace :size="16">
                 <NButton @click="reset">
                   <template #icon>
                     <icon-ic-round-refresh class="text-icon" />
@@ -73,8 +79,8 @@ async function search() {
                   {{ $t('common.search') }}
                 </NButton>
               </NSpace>
-            </NFormItemGi>
-          </NGrid>
+            </NFormItem>
+          </div>
         </NForm>
       </NCollapseItem>
     </NCollapse>

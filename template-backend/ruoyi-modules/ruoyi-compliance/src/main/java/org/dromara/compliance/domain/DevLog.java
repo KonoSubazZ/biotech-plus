@@ -33,8 +33,14 @@ public class DevLog extends BaseEntity {
     /** 分类（feature 功能新增 / fix 缺陷修复 / change 变更调整） */
     private String category;
 
+    /** 版本号 */
+    private String version;
+
     /** 详细内容 */
     private String content;
+
+    /** 记录文档文件名（原文件名，附件存服务器固定目录） */
+    private String fileName;
 
     /** 开发人员 */
     private String developer;
