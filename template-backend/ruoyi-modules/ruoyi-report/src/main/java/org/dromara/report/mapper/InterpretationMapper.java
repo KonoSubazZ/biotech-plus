@@ -157,41 +157,41 @@ public interface InterpretationMapper {
     int insertGermlineHistory(@Param("h") Map<String, Object> history);
 
     /**
-     * 用新规则结果覆盖已有历史（仅用于兼容旧格式冻结结果：老结构无法解析时按最新规则重算后覆盖同一条）
+     * 每次命中历史都登记一次复用：最近复用时间 + 计数（表上的 `last_reused_at` / `reuse_count`）。
      *
-     * @param matchKey       匹配键
-     * @param matchStatus    匹配状态
-     * @param variationClass 位点分级
-     * @param matchResult    冻结结果 JSON
-     * @param germline       是否胚系（决定写哪张表）
+     * @param matchKey 匹配键
+     * @param germline 是否胚系（决定写哪张表）
      * @return 影响行数
      */
-    int refreshHistory(@Param("matchKey") String matchKey,
-                       @Param("matchStatus") String matchStatus,
-                       @Param("variationClass") String variationClass,
-                       @Param("matchResult") String matchResult,
-                       @Param("germline") boolean germline);
+    int touchHistoryReuse(@Param("matchKey") String matchKey, @Param("germline") boolean germline);
 
     /**
-     * 胚系临床意义继承：同客户/产品/癌种/性别/位点/合子状态下最近一条（**故意忽略人工父级 parent_mutation_id**）
+     * 写一条复用留痕（append-only 的 history_reuse_log，记录哪份报告 / 谁 / 何时用了这条历史）。
      *
-     * @param q 查询条件
+     * @param log 留痕字段
+     * @return 影响行数
+     */
+    int insertReuseLog(@Param("log") Map<String, Object> log);
+
+    /**
+     * 胚系临床意义继承：同产品/癌种/性别/位点下最近一条（**故意忽略人工父级 parent_mutation_id**，改靶继承用）
+     *
+     * @param q 查询条件（gene / variant / disease / gender / projectCode）
      * @return clinical_significance；无则 null
      */
     Integer selectInheritedGermlineSignificance(@Param("q") Map<String, Object> q);
 
     /**
-     * 保存人工确认的胚系临床意义（要求该位点已通过预览建立历史记录）
+     * 保存人工确认的胚系临床意义（要求该位点已通过预览建立历史记录）。
+     * <p>
+     * 只改 `clinical_significance`：**不**重跑匹配、**不**覆盖已冻结的 `match_result` / 用药 / 位点等级。
      *
      * @param matchKey             规范化匹配键
      * @param clinicalSignificance 1~5
      * @return 影响行数（0 = 还没建立历史）
      */
     int updateGermlineSignificance(@Param("matchKey") String matchKey,
-                                  @Param("clinicalSignificance") Integer clinicalSignificance,
-                                  @Param("matchResult") String matchResult,
-                                  @Param("matchStatus") String matchStatus,
-                                  @Param("variationClass") String variationClass);
+                                  @Param("clinicalSignificance") Integer clinicalSignificance);
 
     /**
      * 取单个 CR_ALL 位点（保存临床意义前要重算 match_key）

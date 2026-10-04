@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
+import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.common.satoken.utils.TenantContext;
 import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
@@ -45,9 +46,10 @@ import java.util.Set;
  * 与设计书对齐的关键点：
  * <ul>
  *   <li>只查「报出（is_reported=1）」的位点；体细胞 = SNP/Indel + CNV + Fusion，胚系 = CR_ALL。</li>
- *   <li>匹配历史：先按 match_key（规范化条件 SHA-256）查 history_somatic/history_germline，
- *       命中就复用冻结的 match_result（只替换来源位点ID）；未命中才查 NKB 并用 INSERT IGNORE 写首条。</li>
- *   <li>胚系五级临床意义 1~5（默认 3）；改靶产生新键时从同客户/产品/癌种/性别/位点/合子状态
+ *   <li>匹配历史：先按 match_key（v2 = 产品项目 + 癌种 + 性别 + 位点 + 人工改靶父级 的 SHA-256）
+ *       查 history_somatic/history_germline。<b>命中即严格只读复用</b>冻结的 match_result（NKB 更新不刷新），
+ *       并登记一次复用（last_reused_at/reuse_count + history_reuse_log）；未命中才查 NKB 并用 INSERT IGNORE 写首条。</li>
+ *   <li>胚系五级临床意义 1~5（默认 3）：只更新该列，不覆盖冻结结果；改靶产生新键时从同产品/癌种/性别/位点
  *       <b>最近一条</b>继承（故意忽略 parent_mutation_id）。</li>
  *   <li>确定性：同输入产生相同 JSON，不写时间戳/随机值；缺失业务值保持 null，不替换成 / 或 -。</li>
  *   <li>NKB 是跨库只读表（没有 tenant_id），全部查询包在 {@code TenantContext.withoutTenant} 里。</li>
@@ -135,23 +137,9 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         // 必须带上人工父级：它参与匹配键，漏了会把改靶后的确认写到旧键上（实测踩到）
         item.setParentMutationIds(parseParentMutationIds(row.get("parentMutationId")));
         item.setMutationType("G");
-        // 临床意义是人工确认项，不参与节点匹配（en7 无 Class 口径）：
-        // 重新跑一次 en7 匹配把当前证据重新冻结，避免历史里留旧知识库结果
-        NkbDrugMatcher.MatchResult matched = drugMatcher.match(item.getGene(), item.getVariant(),
-            item.getOriVariant(), true, pc.getDiseaseScope(), item.getParentMutationIds());
-        List<PreviewDrugVo> evidence = matched.getEvidence() == null ? List.of() : matched.getEvidence();
-        Map<String, Object> frozen = new LinkedHashMap<>();
-        frozen.put("inNkb", matched.getInNkb());
-        frozen.put("matchedNode", matched.getMatchedNode());
-        frozen.put("effectText", matched.getEffectText());
-        frozen.put("variationClass", matched.getVariationClass());
-        frozen.put("description", matched.getDescription());
-        frozen.put("evidence", evidence);
-        frozen.put("drugGroups", matched.getDrugGroups());
-        frozen.put("drugAuditList", matched.getDrugAuditList());
-        String status = evidence.isEmpty() ? "NOT_MATCHED" : "MATCHED";
-        int affected = interpretationMapper.updateGermlineSignificance(matchKey(pc, item), significance,
-            toJson(frozen), status, matched.getVariationClass());
+        // 临床意义是人工确认项：**只更新该列**。不重跑匹配、不覆盖已冻结的 match_result / 用药 / 位点等级
+        // （早先会重跑 en7 匹配"顺手刷新"冻结结果，NKB 一更新就改掉老记录，与"冻结只读"冲突，已去掉）
+        int affected = interpretationMapper.updateGermlineSignificance(matchKey(pc, item), significance);
         if (affected == 0) {
             throw new ServiceException("该位点还没有匹配历史，请先预览一次再确认临床意义");
         }
@@ -375,6 +363,9 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
 
     /**
      * 历史复用 or 首次知识库匹配。
+     * <p>
+     * 命中历史 → **严格只读复用**（知识库更新不刷新），并登记一次复用（时间 + 计数 + 留痕）。
+     * 未命中 → 按 en7 口径查最新知识库，`INSERT IGNORE` 冻结首条；此后不再被任何路径覆盖。
      *
      * @param item             位点（已填好 gene/variant/oriVariant/mutationType）
      * @param significance     胚系临床意义（体细胞传 null）
@@ -388,7 +379,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         NkbDrugMatcher.MatchResult frozen = history == null ? null
             : parseMatchResult(asString(history.get("match_result")));
         if (history != null && frozen != null) {
-            // 结构可解析：按设计书复用冻结结果（知识库更新不刷新历史）
+            // 命中历史：复用冻结结果（知识库更新不刷新历史）
             item.setFromHistory(true);
             applyMatchResult(item, frozen);
             item.setMatchStatus(asString(history.get("match_status")));
@@ -398,20 +389,44 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
                 item.setClinicalSignificance(clinical);
                 item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(clinical));
             }
+            registerHistoryReuse(history, pc, item, germline, matchKey);
             return;
         }
+        if (history != null) {
+            // v2 行不可能解析失败；真出现也只告警 + 本次按最新知识库输出，**不覆盖**已冻结行（宁可不一致也不改写历史）
+            log.warn("匹配历史 match_result 无法解析，本次按最新知识库输出且不覆盖历史：matchKey={}", matchKey);
+        }
 
-        // 首次匹配（或历史是旧结构）：走 en7 口径（节点四级兜底 + 自身/父级节点 + 人工改靶父级 + 癌种范围 + 证据过滤 + 分级）
+        // 首次匹配：走 en7 口径（节点四级兜底 + 自身/父级节点 + 人工改靶父级 + 癌种范围 + 证据过滤 + 分级）
         NkbDrugMatcher.MatchResult matched = drugMatcher.match(item.getGene(), item.getVariant(), item.getOriVariant(),
             germline, pc.getDiseaseScope(), item.getParentMutationIds());
         applyMatchResult(item, matched);
-        if (history != null) {
-            // 旧结构：覆盖同一条历史，保持「一个 match_key 一条记录」
-            interpretationMapper.refreshHistory(matchKey, item.getMatchStatus(), item.getVariationClass(),
-                toJson(frozenResult(item)), germline);
-            return;
-        }
         insertHistory(pc, item, matchKey, significance);
+    }
+
+    /**
+     * 登记一次历史复用：`last_reused_at` / `reuse_count`（表上）+ 一条 append-only 留痕
+     * （能回答「哪份报告 / 谁 / 何时用了这条历史」）。
+     *
+     * @param history   命中的历史行（含 id）
+     * @param matchKey  本次匹配键（与历史行同值）
+     * @param germline  是否胚系
+     */
+    private void registerHistoryReuse(Map<String, Object> history, PreviewContext pc, PreviewVariantVo item,
+                                      boolean germline, String matchKey) {
+        interpretationMapper.touchHistoryReuse(matchKey, germline);
+        Map<String, Object> reuse = new LinkedHashMap<>();
+        reuse.put("historyType", germline ? "GERMLINE" : "SOMATIC");
+        reuse.put("historyId", asLong(history.get("id")));
+        reuse.put("matchKey", matchKey);
+        reuse.put("gene", nz(item.getGene()));
+        reuse.put("variant", nz(item.getVariant()));
+        reuse.put("projectCode", nz(pc.getProjectCode()));
+        reuse.put("reportId", pc.getReportId());
+        reuse.put("analysisId", pc.getAnalysisId());
+        reuse.put("sourceVariantId", item.getSourceId());
+        reuse.put("reusedBy", LoginHelper.getUserId());
+        interpretationMapper.insertReuseLog(reuse);
     }
 
     /** 冻结结构（与 insertHistory 写入的 match_result 保持一致） */
@@ -446,16 +461,19 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         }
     }
 
-    /** 胚系临床意义：历史已有 → 用它；否则从同条件最近一条继承；再否则默认 3（未知临床意义） */
+    /**
+     * 胚系临床意义：历史已有 → 用它；否则从同条件最近一条继承；再否则默认 3（未知临床意义）。
+     * <p>
+     * 条件与匹配键对齐（产品 + 癌种 + 性别 + 位点）——**故意忽略 `parent_mutation_id`**（改靶继承，设计书 §4.8 第 4 条）
+     * 也忽略 `customer` / 合子（它们已不在匹配键里；带上会导致跨医院继承不到）。
+     */
     private Integer resolveSignificance(PreviewContext pc, PreviewVariantVo item) {
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("gene", item.getGene());
         query.put("variant", item.getVariant());
         query.put("disease", pc.getDisease());
         query.put("gender", pc.getGender());
-        query.put("customer", pc.getCustomer());
         query.put("projectCode", pc.getProjectCode());
-        query.put("zygosity", item.getZygosity());
         Integer inherited = interpretationMapper.selectInheritedGermlineSignificance(query);
         return inherited == null ? 3 : inherited;
     }
@@ -467,6 +485,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         }
         Map<String, Object> history = new LinkedHashMap<>();
         history.put("matchKey", matchKey);
+        history.put("keyVersion", 2);
         history.put("gene", nz(item.getGene()));
         history.put("variant", nz(item.getVariant()));
         history.put("oriVariant", nz(item.getOriVariant()));
@@ -475,6 +494,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         history.put("gender", pc.getGender());
         history.put("customer", pc.getCustomer());
         history.put("projectCode", pc.getProjectCode());
+        // 以下三列 + customer 已不进匹配键（v2 按产品项目收敛），但**列保留并继续填充**，供查看/审计
         history.put("sourceType", item.getSourceType());
         history.put("mutationType", nz(item.getMutationType()));
         history.put("measurement", item.getZygosity());
@@ -495,17 +515,27 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         }
     }
 
+    /** 复用键版本：v2 = 按「产品项目 + 位点 + 癌种 + 性别 + 人工改靶父级」冻结 */
+    private static final String MATCH_KEY_VERSION = "v2";
+
     /**
-     * 匹配键：全部业务条件规范化后取 SHA-256（设计书 4.8）。
+     * 匹配键：v2 口径 = `sha256(v2|产品项目|癌种|性别|基因|位点|原始位点|人工改靶父级)`。
      * <p>
-     * 注意：`source_analysis_id`、`source_report_id`、`source_variant_id` 只做审计，不进键。
+     * 冻结语义：同一键只写一次（INSERT IGNORE），此后一律复用，NKB 更新不刷新。
+     * <p>
+     * 不进键的维度（**列仍保留并继续填充，仅供查看/审计**）：
+     * `customer`（医院）—— 复用边界是产品项目，不按医院；`source_type` / `mutation_type` / `zygosity` —— 位点短名的派生或次要维度。
+     * `source_analysis_id` / `source_report_id` / `source_variant_id` 只做审计，也不进键。
+     * <p>
+     * 癌种用 NKB `disease_id`（抗改名）；`disease_id` 为空时才退回癌种中文名。
      */
     private String matchKey(PreviewContext pc, PreviewVariantVo item) {
+        String diseaseKey = pc.getDiseaseId() == null
+            ? "name:" + nz(pc.getDisease())
+            : "id:" + pc.getDiseaseId();
         String raw = String.join("|",
+            MATCH_KEY_VERSION, nz(pc.getProjectCode()), diseaseKey, nz(pc.getGender()),
             nz(item.getGene()), nz(item.getVariant()), nz(item.getOriVariant()),
-            pc.getDiseaseId() == null ? "" : pc.getDiseaseId().toString(), pc.getDisease(),
-            pc.getGender(), pc.getCustomer(), pc.getProjectCode(),
-            nz(item.getSourceType()), nz(item.getMutationType()), nz(item.getZygosity()),
             parentMutationKey(item.getParentMutationIds()));
         return sha256(raw);
     }

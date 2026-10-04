@@ -386,30 +386,37 @@
         ORDER BY sourceId
     </select>
 
-    <update id="refreshHistory">
+    <!-- 复用登记：每次命中历史都刷新「最近复用时间 + 计数」（不动已冻结的 match_result / 用药 / 位点等级） -->
+    <update id="touchHistoryReuse">
         <choose>
             <when test="germline">
                 UPDATE history_germline
-                SET match_status = #{matchStatus}, variation_class = #{variationClass},
-                    match_result = #{matchResult}, update_time = NOW()
+                SET last_reused_at = NOW(3), reuse_count = reuse_count + 1
                 WHERE match_key = #{matchKey} AND del_flag = '0'
             </when>
             <otherwise>
                 UPDATE history_somatic
-                SET match_status = #{matchStatus}, variation_class = #{variationClass},
-                    match_result = #{matchResult}, update_time = NOW()
+                SET last_reused_at = NOW(3), reuse_count = reuse_count + 1
                 WHERE match_key = #{matchKey} AND del_flag = '0'
             </otherwise>
         </choose>
     </update>
 
+    <!-- 复用留痕（append-only 日志类：只增不改，无 del_flag；tenant_id 由租户拦截器自动补） -->
+    <insert id="insertReuseLog">
+        INSERT INTO history_reuse_log
+            (history_type, history_id, match_key, gene, variant, project_code, report_id, analysis_id,
+             source_variant_id, reused_by, reused_at, create_by, create_time, update_by, update_time)
+        VALUES
+            (#{log.historyType}, #{log.historyId}, #{log.matchKey}, #{log.gene}, #{log.variant},
+             #{log.projectCode}, #{log.reportId}, #{log.analysisId}, #{log.sourceVariantId},
+             #{log.reusedBy}, NOW(3), #{log.reusedBy}, NOW(), #{log.reusedBy}, NOW())
+    </insert>
+
+    <!-- 临床意义：只更新人工确认列；冻结的 match_result / 用药 / 位点等级一律不动（NKB 更新也不刷新） -->
     <update id="updateGermlineSignificance">
         UPDATE history_germline
-        SET clinical_significance = #{clinicalSignificance},
-            match_result = #{matchResult},
-            match_status = #{matchStatus},
-            variation_class = #{variationClass},
-            update_time = NOW()
+        SET clinical_significance = #{clinicalSignificance}, update_time = NOW()
         WHERE match_key = #{matchKey} AND del_flag = '0'
     </update>
 
@@ -507,12 +514,12 @@
 
     <insert id="insertSomaticHistory">
         INSERT IGNORE INTO history_somatic
-            (match_key, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
+            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
              source_type, mutation_type, measurement, parent_mutation_id, match_status, variation_class,
              match_result, source_analysis_id, source_report_id, source_variant_id, knowledge_matched_at,
              create_time, update_time)
         VALUES
-            (#{h.matchKey}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
+            (#{h.matchKey}, #{h.keyVersion}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
              #{h.customer}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
              #{h.parentMutationId}, #{h.matchStatus}, #{h.variationClass}, #{h.matchResult},
              #{h.sourceAnalysisId}, #{h.sourceReportId}, #{h.sourceVariantId}, NOW(), NOW(), NOW())
@@ -520,27 +527,24 @@
 
     <insert id="insertGermlineHistory">
         INSERT IGNORE INTO history_germline
-            (match_key, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
+            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
              source_type, mutation_type, measurement, parent_mutation_id, match_status, variation_class,
              match_result, clinical_significance, source_analysis_id, source_report_id, source_variant_id,
              knowledge_matched_at, create_time, update_time)
         VALUES
-            (#{h.matchKey}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
+            (#{h.matchKey}, #{h.keyVersion}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
              #{h.customer}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
              #{h.parentMutationId}, #{h.matchStatus}, #{h.variationClass}, #{h.matchResult}, #{h.clinicalSignificance},
              #{h.sourceAnalysisId}, #{h.sourceReportId}, #{h.sourceVariantId}, NOW(), NOW(), NOW())
     </insert>
 
-    <!-- 临床意义继承：忽略 parent_mutation_id，但不忽略癌种与性别（设计书 4.8 第 4 条） -->
+    <!-- 临床意义继承：与匹配键对齐（产品 + 癌种 + 性别 + 位点），忽略 parent_mutation_id（改靶继承，设计书 4.8 第 4 条） -->
     <select id="selectInheritedGermlineSignificance" resultType="java.lang.Integer">
         SELECT clinical_significance
         FROM history_germline
-        WHERE gene = #{q.gene} AND variant = #{q.variant} AND disease = #{q.disease} AND gender = #{q.gender}
-          AND customer = #{q.customer} AND project_code = #{q.projectCode}
+        WHERE gene = #{q.gene} AND variant = #{q.variant} AND disease = #{q.disease}
+          AND gender = #{q.gender} AND project_code = #{q.projectCode}
           AND del_flag = '0'
-        <if test="q.zygosity != null">
-            AND IFNULL(measurement, '') = #{q.zygosity}
-        </if>
         ORDER BY id DESC
         LIMIT 1
     </select>
