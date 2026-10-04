@@ -180,41 +180,32 @@ function buildSomaticColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[]
   return [...baseColumns(), variantTypeColumn(), abundanceColumn(), variationLevelColumn(), operateColumn()];
 }
 
-/** 胚系列 = 公共列 + 合子/临床意义/文件判定 + 操作 */
+/** 胚系列 = 公共列 + 变异类型 + 临床意义 + 操作（丰度/reads、合子、文件判定、位点等级不展示） */
 function buildGermlineColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [
-    ...baseColumns(),
-    abundanceColumn(),
-    { key: 'zygosity', title: '合子', align: 'center', width: 90, render: row => row.zygosity ?? '-' },
-    {
-      key: 'clinicalSignificance',
-      title: '临床意义',
-      align: 'center',
-      width: 170,
-      render: row => (
-        <NSelect
-          value={row.clinicalSignificance}
-          options={SIGNIFICANCE_OPTIONS}
-          size="small"
-          disabled={!canEdit.value}
-          loading={savingId.value === row.sourceId}
-          onUpdateValue={(value: number) => saveSignificance(row, value)}
-        />
-      )
-    },
-    {
-      key: 'sourceClnsig',
-      title: '文件判定',
-      align: 'center',
-      width: 130,
-      render: row => row.sourceClnsig ?? row.classificationLovd ?? '-'
-    },
-    variationLevelColumn(),
-    operateColumn()
-  ];
+  return [...baseColumns(), variantTypeColumn(), significanceColumn(), operateColumn()];
 }
 
-/** 位点等级列：I / II / III（来自匹配结果的 variationClass，去掉「类」字） */
+/** 临床意义列：五级人工确认（1 致病 ~ 5 良性），保存后重新预览 */
+function significanceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
+  return {
+    key: 'clinicalSignificance',
+    title: '临床意义',
+    align: 'center',
+    width: 170,
+    render: row => (
+      <NSelect
+        value={row.clinicalSignificance}
+        options={SIGNIFICANCE_OPTIONS}
+        size="small"
+        disabled={!canEdit.value}
+        loading={savingId.value === row.sourceId}
+        onUpdateValue={(value: number) => saveSignificance(row, value)}
+      />
+    )
+  };
+}
+
+/** 位点等级列：I / II / III（来自匹配结果的 variationClass，去掉「类」字）；只在体细胞表用 */
 function variationLevelColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
   return {
     key: 'variationLevel',
