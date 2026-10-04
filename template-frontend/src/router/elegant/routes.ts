@@ -67,6 +67,15 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'compliance_dev-log',
           i18nKey: 'route.compliance_dev-log'
         }
+      },
+      {
+        name: 'compliance_validation-records',
+        path: '/compliance/validation-records',
+        component: 'view.compliance_validation-records',
+        meta: {
+          title: 'compliance_validation-records',
+          i18nKey: 'route.compliance_validation-records'
+        }
       }
     ]
   },
