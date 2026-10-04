@@ -664,3 +664,51 @@ WHERE pc.code = 'BTP001' AND rt.template_code = 'pharma-shengyu'
   -- 相关子查询直接写在 NOT EXISTS 里：MySQL 5.7 的派生表不能引用外层别名（包一层 (SELECT ...) 会报 Unknown column 'pc.id'）
   AND NOT EXISTS (SELECT 1 FROM product_template pt
       WHERE pt.product_id = pc.id AND pt.template_id = rt.template_id);
+
+
+-- ============================================================================
+-- 种子：圣域模板的输出范围（module_code）
+-- 公共字段不需要配置；这里只写「有序个性化模块列表」，顺序即执行顺序。
+-- 幂等：只在为空时写入，不覆盖后台「报告模板配置」页改动过的值。
+-- ============================================================================
+UPDATE report_template
+   SET module_code = 'SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1',
+       update_time = NOW()
+ WHERE template_code = 'pharma-shengyu'
+   AND del_flag = '0'
+   AND (module_code IS NULL OR module_code = '');
+
+
+-- ============================================================================
+-- 菜单：「报告管理」（父，path='report'）›「报告模板配置」
+-- 幂等：按 path 定位父菜单（不写死 menu_id）；NOT EXISTS 直接相关子查询（MySQL 5.7 无 LATERAL）
+-- ============================================================================
+SET @report_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'report' LIMIT 1);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT 'route.report_template', @report_menu_id, 3, 'template', 'report/template/index',
+    1, 0, 'C', '0', '0', 'report:template:list', 'local-icon-documentation', 1, NOW(), '报告模板配置'
+FROM (SELECT 1) AS dummy
+WHERE @report_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @report_menu_id AND path = 'template') AS c0);
+
+SET @template_menu_id = (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @report_menu_id AND path = 'template' AND menu_type = 'C' LIMIT 1);
+
+-- 按钮权限（F）：与 @SaCheckPermission 逐字一致，不进侧边栏
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT t.menu_name, @template_menu_id, t.order_num, '', NULL, 1, 0, 'F', '0', '0', t.perms, '#', 1, NOW(), t.remark
+FROM (SELECT '查询' AS menu_name, 1 AS order_num, 'report:template:query' AS perms, '查询模板详情/产品选项' AS remark
+      UNION ALL SELECT '新增', 2, 'report:template:add', '新增报告模板'
+      UNION ALL SELECT '修改', 3, 'report:template:edit', '修改报告模板与关联产品'
+      UNION ALL SELECT '删除', 4, 'report:template:remove', '删除报告模板') AS t
+WHERE @template_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys_menu x WHERE x.parent_id = @template_menu_id AND x.perms = t.perms);
+
+-- 授权给超级管理员角色
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, m.menu_id FROM sys_menu m
+WHERE m.menu_id = @template_menu_id OR m.parent_id = @template_menu_id;
