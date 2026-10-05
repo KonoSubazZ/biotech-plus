@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS `analysis_report` (
     `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
     `template_id` bigint DEFAULT NULL COMMENT '逻辑关联report_template.template_id',
     `report_json_path` VARCHAR(1000) DEFAULT NULL COMMENT '正式生成JSON文件路径',
+    `report_name` VARCHAR(500) DEFAULT NULL COMMENT '最近一次生成的报告名（命名模板渲染结果，不含唯一后缀）',
     `tenant_id`  varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
 
     PRIMARY KEY (`report_id`),
@@ -651,12 +652,13 @@ WHERE m.menu_id = @report_menu_id OR m.menu_id = @menu_id OR m.parent_id = @menu
 -- 本地 product_config 现只有一条：id=2 / code=BTP001 / novopm2_tis_1238_shengyu
 -- 名称/客户/报告类型/模板 sha 对齐参考工程（biotech 库 report_template 唯一那行）：
 --   同源重组修复（HRR）通路基因检测报告-圣域 / customer_code=圣域 / report_type=HRR
--- 模板实体随仓交付：ruoyi-report/src/main/resources/report-templates/pharma-shengyu/v1/template.docx
+-- 模板实体随仓交付：ruoyi-report/src/main/resources/report-templates/pharma-shengyu_v1.docx
+--   （命名约定：模板文件平铺在一个目录；文件名用模板中文名 + 版本，样例 <模板名>_<版本>.example.json）
 -- ============================================================================
 INSERT INTO report_template (template_code, template_name, template_version, customer_code, report_type,
     module_code, template_path, template_sha256, status, create_by, create_time, tenant_id)
 SELECT 'pharma-shengyu', '同源重组修复（HRR）通路基因检测报告-圣域', 'v1', '圣域', 'HRR',
-    NULL, 'report-templates/pharma-shengyu/v1/template.docx',
+    NULL, '同源重组修复（HRR）通路基因检测报告-圣域_v1.docx',
     '2518E0A35427833FB9A26570129C215BAEAFF57A5644A2909A4065F45B5E396D', 'ENABLED', 1, NOW(), '000000'
 FROM (SELECT 1) AS dummy
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT template_id FROM report_template
