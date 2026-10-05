@@ -77,7 +77,14 @@ public interface ReportTemplateMapper extends BaseMapperPlus<ReportTemplate, Rep
      * @param productId 产品ID（product_config.id）
      * @return 模板；没有配置返回 null
      */
-    ReportTemplateVo selectDefaultByProductId(@Param("productId") Long productId);
+    /**
+     * 该产品可选的全部模板（启用中），默认模板排最前 —— 预览/生成按产品取候选，
+     * 人工选模板时从这里挑；产品没绑定启用模板则返回空列表。
+     *
+     * @param productId 产品ID
+     * @return 候选模板列表（默认优先）
+     */
+    List<ReportTemplateVo> selectEnabledByProductId(@Param("productId") Long productId);
 
     /**
      * 按产品名/编码定位 product_config.id（scanner 只写产品名，product_id 可能为空）。

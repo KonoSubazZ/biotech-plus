@@ -7,6 +7,7 @@ import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.ReportTemplateData;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 报告预览（设计书 §8：只组装返回，不落库、不写预览文件）
@@ -18,10 +19,19 @@ public interface IInterpretationPreviewService {
     /**
      * 组装报告 JSON（公共字段 + report_template.module_code 驱动的个性化模块）
      *
-     * @param bo 入参（analysisId / reportId / templateCode）
+     * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
      * @return 报告 JSON（ReportTemplateData）
      */
     ReportTemplateData buildPreview(InterpretationPreviewBo bo);
+
+    /**
+     * 人工选模板用：报告产品对应的候选模板列表（默认模板排最前）。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     * @return 每项 {templateId, templateName, templateVersion, defaultTemplate}；产品没配模板返回空列表
+     */
+    List<Map<String, Object>> templateOptions(Long analysisId, Long reportId);
 
     /**
      * 人工确认胚系五级临床意义（保存前要求该位点已经建立匹配历史）

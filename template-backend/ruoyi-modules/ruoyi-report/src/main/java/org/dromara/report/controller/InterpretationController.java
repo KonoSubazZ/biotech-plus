@@ -165,9 +165,12 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * Tab④ 报告预览：按模板组装预览 JSON（对齐设计书 8.1；只返回、不落库、不写文件）
+     * Tab④ 报告预览：组装预览 JSON 并原样返回（对齐设计书 8.1；只返回、不落库、不写文件）。
+     * <p>
+     * 返回的就是生成时那份 JSON 契约（ReportTemplateData）：公共字段 + 体细胞/胚系两节 + 模板专属模块，
+     * 前端直接按它渲染；模板由报告的产品决定（见 ReportTemplateDataService.requireTemplateByProduct）。
      *
-     * @param bo 入参（analysisId / reportId / templateCode）
+     * @param bo 入参（analysisId / reportId）
      * @return 预览 JSON
      */
     @SaCheckPermission("report:interpretation:preview")
@@ -177,12 +180,26 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * 正式生成：重新组装 JSON 并写制品文件、登记 analysis_report.report_json_path。
+     * 人工选模板：报告产品对应的候选模板列表（默认模板排最前）。
      * <p>
-     * 当前阶段只出 final JSON（DOCX/PDF 渲染后置）；不接受前端回传的预览 JSON。
+     * 一个产品可能配多个模板，前端用它在「报告预览/生成」处给下拉，选中后把 templateId 传回预览/生成接口。
      *
-     * @param bo 入参（analysisId / reportId / templateCode）
-     * @return 含 reportId / templateCode / fileName / jsonPath 的结果
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     * @return [{templateId, templateName, templateVersion, defaultTemplate}]
+     */
+    @SaCheckPermission("report:interpretation:preview")
+    @GetMapping("/template-options")
+    public R<List<Map<String, Object>>> templateOptions(@RequestParam Long analysisId, @RequestParam Long reportId) {
+        return R.ok(previewService.templateOptions(analysisId, reportId));
+    }
+
+    /**
+     * 正式生成：重新组装 JSON → 写 JSON 制品 → 按「产品 → 模板 → 固定目录/<模板名>.docx」渲染 DOCX
+     * → 登记 analysis_report 的模板、两条制品路径与报告名。不接受前端回传的预览 JSON。
+     *
+     * @param bo 入参（analysisId / reportId）
+     * @return 含 reportId / templateCode / reportName / jsonPath / docxPath / 渲染信息的结果
      */
     @SaCheckPermission("report:interpretation:generate")
     @Log(title = "报告生成", businessType = BusinessType.INSERT)

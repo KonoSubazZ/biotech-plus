@@ -85,12 +85,31 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     private static final List<String> NAMED_DISEASE_NAMES = List.of("乳腺癌", "卵巢癌", "前列腺癌");
 
     @Override
+    public List<Map<String, Object>> templateOptions(Long analysisId, Long reportId) {
+        Map<String, Object> report = loadReport(reportId, analysisId);
+        List<ReportTemplateVo> options = reportTemplateDataService.optionsByProduct(
+            asLong(report.get("productId")), asString(report.get("product")));
+        List<Map<String, Object>> result = new ArrayList<>(options.size());
+        for (int index = 0; index < options.size(); index++) {
+            ReportTemplateVo option = options.get(index);
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("templateId", option.getTemplateId());
+            item.put("templateName", option.getTemplateName());
+            item.put("templateVersion", option.getTemplateVersion());
+            // 候选按「默认优先」排序，第一条就是产品默认模板
+            item.put("defaultTemplate", index == 0);
+            result.add(item);
+        }
+        return result;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public ReportTemplateData buildPreview(InterpretationPreviewBo bo) {
         Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
         ReportTemplateVo template = reportTemplateDataService.requireTemplateByProduct(
-            asLong(report.get("productId")), asString(report.get("product")));
+            asLong(report.get("productId")), asString(report.get("product")), bo.getTemplateId());
         PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), report, context);
         applyTemplateToContext(pc, template);
 

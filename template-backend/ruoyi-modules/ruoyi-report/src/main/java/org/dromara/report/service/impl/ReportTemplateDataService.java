@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 报告模板数据组装（设计书 §7.1 / §8.1）。
@@ -64,22 +65,47 @@ public class ReportTemplateDataService {
     }
 
     /**
-     * 解析本次使用的模板：<b>只看产品</b> —— 报告的产品 → product_template → report_template。
-     * 产品没配模板（或报告没填产品）直接报错，让用户看到「当前产品未配置模板」，
-     * 不再有「请求带编码 / 报告绑定模板」这些旁路。
+     * 该产品可选的模板（启用中，默认优先）。
      *
      * @param productId   报告产品ID（可为空）
      * @param productName 报告产品名（product_id 为空时按产品名/编码定位产品）
-     * @return 该产品启用的模板（默认优先），必定非空
+     * @return 候选模板列表；产品没绑定启用模板时返回空列表
      */
-    public ReportTemplateVo requireTemplateByProduct(Long productId, String productName) {
+    public List<ReportTemplateVo> optionsByProduct(Long productId, String productName) {
         Long resolvedProductId = resolveProductId(productId, productName);
-        ReportTemplateVo template = resolvedProductId == null ? null
-            : reportTemplateMapper.selectDefaultByProductId(resolvedProductId);
-        if (template == null) {
+        return resolvedProductId == null ? List.of() : reportTemplateMapper.selectEnabledByProductId(resolvedProductId);
+    }
+
+    /**
+     * 解析本次使用的模板：报告的产品 → product_template → report_template。
+     * <p>
+     * 一个产品可能配多个模板，所以允许人工指定 {@code templateId}（必须属于该产品的候选列表）；
+     * 不指定就用默认模板（候选列表第一个）；产品没配模板直接报错，让用户看到「当前产品未配置模板」。
+     *
+     * @param productId    报告产品ID（可为空）
+     * @param productName  报告产品名（product_id 为空时按产品名/编码定位产品）
+     * @param templateId   人工选择的模板ID（可空 = 用默认）
+     * @return 生效的模板，必定非空
+     */
+    public ReportTemplateVo requireTemplateByProduct(Long productId, String productName, Long templateId) {
+        List<ReportTemplateVo> options = optionsByProduct(productId, productName);
+        if (templateId != null) {
+            return options.stream()
+                .filter(option -> templateId.equals(option.getTemplateId()))
+                .findFirst()
+                .orElseThrow(() -> new ServiceException("所选模板不属于当前产品：" + productLabel(productId, productName)
+                    + "；可选：" + optionNames(options)));
+        }
+        if (options.isEmpty()) {
             throw new ServiceException("当前产品未配置模板：" + productLabel(productId, productName));
         }
-        return template;
+        return options.get(0);
+    }
+
+    /** 报错文案里的候选模板名（没候选时写「无」） */
+    private String optionNames(List<ReportTemplateVo> options) {
+        return options.isEmpty() ? "无"
+            : options.stream().map(ReportTemplateVo::getTemplateName).collect(Collectors.joining("、"));
     }
 
     /** 报错文案里的产品标识：优先产品名，其次 productId */

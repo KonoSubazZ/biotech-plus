@@ -27,4 +27,10 @@ public class InterpretationPreviewBo implements Serializable {
     /** 报告ID */
     @NotNull(message = "报告ID不能为空")
     private Long reportId;
+
+    /**
+     * 模板ID（可空）：一个产品配了多个模板时人工选择；
+     * 不传用该产品的默认模板（见 ReportTemplateDataService.requireTemplateByProduct）。
+     */
+    private Long templateId;
 }
