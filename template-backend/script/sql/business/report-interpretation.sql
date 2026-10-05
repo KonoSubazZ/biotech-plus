@@ -741,3 +741,76 @@ WHERE @interpretation_menu_id IS NOT NULL
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, m.menu_id FROM sys_menu m
 WHERE m.parent_id = @interpretation_menu_id AND m.perms = 'report:interpretation:generate';
+
+
+-- ============================================================================
+-- 历史检出：位点检出历史表（提交审核时落库）
+-- 详见 script/sql/update/update_5.6.5-report-variant-history.sql（那里还有菜单/权限）
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `report_variant_history` (
+    `id`                  bigint        NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `report_id`           bigint        NOT NULL COMMENT '报告ID（analysis_report.report_id）',
+    `analysis_id`         bigint        NOT NULL COMMENT '分析批次ID（analysis_report.analysis_id）',
+    `subbarcode`          varchar(120)  DEFAULT NULL COMMENT '样本编号（analysis_report.subbarcode）',
+    `client`              varchar(255)  DEFAULT NULL COMMENT '客户（LIMS 医院名；缺失时为空）',
+    `product`             varchar(255)  DEFAULT NULL COMMENT '产品（analysis_report.product）',
+    `disease`             varchar(255)  DEFAULT NULL COMMENT '解读癌种（本次提交审核生效的癌种）',
+    `source_type`         varchar(32)   NOT NULL COMMENT '来源：SNP_INDEL/CNV/FUSION/CR_ALL',
+    `source_id`           bigint        NOT NULL COMMENT '源位点明细表主键（file_*.id）',
+    `gene`                varchar(100)  NOT NULL COMMENT '基因',
+    `variant`             varchar(500)  NOT NULL COMMENT '规范化位点（NKB gene_variant）',
+    `abundance`           varchar(64)   DEFAULT NULL COMMENT '丰度：体细胞/CNV/融合 = 预览页「丰度/reads」列（DNA 百分比 / RNA reads / 拷贝数）；胚系 = 合子状态 zygosity（het/hom，同 history_germline.measurement）',
+    `variant_type`        varchar(120)  DEFAULT NULL COMMENT '突变类型（VEP ExonicFunc 中文：错义突变/移码突变…，= 预览页「变异类型」列）',
+    `ori_variant`         varchar(1000) DEFAULT NULL COMMENT '原始位点描述',
+    `level`               varchar(64)   DEFAULT NULL COMMENT '位点等级：体细胞 I/II/III 类；胚系为临床意义标签',
+    `drug_info`           json          DEFAULT NULL COMMENT '原始用药信息（en7 drugGroups 原样：drugsA/drugsB/drugsC/drugsD/resistantDrugsA~D）',
+    `analyzer`            varchar(64)   DEFAULT NULL COMMENT '解读人（报告生成参数里的解读人）',
+    `report_generated_at` datetime      DEFAULT NULL COMMENT '报告时间（analysis_report.report_generated_at）',
+    `create_by`           bigint        DEFAULT NULL COMMENT '创建者',
+    `create_time`         datetime      DEFAULT NULL COMMENT '创建时间',
+    `update_by`           bigint        DEFAULT NULL COMMENT '更新者',
+    `update_time`         datetime      DEFAULT NULL COMMENT '更新时间',
+    `del_flag`            char(1)       NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
+    `tenant_id`           varchar(20)   NOT NULL DEFAULT '000000' COMMENT '租户编号',
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_report_variant_history_row` (`tenant_id`, `report_id`, `source_type`, `source_id`),
+    KEY `idx_report_variant_history_query` (`report_generated_at`, `subbarcode`, `del_flag`),
+    KEY `idx_report_variant_history_gene`  (`gene`, `variant`(120), `del_flag`),
+    KEY `idx_tenant_id` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='报告位点检出历史（提交审核时落库）';
+
+-- 菜单：「报告管理」›「历史检出」（幂等：按 path / perms 判 NOT EXISTS）
+SET @report_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'report' LIMIT 1);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT 'route.report_variant-history', @report_menu_id, 4, 'variant-history', 'report/variant-history/index',
+    1, 0, 'C', '0', '0', 'report:variantHistory:list', 'local-icon-search', 1, NOW(), '历史检出'
+FROM (SELECT 1) AS dummy
+WHERE @report_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @report_menu_id AND path = 'variant-history') AS c0);
+
+SET @history_menu_id = (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @report_menu_id AND path = 'variant-history' AND menu_type = 'C' LIMIT 1);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '查询', @history_menu_id, 1, '', NULL, 1, 0, 'F', '0', '0', 'report:variantHistory:list', '#', 1, NOW(), '查询检出历史'
+FROM (SELECT 1) AS dummy
+WHERE @history_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys_menu x WHERE x.parent_id = @history_menu_id
+      AND x.perms = 'report:variantHistory:list');
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '导出', @history_menu_id, 2, '', NULL, 1, 0, 'F', '0', '0', 'report:variantHistory:export', '#', 1, NOW(), '导出 xlsx'
+FROM (SELECT 1) AS dummy
+WHERE @history_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys_menu x WHERE x.parent_id = @history_menu_id
+      AND x.perms = 'report:variantHistory:export');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, m.menu_id FROM sys_menu m
+WHERE m.menu_id = @history_menu_id OR m.parent_id = @history_menu_id;
