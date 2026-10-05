@@ -12,8 +12,9 @@ import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
-import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
+import org.dromara.report.domain.vo.ReportTemplateData;
+import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.PreviewDrugVo;
 import org.dromara.report.domain.vo.PreviewSectionVo;
@@ -38,7 +39,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 报告预览组装（设计书 §7.6 JSON 契约 + §8 预览接口）
@@ -71,38 +71,58 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
 
     private final VariantDescriptionEnricher descriptionEnricher;
 
+    private final ReportTemplateDataService reportTemplateDataService;
+
     private static final Map<Integer, String> SIGNIFICANCE_LABEL = Map.of(
         1, "致病", 2, "可能致病", 3, "未知临床意义", 4, "可能良性", 5, "良性");
 
-    /** 圣域个性化模块编码（对齐设计书 7.7） */
-    private static final String MODULE_SHENGYU_SOMATIC = "SHENGYU_SOMATIC_VARIANTS_V1";
-    private static final String MODULE_SHENGYU_GERMLINE = "SHENGYU_GERMLINE_VARIANTS_V1";
-
-    /** 圣域体细胞输出条件：当前癌种或任一父级属于这三类 */
-    private static final Set<String> SHENGYU_REQUIRED_DISEASES = Set.of("乳腺癌", "卵巢癌", "前列腺癌", "乳腺癌症");
+    /**
+     * 需要解析成 NKB disease id 的癌种名（与圣域体细胞模块的白名单一致）。
+     * <p>
+     * 本类只负责「名字 → id」；是否输出体细胞个性化结果由
+     * {@code ShengyuSomaticVariantsV1ModuleHandler} 自己判定。
+     */
+    private static final List<String> NAMED_DISEASE_NAMES = List.of("乳腺癌", "卵巢癌", "前列腺癌");
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public InterpretationPreviewVo buildPreview(InterpretationPreviewBo bo) {
+    public ReportTemplateData buildPreview(InterpretationPreviewBo bo) {
         Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
-        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), bo.getTemplateCode(), report, context);
-
-        InterpretationPreviewVo vo = new InterpretationPreviewVo();
-        vo.setAnalysisId(bo.getAnalysisId());
-        vo.setReportId(bo.getReportId());
-        vo.setTemplateCode(pc.getTemplateCode());
-        vo.setTemplateVersion(pc.getTemplateVersion());
-        vo.setReportInfo(buildReportInfo(pc));
-        vo.setSampleInfo(buildSampleInfo(context.getLims()));
+        ReportTemplateVo template = reportTemplateDataService.requireTemplateByProduct(
+            asLong(report.get("productId")), asString(report.get("product")));
+        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), report, context);
+        applyTemplateToContext(pc, template);
 
         List<PreviewVariantVo> somatic = matchSomaticVariants(pc);
         List<PreviewVariantVo> germline = matchGermlineVariants(pc);
-        vo.setSomaticVariants(toSection(somatic));
-        vo.setGermlineVariants(toSection(germline));
-        vo.setShengyuSomaticVariants(shengyuSomatic(pc, somatic));
-        vo.setShengyuGermlineVariants(shengyuGermline(pc, germline));
 
+        ReportBuildInput input = new ReportBuildInput();
+        input.setContext(pc);
+        input.setReport(report);
+        input.setLims(context.getLims());
+        input.setSomaticVariants(somatic);
+        input.setGermlineVariants(germline);
+        input.setTemplate(template);
+        input.setNamedDiseaseIds(resolveNamedDiseaseIds());
+        input.setWarnings(collectWarnings(context, pc, somatic, germline));
+        return reportTemplateDataService.build(input);
+    }
+
+    /** 模板解析结果覆盖上下文里的模板信息与模块流水线（没有模板时退化成「只输出公共字段」） */
+    private void applyTemplateToContext(PreviewContext pc, ReportTemplateVo template) {
+        if (template == null) {
+            pc.setModuleCode(null);
+            return;
+        }
+        pc.setTemplateCode(template.getTemplateCode());
+        pc.setTemplateVersion(template.getTemplateVersion());
+        pc.setModuleCode(template.getModuleCode());
+    }
+
+    /** 预览告警：分析批次里的共性问题（不阻断预览） */
+    private List<String> collectWarnings(InterpretationContextVo context, PreviewContext pc,
+                                         List<PreviewVariantVo> somatic, List<PreviewVariantVo> germline) {
         List<String> warnings = new ArrayList<>(context.getWarnings());
         if (pc.getDiseaseIds().isEmpty()) {
             warnings.add("NKB 未识别到癌种「" + pc.getDisease() + "」，药物证据未按癌种过滤");
@@ -110,8 +130,19 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         if (somatic.isEmpty() && germline.isEmpty()) {
             warnings.add("该分析批次没有「报出」的位点，请先在『筛选位点』页设置报出");
         }
-        vo.setWarnings(warnings);
-        return vo;
+        return warnings;
+    }
+
+    /** 名字 → NKB disease id（圣域癌种判定用；查不到就不放进去，判定会自动降级成中文名比较） */
+    private Map<String, Long> resolveNamedDiseaseIds() {
+        Map<String, Long> resolved = new LinkedHashMap<>();
+        for (String name : NAMED_DISEASE_NAMES) {
+            Map<String, Object> hit = nkb(() -> nkbEvidenceMapper.selectDiseaseByName(name));
+            if (hit != null && hit.get("diseaseId") != null) {
+                resolved.put(name, asLong(hit.get("diseaseId")));
+            }
+        }
+        return resolved;
     }
 
     @Override
@@ -127,7 +158,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             throw new ServiceException("胚系位点不存在或不属于该分析批次：sourceId=" + bo.getSourceId());
         }
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
-        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), null, report, context);
+        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), report, context);
         PreviewVariantVo item = new PreviewVariantVo();
         item.setSourceType("CR_ALL");
         item.setGene(asString(row.get("gene")));
@@ -210,7 +241,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     private void requireDrugEvidence(InterpretationTargetBo bo, Map<String, Object> row, List<Long> parentIds) {
         Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
-        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), null, report, context);
+        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), report, context);
         boolean germline = "CR_ALL".equals(bo.getSourceType());
         NkbDrugMatcher.MatchResult matched = drugMatcher.match(asString(row.get("gene")), asString(row.get("variant")),
             asString(row.get("oriVariant")), germline, pc.getDiseaseScope(), parentIds);
@@ -274,7 +305,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         return report;
     }
 
-    private PreviewContext buildContext(Long analysisId, Long reportId, String templateCode,
+    private PreviewContext buildContext(Long analysisId, Long reportId,
                                         Map<String, Object> report, InterpretationContextVo context) {
         InterpretationLimsVo lims = context.getLims();
         String disease = firstNonBlank(asString(report.get("disease")), asString(report.get("cancerType")),
@@ -294,7 +325,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         PreviewContext pc = new PreviewContext();
         pc.setAnalysisId(analysisId);
         pc.setReportId(reportId);
-        pc.setTemplateCode(firstNonBlank(templateCode, asString(report.get("templateCode")),
+        pc.setTemplateCode(firstNonBlank(asString(report.get("templateCode")),
             asString(report.get("template"))));
         pc.setTemplateVersion(asString(report.get("templateVersion")));
         pc.setModuleCode(asString(report.get("moduleCode")));
@@ -305,7 +336,10 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         pc.setGender(gender);
         pc.setCustomer(customer);
         pc.setProjectCode(firstNonBlank(asString(report.get("product")), ""));
-        pc.setProductGenes(productId == null ? List.of() : interpretationMapper.selectProductGeneSymbols(productId));
+        // 产品基因：product_id 为空时按产品名兼容定位（scanner 只写产品名）
+        Long resolvedProductId = reportTemplateDataService.resolveProductId(productId, asString(report.get("product")));
+        pc.setProductGenes(resolvedProductId == null
+            ? List.of() : interpretationMapper.selectProductGeneSymbols(resolvedProductId));
         pc.setSpecimenType(lims.getSpecimenType());
         return pc;
     }
@@ -540,32 +574,6 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         return sha256(raw);
     }
 
-    // ---------------------------------------------------------------- 圣域个性化
-
-    /** 圣域体细胞：癌种（或父级）属于乳腺/卵巢/前列腺癌时，按产品启用基因输出；否则空列表 */
-    private List<Map<String, Object>> shengyuSomatic(PreviewContext pc, List<PreviewVariantVo> somatic) {
-        if (!pipelineHas(pc.getModuleCode(), MODULE_SHENGYU_SOMATIC)) {
-            return List.of();
-        }
-        // 条件：当前癌种或任一父级属于 乳腺癌/卵巢癌/前列腺癌
-        List<String> names = pc.getDiseaseIds().isEmpty()
-            ? List.of()
-            : nkb(() -> nkbEvidenceMapper.selectDiseaseNames(pc.getDiseaseIds()));
-        boolean required = names.stream().anyMatch(SHENGYU_REQUIRED_DISEASES::contains)
-            || SHENGYU_REQUIRED_DISEASES.contains(pc.getDisease());
-        return required ? filterByProductGenes(somatic, pc.getProductGenes()) : List.of();
-    }
-
-    /** 圣域胚系：始终按产品启用基因输出 */
-    private List<Map<String, Object>> shengyuGermline(PreviewContext pc, List<PreviewVariantVo> germline) {
-        if (!pipelineHas(pc.getModuleCode(), MODULE_SHENGYU_GERMLINE)) {
-            return List.of();
-        }
-        return filterByProductGenes(germline, pc.getProductGenes());
-    }
-
-
-
     // ---------------------------------------------------------------- 组装细节
 
     private PreviewVariantVo baseItem(Map<String, Object> row) {
@@ -578,56 +586,4 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         item.setDrugMatch(List.of());
         return item;
     }
-
-    private PreviewSectionVo toSection(List<PreviewVariantVo> items) {
-        PreviewSectionVo section = new PreviewSectionVo();
-        section.setItems(items);
-        long matched = items.stream().filter(i -> "MATCHED".equals(i.getMatchStatus())).count();
-        section.getSummary().put("reportedCount", items.size());
-        section.getSummary().put("matchedCount", matched);
-        section.getSummary().put("unmatchedCount", items.size() - matched);
-        return section;
-    }
-
-    private Map<String, Object> buildReportInfo(PreviewContext pc) {
-        Map<String, Object> info = new LinkedHashMap<>();
-        info.put("reportDate", null);
-        info.put("specimentType", pc.getSpecimenType());
-        info.put("disease", pc.getDisease());
-        info.put("templateCode", pc.getTemplateCode());
-        return info;
-    }
-
-    /** LIMS → JSON 契约的 sampleInfo（字段名对齐设计书 7.6） */
-    private Map<String, Object> buildSampleInfo(InterpretationLimsVo lims) {
-        Map<String, Object> info = new LinkedHashMap<>();
-        info.put("researchCenterName", lims.getHospitalName());
-        info.put("participantNumber", lims.getPatientId());
-        info.put("patientName", lims.getPatientName());
-        info.put("gender", lims.getGender());
-        info.put("birthday", lims.getBirthday());
-        info.put("age", lims.getAge());
-        info.put("disease", lims.getCancerType());
-        info.put("pathologicalType", lims.getPathologicalType());
-        info.put("clinicalStage", lims.getClinicalStage());
-        info.put("sampleCode", lims.getBarcode());
-        info.put("sampleType", lims.getSpecimenType());
-        info.put("tissueCollectionDate", lims.getSampleCollectedAt());
-        info.put("receivedDate", lims.getSampleReceivedAt());
-        info.put("commissionedAt", lims.getCommissionedAt());
-        return info;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
 }

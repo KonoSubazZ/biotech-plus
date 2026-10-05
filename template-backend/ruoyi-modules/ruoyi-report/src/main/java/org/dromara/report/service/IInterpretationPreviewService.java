@@ -3,8 +3,8 @@ package org.dromara.report.service;
 import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
-import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
+import org.dromara.report.domain.vo.ReportTemplateData;
 
 import java.util.List;
 
@@ -16,12 +16,12 @@ import java.util.List;
 public interface IInterpretationPreviewService {
 
     /**
-     * 组装预览 JSON
+     * 组装报告 JSON（公共字段 + report_template.module_code 驱动的个性化模块）
      *
      * @param bo 入参（analysisId / reportId / templateCode）
-     * @return 预览 JSON
+     * @return 报告 JSON（ReportTemplateData）
      */
-    InterpretationPreviewVo buildPreview(InterpretationPreviewBo bo);
+    ReportTemplateData buildPreview(InterpretationPreviewBo bo);
 
     /**
      * 人工确认胚系五级临床意义（保存前要求该位点已经建立匹配历史）

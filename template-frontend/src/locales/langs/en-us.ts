@@ -283,6 +283,7 @@ const local: App.I18n.Schema = {
     report: 'Report Management',
     'report_sample-info': 'Sample Info',
     'report_interpretation': 'Report Interpretation',
+    'report_template': 'Template Config',
     compliance: 'Compliance Management',
     'compliance_dev-log': 'Development Log',
     'compliance_validation-records': '3Q Validation Records',

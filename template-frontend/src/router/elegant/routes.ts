@@ -255,6 +255,15 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'report_sample-info',
           i18nKey: 'route.report_sample-info'
         }
+      },
+      {
+        name: 'report_template',
+        path: '/report/template',
+        component: 'view.report_template',
+        meta: {
+          title: 'report_template',
+          i18nKey: 'route.report_template'
+        }
       }
     ]
   },

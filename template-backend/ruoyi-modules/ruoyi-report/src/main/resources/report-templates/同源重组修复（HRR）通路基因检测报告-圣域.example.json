@@ -1,0 +1,231 @@
+{
+  "schemaVersion": "1.2",
+  "templateCode": "pharma-shengyu",
+  "templateVersion": "v1",
+  "analysisId": 10001,
+  "reportId": 20001,
+  "reportInfo": {
+    "reportDate": "2026-08-21",
+    "specimentType": "tissue"
+  },
+  "showTissueBloodSample": true,
+  "showBloodOnlySample": false,
+  "sampleInfo": {
+    "researchCenterName": "示例研究中心",
+    "participantNumber": "SUBJECT-001",
+    "gender": "女",
+    "birthYear": "1980",
+    "disease": "乳腺癌",
+    "visitCycle": null,
+    "sampleCode": "SAMPLE-001",
+    "sampleType": "组织+全血",
+    "tissueCollectionDate": null,
+    "sectionDate": null,
+    "bloodCollectionDate": null,
+    "receivedDate": "2026-08-19"
+  },
+  "somaticVariants": {
+    "analysisId": 10001,
+    "reportId": 20001,
+    "diseaseId": 100,
+    "diseaseName": "乳腺癌",
+    "gender": "女",
+    "matchedAt": null,
+    "summary": {
+      "reportedCount": 1,
+      "matchedCount": 1,
+      "unmatchedCount": 0,
+      "highEvidenceCount": 0
+    },
+    "items": [
+      {
+        "sourceType": "SNP_INDEL",
+        "sourceId": 1,
+        "gene": "BRCA1",
+        "originalVariant": "NM_007294.4 exon23 c.5503C>T p.R1835*",
+        "normalizedVariant": "NM_007294.4 exon23 c.5503C>T p.R1835*",
+        "measurementType": "变异丰度",
+        "measurementDisplay": "6.69%",
+        "matchedMutationId": 1001,
+        "parentMutationId": null,
+        "parentMutation": null,
+        "targetChanged": false,
+        "variationClass": "II类",
+        "matchStatus": "MATCHED",
+        "matchMessage": null,
+        "historyId": 30001,
+        "historyReused": false,
+        "historyMatchedAt": null,
+        "result": null
+      }
+    ]
+  },
+  "germlineVariants": {
+    "summary": {
+      "reportedCount": 1,
+      "pathogenicCount": 1,
+      "drugRelatedCount": 0,
+      "matchedDrugCount": 0
+    },
+    "items": [
+      {
+        "sourceId": 2,
+        "gene": "BRCA1",
+        "variant": "NM_007294.4 exon23 c.5503C>T p.R1835*",
+        "originalVariant": "NM_007294.4 exon23 c.5503C>T p.R1835*",
+        "zygosity": "杂合",
+        "clinicalSignificance": 2,
+        "clinicalSignificanceLabel": "可能致病性变异",
+        "hasDrug": false,
+        "matchStatus": "NOT_DRUG_RELATED",
+        "drugMatch": null
+      }
+    ]
+  },
+  "shengyuSomaticVariants": [
+    {
+      "gene": "BARD1",
+      "mutationType": "/",
+      "result": "/",
+      "abundanceOrCopyNumber": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "BRCA1",
+      "mutationType": "SNV/Indel",
+      "result": "NM_007294.4 exon23 c.5503C>T p.R1835*",
+      "abundanceOrCopyNumber": "6.69%",
+      "classification": "II类"
+    },
+    {
+      "gene": "BRCA2",
+      "mutationType": "/",
+      "result": "/",
+      "abundanceOrCopyNumber": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "BRIP1",
+      "mutationType": "/",
+      "result": "/",
+      "abundanceOrCopyNumber": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "FANCD2",
+      "mutationType": "/",
+      "result": "/",
+      "abundanceOrCopyNumber": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "PALB2",
+      "mutationType": "/",
+      "result": "/",
+      "abundanceOrCopyNumber": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "RAD51C",
+      "mutationType": "/",
+      "result": "/",
+      "abundanceOrCopyNumber": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "RAD51D",
+      "mutationType": "/",
+      "result": "/",
+      "abundanceOrCopyNumber": "/",
+      "classification": "/"
+    }
+  ],
+  "shengyuGermlineVariants": [
+    {
+      "gene": "BARD1",
+      "mutationType": "/",
+      "result": "/",
+      "zygosity": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "BRCA1",
+      "mutationType": "SNV/Indel",
+      "result": "NM_007294.4 exon23 c.5503C>T p.R1835*",
+      "zygosity": "杂合",
+      "classification": "可能致病性变异"
+    },
+    {
+      "gene": "BRCA2",
+      "mutationType": "/",
+      "result": "/",
+      "zygosity": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "BRIP1",
+      "mutationType": "/",
+      "result": "/",
+      "zygosity": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "FANCD2",
+      "mutationType": "/",
+      "result": "/",
+      "zygosity": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "PALB2",
+      "mutationType": "/",
+      "result": "/",
+      "zygosity": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "RAD51C",
+      "mutationType": "/",
+      "result": "/",
+      "zygosity": "/",
+      "classification": "/"
+    },
+    {
+      "gene": "RAD51D",
+      "mutationType": "/",
+      "result": "/",
+      "zygosity": "/",
+      "classification": "/"
+    }
+  ],
+  "qualityControl": {
+    "specimenType": "组织",
+    "status": "QUALIFIED",
+    "assessment": "合格",
+    "sampleQc": {
+      "tumorCellContent": "40",
+      "dnaTotal": "814",
+      "dnaDegradation": "2",
+      "preLibraryTotal": "2303",
+      "sequencingDataVolume": null,
+      "meanDepth": "5286",
+      "coverageUniformity": "98",
+      "targetRegionCoverage": null,
+      "genomeAlignmentRate": "99",
+      "baseQualityQ30Rate": "99"
+    },
+    "controlQc": {
+      "tumorCellContent": "40",
+      "dnaTotal": "80",
+      "dnaDegradation": "1",
+      "preLibraryTotal": "400",
+      "sequencingDataVolume": "4G",
+      "meanDepth": "12000",
+      "coverageUniformity": "95",
+      "targetRegionCoverage": "99",
+      "genomeAlignmentRate": "99",
+      "baseQualityQ30Rate": "96"
+    }
+  },
+  "warnings": []
+}

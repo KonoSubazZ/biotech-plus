@@ -7,7 +7,10 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 报告预览入参（对齐设计书 8.1 POST /admin/report/template/data）
+ * 报告预览/生成入参（对齐设计书 8.1 POST /admin/report/template/data）
+ * <p>
+ * 模板不在入参里传：由报告的产品经 product_template 决定
+ * （见 ReportTemplateDataService.requireTemplateByProduct）。
  *
  * @author <你的名字>
  */
@@ -24,7 +27,4 @@ public class InterpretationPreviewBo implements Serializable {
     /** 报告ID */
     @NotNull(message = "报告ID不能为空")
     private Long reportId;
-
-    /** 模板编码；不传时取报告绑定的模板 */
-    private String templateCode;
 }

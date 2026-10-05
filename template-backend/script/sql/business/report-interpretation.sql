@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS `analysis_report` (
     `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
     `template_id` bigint DEFAULT NULL COMMENT '逻辑关联report_template.template_id',
     `report_json_path` VARCHAR(1000) DEFAULT NULL COMMENT '正式生成JSON文件路径',
+    `report_name` VARCHAR(500) DEFAULT NULL COMMENT '最近一次生成的报告名（命名模板渲染结果，不含唯一后缀）',
     `tenant_id`  varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
 
     PRIMARY KEY (`report_id`),
@@ -547,6 +548,7 @@ CREATE TABLE IF NOT EXISTS `report_template` (
     `customer_code` VARCHAR(120) DEFAULT NULL COMMENT '客户编码',
     `report_type` VARCHAR(40) NOT NULL COMMENT '报告类型',
     `module_code` VARCHAR(500) NULL DEFAULT NULL COMMENT '有序个性化Java报告模块编码列表，分号分隔；公共模块无需配置',
+    `report_name` VARCHAR(500) DEFAULT NULL COMMENT '报告命名模板：静态文本 + {{路径}} 动态取值；空=用默认命名',
     `template_path` VARCHAR(1000) NOT NULL COMMENT '项目内或受控模板路径',
     `template_sha256` CHAR(64) DEFAULT NULL COMMENT '模板文件SHA-256',
     `status` VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT 'ENABLED/DISABLED',
@@ -648,11 +650,16 @@ WHERE m.menu_id = @report_menu_id OR m.menu_id = @menu_id OR m.parent_id = @menu
 -- ============================================================================
 -- 种子：报告模板 + 产品模板关系（Tab④ 报告预览按 template_code 取模板）
 -- 本地 product_config 现只有一条：id=2 / code=BTP001 / novopm2_tis_1238_shengyu
+-- 名称/客户/报告类型/模板 sha 对齐参考工程（biotech 库 report_template 唯一那行）：
+--   同源重组修复（HRR）通路基因检测报告-圣域 / customer_code=圣域 / report_type=HRR
+-- 模板实体随仓交付：ruoyi-report/src/main/resources/report-templates/pharma-shengyu_v1.docx
+--   （命名约定：模板文件平铺在固定目录，文件名 = 模板名 + .docx，样例 <模板名>.example.json）
 -- ============================================================================
 INSERT INTO report_template (template_code, template_name, template_version, customer_code, report_type,
-    module_code, template_path, status, create_by, create_time, tenant_id)
-SELECT 'pharma-shengyu', '圣域 1238 报告', 'v1', NULL, 'SOMATIC',
-    NULL, 'report-templates/pharma-shengyu/v1/template.docx', 'ENABLED', 1, NOW(), '000000'
+    module_code, template_path, template_sha256, status, create_by, create_time, tenant_id)
+SELECT 'pharma-shengyu', '同源重组修复（HRR）通路基因检测报告-圣域', 'v1', '圣域', 'HRR',
+    NULL, '同源重组修复（HRR）通路基因检测报告-圣域.docx',
+    '2518E0A35427833FB9A26570129C215BAEAFF57A5644A2909A4065F45B5E396D', 'ENABLED', 1, NOW(), '000000'
 FROM (SELECT 1) AS dummy
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT template_id FROM report_template
     WHERE template_code = 'pharma-shengyu') AS c1);
@@ -664,3 +671,73 @@ WHERE pc.code = 'BTP001' AND rt.template_code = 'pharma-shengyu'
   -- 相关子查询直接写在 NOT EXISTS 里：MySQL 5.7 的派生表不能引用外层别名（包一层 (SELECT ...) 会报 Unknown column 'pc.id'）
   AND NOT EXISTS (SELECT 1 FROM product_template pt
       WHERE pt.product_id = pc.id AND pt.template_id = rt.template_id);
+
+
+-- ============================================================================
+-- 种子：圣域模板的输出范围（module_code）
+-- 公共字段不需要配置；这里只写「有序个性化模块列表」，顺序即执行顺序。
+-- 幂等：只在为空时写入，不覆盖后台「报告模板配置」页改动过的值。
+-- ============================================================================
+UPDATE report_template
+   SET module_code = 'SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1',
+       update_time = NOW()
+ WHERE template_code = 'pharma-shengyu'
+   AND del_flag = '0'
+   AND (module_code IS NULL OR module_code = '');
+
+
+-- ============================================================================
+-- 菜单：「报告管理」（父，path='report'）›「报告模板配置」
+-- 幂等：按 path 定位父菜单（不写死 menu_id）；NOT EXISTS 直接相关子查询（MySQL 5.7 无 LATERAL）
+-- ============================================================================
+SET @report_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'report' LIMIT 1);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT 'route.report_template', @report_menu_id, 3, 'template', 'report/template/index',
+    1, 0, 'C', '0', '0', 'report:template:list', 'local-icon-documentation', 1, NOW(), '模板配置'
+FROM (SELECT 1) AS dummy
+WHERE @report_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+      WHERE parent_id = @report_menu_id AND path = 'template') AS c0);
+
+SET @template_menu_id = (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @report_menu_id AND path = 'template' AND menu_type = 'C' LIMIT 1);
+
+-- 按钮权限（F）：与 @SaCheckPermission 逐字一致，不进侧边栏
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT t.menu_name, @template_menu_id, t.order_num, '', NULL, 1, 0, 'F', '0', '0', t.perms, '#', 1, NOW(), t.remark
+FROM (SELECT '查询' AS menu_name, 1 AS order_num, 'report:template:query' AS perms, '查询模板详情/产品选项' AS remark
+      UNION ALL SELECT '新增', 2, 'report:template:add', '新增报告模板'
+      UNION ALL SELECT '修改', 3, 'report:template:edit', '修改报告模板与关联产品'
+      UNION ALL SELECT '删除', 4, 'report:template:remove', '删除报告模板') AS t
+WHERE @template_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys_menu x WHERE x.parent_id = @template_menu_id AND x.perms = t.perms);
+
+-- 授权给超级管理员角色
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, m.menu_id FROM sys_menu m
+WHERE m.menu_id = @template_menu_id OR m.parent_id = @template_menu_id;
+
+
+-- ============================================================================
+-- 按钮权限（F）：报告生成（正式生成 final JSON 并登记 report_json_path）
+-- 幂等：按 perms 判存在；父菜单仍按 path 定位，不写死 menu_id
+-- ============================================================================
+SET @report_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'report' LIMIT 1);
+SET @interpretation_menu_id = (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @report_menu_id AND path = 'interpretation' AND menu_type = 'C' LIMIT 1);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '生成报告', @interpretation_menu_id, 7, '', NULL, 1, 0, 'F', '0', '0',
+    'report:interpretation:generate', '#', 1, NOW(), '正式生成 final JSON 并登记制品路径'
+FROM (SELECT 1) AS dummy
+WHERE @interpretation_menu_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sys_menu x
+      WHERE x.parent_id = @interpretation_menu_id AND x.perms = 'report:interpretation:generate');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, m.menu_id FROM sys_menu m
+WHERE m.parent_id = @interpretation_menu_id AND m.perms = 'report:interpretation:generate';

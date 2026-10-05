@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  报告模板 report_template 的手写 SQL 部分。
+  约定（对齐 SampleInfoMapper.xml / InterpretationMapper.xml）：
+    · 值一律 #{param} 绑定；租户条件由租户拦截器自动附加，这里不写 tenant_id 条件
+    · 单表增删改查走 BaseMapperPlus，只有「含软删行」「跨表关系」「引用计数」才写在这里
+-->
+<mapper namespace="org.dromara.report.mapper.ReportTemplateMapper">
+
+    <!-- 含软删行的模板编码 → template_id（判断「曾经删过又再加同编码」用） -->
+    <select id="selectIdByCodeIncludeDeleted" resultType="java.lang.Long">
+        SELECT template_id
+        FROM report_template
+        WHERE template_code = #{templateCode}
+        LIMIT 1
+    </select>
+
+    <!-- 恢复软删行 -->
+    <update id="restoreById">
+        UPDATE report_template
+        SET del_flag = '0', update_time = NOW()
+        WHERE template_id = #{templateId}
+    </update>
+
+    <!-- 删除保护：有多少报告正在用这份模板 -->
+    <select id="countAnalysisReportByTemplateId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM analysis_report
+        WHERE template_id = #{templateId} AND del_flag = '0'
+    </select>
+
+    <!-- 模板关联的产品ID（按 sort_order） -->
+    <select id="selectProductIds" resultType="java.lang.Long">
+        SELECT product_id
+        FROM product_template
+        WHERE template_id = #{templateId} AND del_flag = '0'
+        ORDER BY sort_order, id
+    </select>
+
+    <!-- 批量取模板关联的产品（列表展示 productNames + 编辑回填 productIds） -->
+    <select id="selectProductRelationsByTemplateIds" resultType="java.util.LinkedHashMap">
+        SELECT pt.template_id AS templateId, pt.product_id AS productId, pc.name AS productName
+        FROM product_template pt
+        JOIN product_config pc ON pc.id = pt.product_id AND pc.del_flag = '0'
+        WHERE pt.del_flag = '0'
+          AND pt.template_id IN
+        <foreach collection="templateIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY pt.template_id, pt.sort_order, pt.id
+    </select>
+
+    <!-- 预览/生成：报告产品在 product_template 里配置的模板（默认优先） -->
+    <select id="selectDefaultByProductId" resultType="org.dromara.report.domain.vo.ReportTemplateVo">
+        SELECT t.template_id      AS templateId,
+               t.template_code    AS templateCode,
+               t.template_name    AS templateName,
+               t.template_version AS templateVersion,
+               t.customer_code    AS customerCode,
+               t.report_type      AS reportType,
+               t.module_code      AS moduleCode,
+               t.report_name      AS reportName,
+               t.template_path    AS templatePath,
+               t.template_sha256  AS templateSha256,
+               t.status           AS status
+        FROM product_template pt
+        JOIN report_template t ON t.template_id = pt.template_id AND t.del_flag = '0'
+        WHERE pt.product_id = #{productId} AND pt.del_flag = '0' AND pt.enabled = 1
+          AND t.status = 'ENABLED'
+        ORDER BY pt.is_default DESC, pt.sort_order, t.template_id
+        LIMIT 1
+    </select>
+
+    <!-- 报告产品：product_id 为空时按产品名/编码定位 product_config.id -->
+    <select id="selectProductIdByName" resultType="java.lang.Long">
+        SELECT id
+        FROM product_config
+        WHERE del_flag = '0' AND (name = #{name} OR code = #{name})
+        ORDER BY id
+        LIMIT 1
+    </select>
+
+    <!-- 产品下拉选项（product_config 跨模块只读，不引 Maven 依赖） -->
+    <select id="selectProductOptions" resultType="java.util.LinkedHashMap">
+        SELECT id AS id, name AS name, code AS code, status AS status
+        FROM product_config
+        WHERE del_flag = '0'
+        ORDER BY id
+    </select>
+
+    <!-- 先整体置失效，再按传入集合逐条恢复/插入（唯一键不含 del_flag，必须「恢复」而非重插） -->
+    <update id="invalidateProductTemplates">
+        UPDATE product_template
+        SET del_flag = '1', update_time = NOW()
+        WHERE template_id = #{templateId} AND del_flag = '0'
+    </update>
+
+    <update id="activateProductTemplate">
+        UPDATE product_template
+        SET del_flag = '0', enabled = 1, sort_order = #{sortOrder}, update_time = NOW()
+        WHERE template_id = #{templateId} AND product_id = #{productId}
+    </update>
+
+    <insert id="insertProductTemplate">
+        INSERT INTO product_template (product_id, template_id, is_default, enabled, sort_order, create_time)
+        VALUES (#{productId}, #{templateId}, 0, 1, #{sortOrder}, NOW())
+    </insert>
+
+</mapper>
