@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.report.mapper.ReportVariantHistoryMapper">
+
+    <!--
+      幂等批量写入：唯一键 uk_report_variant_history_row 命中就覆盖「会随重提交变」的展示字段。
+      tenant_id 由租户拦截器自动补进列与值（不手写），所以这里不出现 tenant_id。
+    -->
+    <insert id="upsertBatch">
+        INSERT INTO report_variant_history
+            (report_id, analysis_id, subbarcode, client, product, disease, source_type, source_id,
+             gene, variant, abundance, variant_type, ori_variant, level, drug_info, analyzer, report_generated_at,
+             create_by, create_time, update_by, update_time, del_flag)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (#{r.reportId}, #{r.analysisId}, #{r.subbarcode}, #{r.client}, #{r.product}, #{r.disease},
+             #{r.sourceType}, #{r.sourceId}, #{r.gene}, #{r.variant}, #{r.abundance}, #{r.variantType},
+             #{r.oriVariant}, #{r.level}, #{r.drugInfo}, #{r.analyzer}, #{r.reportGeneratedAt},
+             #{r.createBy}, NOW(), #{r.updateBy}, NOW(), '0')
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            level               = VALUES(level),
+            abundance           = VALUES(abundance),
+            variant_type        = VALUES(variant_type),
+            drug_info           = VALUES(drug_info),
+            analyzer            = VALUES(analyzer),
+            disease             = VALUES(disease),
+            client              = VALUES(client),
+            product             = VALUES(product),
+            subbarcode          = VALUES(subbarcode),
+            report_generated_at = VALUES(report_generated_at),
+            update_by           = VALUES(update_by),
+            update_time         = NOW(),
+            del_flag            = '0'
+    </insert>
+</mapper>
