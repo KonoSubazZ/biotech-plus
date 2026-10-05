@@ -10,6 +10,7 @@ import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.PreviewVariantVo;
+import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.vo.ReportTemplateData;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.service.IInterpretationPreviewService;
@@ -17,6 +18,7 @@ import org.dromara.report.service.IInterpretationService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -29,8 +31,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.dromara.report.mapper.InterpretationMapper;
+import org.dromara.report.mapper.NkbEvidenceMapper;
+
 import static org.dromara.report.service.impl.PreviewSupport.asLong;
 import static org.dromara.report.service.impl.PreviewSupport.asString;
+import static org.dromara.report.service.impl.PreviewSupport.nkb;
 
 /**
  * 报告预览：查数据、出 JSON（设计书 §7.6 JSON 契约 + §8 预览接口）。
@@ -67,11 +73,17 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
 
     private final ReportTemplateDataService reportTemplateDataService;
 
+    private final InterpretationMapper interpretationMapper;
+
+    private final NkbEvidenceMapper nkbEvidenceMapper;
+
     private final PreviewContextBuilder contextBuilder;
 
     private final VariantMatcher variantMatcher;
 
     private final VariantEditService variantEditService;
+
+    private final ReportVariantHistoryWriter detectionHistoryWriter;
 
     private final ObjectMapper objectMapper;
 
@@ -103,6 +115,18 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             result.add(item);
         }
         return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> diseaseOptions() {
+        List<Map<String, Object>> rows = nkb(() -> nkbEvidenceMapper.selectDiseaseOptions());
+        return rows == null ? List.of() : rows;
+    }
+
+    @Override
+    public List<Map<String, Object>> analyzerOptions() {
+        List<Map<String, Object>> rows = interpretationMapper.selectAnalyzerOptions();
+        return rows == null ? List.of() : rows;
     }
 
     /**
@@ -179,6 +203,8 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     /**
      * 实时组装报告 JSON：上下文 → 匹配体细胞/胚系 → 交给 {@link ReportTemplateDataService} 出最终结构。
      * <p>
+     * <b>只读</b>：命中匹配历史照常复用，但不冻结新历史、不登记复用次数
+     * （落库只在提交审核时发生，见 {@link #freezeHistory}）。
      * 生成（{@code ReportGenerationService}）也走这里 —— 生成时不复用页面预览的结果，
      * 而是重新组装，保证落盘的 JSON 与当时的库数据一致。
      *
@@ -188,15 +214,42 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ReportTemplateData buildPreview(InterpretationPreviewBo bo) {
+        return assemble(bo, false);
+    }
+
+    /**
+     * 冻结匹配历史：报告提交审核时调用，把该报告「报出」的位点匹配结果写进 history_*（首次冻结）。
+     * <p>
+     * 与预览共用同一套组装逻辑（上下文口径必须一致，否则会冻出与预览不一致的历史），
+     * 只是打开了落库开关；返回的 JSON 不用，丢弃即可。
+     *
+     * @param bo 入参（analysisId / reportId / templateId）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void freezeHistory(InterpretationPreviewBo bo) {
+        assemble(bo, true);
+    }
+
+    /**
+     * 组装报告 JSON 的共用实现。
+     *
+     * @param bo             入参（analysisId / reportId / templateId）
+     * @param persistHistory 是否把匹配结果冻结进 history_*（true = 审核冻结；false = 预览/生成只读）
+     * @return 报告 JSON
+     */
+    private ReportTemplateData assemble(InterpretationPreviewBo bo, boolean persistHistory) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
         ReportTemplateVo template = reportTemplateDataService.requireTemplateByProduct(
             asLong(report.get("productId")), asString(report.get("product")), bo.getTemplateId());
-        PreviewContext pc = contextBuilder.build(bo.getAnalysisId(), bo.getReportId(), report, context);
+        // 报告生成参数：解读癌种覆盖（不传就用报告自带的）
+        PreviewContext pc = contextBuilder.build(bo.getAnalysisId(), bo.getReportId(), report, context,
+            bo.getDisease());
         contextBuilder.applyTemplate(pc, template);
 
-        List<PreviewVariantVo> somatic = variantMatcher.matchSomatic(pc);
-        List<PreviewVariantVo> germline = variantMatcher.matchGermline(pc);
+        List<PreviewVariantVo> somatic = variantMatcher.matchSomatic(pc, persistHistory);
+        List<PreviewVariantVo> germline = variantMatcher.matchGermline(pc, persistHistory);
 
         ReportBuildInput input = new ReportBuildInput();
         input.setContext(pc);
@@ -207,7 +260,34 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         input.setTemplate(template);
         input.setNamedDiseaseIds(contextBuilder.namedDiseaseIds());
         input.setWarnings(collectWarnings(context, pc, somatic, germline));
-        return reportTemplateDataService.build(input);
+        ReportTemplateData data = reportTemplateDataService.build(input);
+        applyGenerateParams(data, bo);
+        if (persistHistory) {
+            // 提交审核：冻结 history_* 的同时把本次报出的位点写进「历史检出」（同一事务）
+            detectionHistoryWriter.write(pc, report, data, somatic, germline);
+        }
+        return data;
+    }
+
+    /**
+     * 报告生成参数落进 JSON：报告日期与解读人（都在 reportInfo 里，供 DOCX 封面/页眉/签名引用）。
+     * <p>
+     * 报告日期不传就保持组装出来的分析日期（确定性口径）；解读人不传用当前登录用户 —— 这两个都有默认值，
+     * 页面上只是让人可以改。
+     *
+     * @param data 组装好的报告 JSON
+     * @param bo   入参（可带 reportDate / analyzer）
+     */
+    private void applyGenerateParams(ReportTemplateData data, InterpretationPreviewBo bo) {
+        ReportTemplateData.ReportInfo reportInfo = data.getReportInfo();
+        if (reportInfo == null) {
+            return;
+        }
+        if (StringUtils.hasText(bo.getReportDate())) {
+            reportInfo.setReportDate(bo.getReportDate().trim());
+        }
+        reportInfo.setAnalyzer(StringUtils.hasText(bo.getAnalyzer())
+            ? bo.getAnalyzer().trim() : LoginHelper.getLoginUser().getNickname());
     }
 
     /** 预览告警：分析批次里的共性问题（不阻断预览） */
