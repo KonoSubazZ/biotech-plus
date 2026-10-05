@@ -9,9 +9,10 @@
 -- 报告命名（report_name）：圣域口径是「留空 = 用默认拼接规则
 -- {{subbarcode}}{{client}}{{template_name}}{{report_id}}」，所以显式置空，
 -- 避免历史误配一个命名模板；要改命名规则走「报告模板配置」页（保存时按变量白名单校验）。
--- 模板路径按「平铺 + 版本写进文件名」的约定对齐：用模板中文名（<模板名>_<版本>.docx），
--- 不用模板编码 —— 模板数量多起来时按中文名找人/找文件更直观，编码只留在 template_code 里做程序标识。
--- （模板实体固定目录见 docs/context/report/report-docx-renderer.md；文件名 同源重组修复（HRR）通路基因检测报告-圣域_v1.docx 里的 v1 即 template_version）
+-- 模板文件：固定目录 <模板目录>/同源重组修复（HRR）通路基因检测报告-圣域.docx（模板名 + .docx）。
+-- 运行时按「报告产品 → product_template → report_template.template_name」定位文件，
+-- template_path 只作登记说明，不参与查找（内容与文件名保持一致，便于人工核对）。
+-- （模板目录见 docs/context/report/report-docx-renderer.md 与 deploy.sh 的 TEMPLATES_DIR）
 -- 幂等：重复执行结果相同。
 SET NAMES utf8mb4;
 
@@ -20,7 +21,7 @@ UPDATE `report_template`
        `customer_code`   = '圣域',
        `report_type`     = 'HRR',
        `module_code`     = 'SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1',
-       `template_path`   = '同源重组修复（HRR）通路基因检测报告-圣域_v1.docx',
+       `template_path`   = '同源重组修复（HRR）通路基因检测报告-圣域.docx',
        `template_sha256` = '2518E0A35427833FB9A26570129C215BAEAFF57A5644A2909A4065F45B5E396D',
        `report_name`     = NULL,
        `update_time`     = NOW()
