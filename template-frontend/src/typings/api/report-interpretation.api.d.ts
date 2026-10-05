@@ -412,6 +412,14 @@ declare namespace Api {
      * 模板专属字段由 report_template.module_code 驱动的 Handler 挂到**顶层**
      * （shengyuSomaticVariants / shengyuGermlineVariants / qualityControl），没有 modules.* 包装层。
      */
+    /** 报告预览/生成用的候选模板（一个产品可能配多个，人工选择；defaultTemplate=true 是产品默认模板） */
+    interface InterpretationTemplateOption {
+      templateId: number;
+      templateName: string;
+      templateVersion: string | null;
+      defaultTemplate: boolean;
+    }
+
     interface InterpretationPreview {
       schemaVersion: string;
       templateCode: string | null;
