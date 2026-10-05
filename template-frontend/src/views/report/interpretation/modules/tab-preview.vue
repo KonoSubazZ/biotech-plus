@@ -112,7 +112,7 @@ async function loadTemplateOptions() {
   templateId.value = preset ? preset.templateId : null;
 }
 
-async function loadPreview(forceRealtime = false) {
+async function loadPreview() {
   if (!props.analysisId || !props.reportId) {
     return;
   }
@@ -121,8 +121,7 @@ async function loadPreview(forceRealtime = false) {
     const { data, error } = await fetchBuildInterpretationPreview({
       analysisId: props.analysisId,
       reportId: props.reportId,
-      templateId: templateId.value ?? undefined,
-      forceRealtime: forceRealtime || undefined
+      templateId: templateId.value ?? undefined
     });
     if (!error) {
       preview.value = data?.data ?? null;
@@ -532,16 +531,6 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         <NSpace :size="8">
           <NButton size="small" @click="jsonVisible = true">查看 JSON</NButton>
           <NButton size="small" type="primary" ghost :loading="editing" @click="() => loadPreview()">重新预览</NButton>
-          <NButton
-            v-if="previewSource === 'artifact'"
-            size="small"
-            type="warning"
-            ghost
-            :loading="editing"
-            @click="() => loadPreview(true)"
-          >
-            实时重算
-          </NButton>
         </NSpace>
       </NSpace>
       <NAlert v-if="preview?.warnings?.length" type="warning" :bordered="false" class="mt-12px">

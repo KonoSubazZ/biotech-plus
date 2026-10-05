@@ -77,14 +77,13 @@ export function fetchGetInterpretationTemplateOptions(params: { analysisId: numb
 }
 
 /**
- * Tab④ 报告预览：已生成过且模板一致时后端直接读最近一次生成的 JSON 制品（免重复匹配），
- * 否则实时组装；forceRealtime=true 强制实时重算。只返回、不落库。
+ * Tab④ 报告预览：报告已生成过且模板一致时，后端直接读那份已落库的 JSON 渲染（免重复匹配），
+ * 否则实时组装。只返回、不落库。
  */
 export function fetchBuildInterpretationPreview(data: {
   analysisId: number;
   reportId: number;
   templateId?: number;
-  forceRealtime?: boolean;
 }) {
   return request<Api.Report.InterpretationPreviewResult>({
     url: '/report/interpretation/preview',
