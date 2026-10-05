@@ -61,10 +61,11 @@ declare namespace Api {
       productIds: number[];
     }
 
-    /** 报告命名可用变量（后端 ReportNameCatalog）：catalog=可引用路径，sample=样例值 */
+    /** 报告命名可用变量（后端 ReportNameVariables）：catalog=可用字段变量，sample=样例值，defaultPattern=留空时的默认规则 */
     interface ReportNameVars {
       catalog: string[];
       sample: Record<string, unknown>;
+      defaultPattern: string;
     }
 
     /** 产品下拉选项（product_config） */

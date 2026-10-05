@@ -100,13 +100,15 @@ function handleUpdateModelWhenEdit() {
   }
 }
 
-/** 报告命名字典：可用路径 + 样例值都来自后端，前端不自己维护变量清单 */
+/** 报告命名变量：可用变量 + 样例值都来自后端，前端不自己维护变量清单 */
 const nameVars = ref<string[]>([]);
 const nameSample = ref<Record<string, unknown>>({});
+/** 留空时的默认拼接规则（后端 ReportNameResolver.DEFAULT_PATTERN，不在前端写死） */
+const nameDefaultPattern = ref('');
 
 const nameVarOptions = computed(() => nameVars.value);
 
-/** 试算：{{a.b}} 替换样例值；未知路径显示 ⚠，仅示意，真正校验在后端保存时 */
+/** 试算：{{client}} 替换样例值；未知变量显示 ⚠，仅示意，真正校验在后端保存时 */
 const namePreview = computed(() => {
   const pattern = model.value.reportName;
   if (!pattern) return '';
@@ -122,6 +124,7 @@ async function loadNameVars() {
   if (error) return;
   nameVars.value = data?.catalog ?? [];
   nameSample.value = data?.sample ?? {};
+  nameDefaultPattern.value = data?.defaultPattern ?? '';
 }
 
 async function loadProductOptions() {
@@ -217,11 +220,12 @@ watch(visible, () => {
         <NFormItem label="报告命名" path="reportName">
           <NInput
             v-model:value="model.reportName"
-            placeholder="如 圣域_{{template.customerCode}}_{{sampleInfo.sampleCode}}_{{reportId}}；留空用默认命名"
+            placeholder="如 {{subbarcode}}_{{client}}_{{reportId}}；留空用默认规则"
           />
         </NFormItem>
         <div class="ml-130px -mt-14px mb-16px text-12px text-gray-500">
           可用变量：{{ nameVarOptions.length ? nameVarOptions.join('、') : '加载中…' }}
+          <template v-if="nameDefaultPattern">｜留空 = 默认规则 {{ nameDefaultPattern }}</template>
           <template v-if="namePreview">
             ｜试算：{{ namePreview }}（仅示意，以生成结果为准）
           </template>
