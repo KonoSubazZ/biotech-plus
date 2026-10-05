@@ -280,6 +280,7 @@ const local: App.I18n.Schema = {
     'report_sample-info': '样本信息',
     'report_interpretation': '报告解读',
     'report_template': '模板配置',
+    'report_variant-history': '历史检出',
     compliance: '合规管理',
     'compliance_dev-log': '开发记录',
     'compliance_validation-records': '3Q 验证记录',
