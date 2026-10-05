@@ -412,6 +412,15 @@ declare namespace Api {
      * 模板专属字段由 report_template.module_code 驱动的 Handler 挂到**顶层**
      * （shengyuSomaticVariants / shengyuGermlineVariants / qualityControl），没有 modules.* 包装层。
      */
+    /** 报告预览返回体：data 是预览 JSON，source 标明来自已生成制品还是实时组装 */
+    interface InterpretationPreviewResult {
+      /** artifact = 读最近一次生成的 JSON 制品；realtime = 实时查库重新匹配组装 */
+      source: 'artifact' | 'realtime';
+      /** 制品生成时间（source=artifact 时有值） */
+      artifactGeneratedAt: string | null;
+      data: InterpretationPreview;
+    }
+
     /** 报告预览/生成用的候选模板（一个产品可能配多个，人工选择；defaultTemplate=true 是产品默认模板） */
     interface InterpretationTemplateOption {
       templateId: number;
