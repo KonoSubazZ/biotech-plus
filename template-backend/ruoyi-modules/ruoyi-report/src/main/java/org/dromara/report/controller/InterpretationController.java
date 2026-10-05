@@ -166,12 +166,12 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * Tab④ 报告预览：报告已生成过且模板一致时直接读最近一次生成的 JSON 制品（多人共享、免重复匹配），
-     * 否则实时查库组装；入参 forceRealtime=true 强制实时重算。
+     * Tab④ 报告预览：报告已生成过且生成时用的模板与本次一致 → 直接读那份已落库的 JSON 渲染
+     * （多人进页面读同一份，不用重复匹配）；否则实时查库组装。
      * <p>
      * 只返回、不落库、不写文件；返回体的 data 就是生成时那份 JSON 契约，前端直接按它渲染。
      *
-     * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空 / forceRealtime：强制实时）
+     * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
      * @return 预览数据 + 来源标记（artifact / realtime）
      */
     @SaCheckPermission("report:interpretation:preview")
