@@ -46,6 +46,9 @@ public class ReportDocxRenderer {
     /** classpath 里的渲染脚本（jar 内：BOOT-INF/classes/scripts/render_report_docx.py） */
     private static final String CLASSPATH_SCRIPT = "scripts/render_report_docx.py";
 
+    /** classpath 里的模板目录（jar 内：BOOT-INF/classes/report-templates/）；库里 template_path 只存文件名 */
+    private static final String CLASSPATH_TEMPLATE_DIR = "report-templates/";
+
     /** 子进程退出码含义（与 render_report_docx.py 的异常类型一一对应） */
     private static final Map<Integer, String> EXIT_CODE_MEANING = Map.of(
         2, "输入路径或 JSON 错误",
@@ -114,7 +117,7 @@ public class ReportDocxRenderer {
             return fromRoot.get();
         }
         Path target = templateCopyTarget(templatePath);
-        ClassPathResource resource = new ClassPathResource(templatePath.trim());
+        ClassPathResource resource = new ClassPathResource(CLASSPATH_TEMPLATE_DIR + stripLeadingSlash(templatePath));
         if (!resource.exists()) {
             throw new ServiceException("模板文件既不在磁盘也不在 classpath：" + templatePath);
         }
@@ -167,7 +170,8 @@ public class ReportDocxRenderer {
      */
     private Path templateCopyTarget(String templatePath) {
         Path root = rendererTmpDir().resolve("templates").normalize();
-        String relative = stripLeadingSlash(templatePath);
+        // 副本按 jar 里的相对路径落位（templates/report-templates/<文件名>），排障时与 classpath 视图一致
+        String relative = CLASSPATH_TEMPLATE_DIR + stripLeadingSlash(templatePath);
         Path target = root.resolve(relative).normalize();
         if (!target.startsWith(root)) {
             throw new ServiceException("模板路径不合法（越出缓存目录）：" + templatePath);
