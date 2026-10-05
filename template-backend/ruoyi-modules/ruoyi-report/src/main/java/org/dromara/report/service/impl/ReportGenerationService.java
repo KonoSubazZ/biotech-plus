@@ -84,7 +84,8 @@ public class ReportGenerationService {
         Path docxPath = jsonPath.resolveSibling(fileBase(jsonPath) + ".docx");
         try {
             writeJson(jsonPath, data);
-            Map<String, Object> rendered = reportDocxRenderer.render(template.getTemplatePath(), jsonPath, docxPath);
+            Path templateFile = reportDocxRenderer.locateTemplate(template);
+            Map<String, Object> rendered = reportDocxRenderer.render(templateFile, jsonPath, docxPath);
             updateArtifact(bo, data, jsonPath, docxPath, reportName);
             return buildResult(data, reportName, jsonPath, docxPath, rendered);
         } catch (RuntimeException e) {
@@ -94,17 +95,11 @@ public class ReportGenerationService {
         }
     }
 
-    /** 模板解析：入参编码 → 报告已绑定模板 → 产品默认；都没有 = 配置错误，禁止生成 */
+    /** 模板解析：只看产品（产品 → product_template → report_template）；没配就报「当前产品未配置模板」 */
     private ReportTemplateVo resolveTemplate(ReportTemplateData data, Map<String, Object> reportRow) {
-        ReportTemplateVo template = templateDataService.resolveTemplate(
-            data.getTemplateCode(),
-            data.getTemplateId(),
+        return templateDataService.requireTemplateByProduct(
             toLong(reportRow == null ? null : reportRow.get("productId")),
             reportRow == null ? null : text(reportRow.get("product")));
-        if (template == null) {
-            throw new ServiceException("报告模板未配置，无法生成报告：reportId=" + data.getReportId());
-        }
-        return template;
     }
 
     /**

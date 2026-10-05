@@ -89,9 +89,9 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     public ReportTemplateData buildPreview(InterpretationPreviewBo bo) {
         Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
-        ReportTemplateVo template = reportTemplateDataService.resolveTemplate(bo.getTemplateCode(),
-            asLong(report.get("templateId")), asLong(report.get("productId")), asString(report.get("product")));
-        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), bo.getTemplateCode(), report, context);
+        ReportTemplateVo template = reportTemplateDataService.requireTemplateByProduct(
+            asLong(report.get("productId")), asString(report.get("product")));
+        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), report, context);
         applyTemplateToContext(pc, template);
 
         List<PreviewVariantVo> somatic = matchSomaticVariants(pc);
@@ -158,7 +158,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             throw new ServiceException("胚系位点不存在或不属于该分析批次：sourceId=" + bo.getSourceId());
         }
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
-        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), null, report, context);
+        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), report, context);
         PreviewVariantVo item = new PreviewVariantVo();
         item.setSourceType("CR_ALL");
         item.setGene(asString(row.get("gene")));
@@ -241,7 +241,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     private void requireDrugEvidence(InterpretationTargetBo bo, Map<String, Object> row, List<Long> parentIds) {
         Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
-        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), null, report, context);
+        PreviewContext pc = buildContext(bo.getAnalysisId(), bo.getReportId(), report, context);
         boolean germline = "CR_ALL".equals(bo.getSourceType());
         NkbDrugMatcher.MatchResult matched = drugMatcher.match(asString(row.get("gene")), asString(row.get("variant")),
             asString(row.get("oriVariant")), germline, pc.getDiseaseScope(), parentIds);
@@ -305,7 +305,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         return report;
     }
 
-    private PreviewContext buildContext(Long analysisId, Long reportId, String templateCode,
+    private PreviewContext buildContext(Long analysisId, Long reportId,
                                         Map<String, Object> report, InterpretationContextVo context) {
         InterpretationLimsVo lims = context.getLims();
         String disease = firstNonBlank(asString(report.get("disease")), asString(report.get("cancerType")),
@@ -325,7 +325,7 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         PreviewContext pc = new PreviewContext();
         pc.setAnalysisId(analysisId);
         pc.setReportId(reportId);
-        pc.setTemplateCode(firstNonBlank(templateCode, asString(report.get("templateCode")),
+        pc.setTemplateCode(firstNonBlank(asString(report.get("templateCode")),
             asString(report.get("template"))));
         pc.setTemplateVersion(asString(report.get("templateVersion")));
         pc.setModuleCode(asString(report.get("moduleCode")));

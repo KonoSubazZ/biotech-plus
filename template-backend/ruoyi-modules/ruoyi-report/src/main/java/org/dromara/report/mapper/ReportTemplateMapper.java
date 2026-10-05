@@ -71,8 +71,6 @@ public interface ReportTemplateMapper extends BaseMapperPlus<ReportTemplate, Rep
      * @param templateCode 模板编码
      * @return 模板；不存在或已停用返回 null
      */
-    ReportTemplateVo selectEnabledByCode(@Param("templateCode") String templateCode);
-
     /**
      * 取某产品在 product_template 里配置的模板（默认优先，其次 sort_order）。
      *

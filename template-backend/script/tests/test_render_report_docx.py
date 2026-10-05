@@ -97,8 +97,8 @@ class RenderReportDocxTest(unittest.TestCase):
         assert output.read_bytes() == b"existing-output"
 
     def test_renders_project_template_from_example_json(self) -> None:
-        template = PROJECT_DIR / "src/main/resources/report-templates/同源重组修复（HRR）通路基因检测报告-圣域_v1.docx"
-        payload = PROJECT_DIR / "src/main/resources/report-templates/同源重组修复（HRR）通路基因检测报告-圣域_v1.example.json"
+        template = PROJECT_DIR / "src/main/resources/report-templates/同源重组修复（HRR）通路基因检测报告-圣域.docx"
+        payload = PROJECT_DIR / "src/main/resources/report-templates/同源重组修复（HRR）通路基因检测报告-圣域.example.json"
         output = self.work_dir / "pharma-shengyu.docx"
 
         result = render_report(template, payload, output)

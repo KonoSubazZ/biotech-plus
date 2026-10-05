@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.config.ReportRendererProperties;
+import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
@@ -18,11 +19,13 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
  * 调用 Python 渲染器把 JSON 渲染成 DOCX（对齐参考工程 cool-admin 的 ReportDocxRenderer）。
+ * <p>
+ * 模板文件查找只有一条路：固定目录 + 模板名（{@link #locateTemplate}），找不到就报明确提示；
+ * 其余旁路（请求带编码、报告绑定模板、classpath 兜底、任意磁盘路径）一律不要。
  * <p>
  * 关键取舍（每条都有踩过的坑）：
  * <ol>
@@ -32,8 +35,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>必须带超时，超时后 {@code destroyForcibly} 再 {@code waitFor} 收尸 —— 否则挂住的进程会占死请求线程；</li>
  *   <li>成功判据是<b>退出码 0 + 输出文件存在</b>，stdout 只当诊断信息；
  *       退出码含义与脚本约定一致（2 输入错 / 3 模板或渲染错 / 4 写输出错）；</li>
- *   <li>模板与脚本都能从 classpath 取：模板路径是库里的相对路径（如 report-templates/xxx/v1/template.docx），
- *       脚本随 jar 交付，部署时不用额外配路径。</li>
+ *   <li>渲染脚本随 jar 交付（classpath 释放到临时目录），部署时不用额外配路径。</li>
  * </ol>
  *
  * @author <你的名字>
@@ -45,9 +47,6 @@ public class ReportDocxRenderer {
 
     /** classpath 里的渲染脚本（jar 内：BOOT-INF/classes/scripts/render_report_docx.py） */
     private static final String CLASSPATH_SCRIPT = "scripts/render_report_docx.py";
-
-    /** classpath 里的模板目录（jar 内：BOOT-INF/classes/report-templates/）；库里 template_path 只存文件名 */
-    private static final String CLASSPATH_TEMPLATE_DIR = "report-templates/";
 
     /** 子进程退出码含义（与 render_report_docx.py 的异常类型一一对应） */
     private static final Map<Integer, String> EXIT_CODE_MEANING = Map.of(
@@ -62,16 +61,14 @@ public class ReportDocxRenderer {
     /**
      * 渲染 DOCX。
      *
-     * @param templatePath 模板路径：磁盘文件直接使用；不存在则按 classpath 资源解析
-     *                       （库里存的就是 report-templates/... 这种 classpath 相对路径）
+     * @param templateFile 模板文件（由 {@link #locateTemplate} 定位，调用方传绝对路径）
      * @param jsonPath     渲染 JSON（调用方已落盘）
      * @param outputPath   输出 DOCX（由 Python 侧临时文件 + 原子替换写出）
      * @return 渲染结果：outputPath / outputBytes / sha256 / templateVariables / elapsedMs
      */
-    public Map<String, Object> render(String templatePath, Path jsonPath, Path outputPath) {
+    public Map<String, Object> render(Path templateFile, Path jsonPath, Path outputPath) {
         Path script = resolveScript();
-        Path template = resolveTemplate(templatePath);
-        Path rendererLog = runRenderer(script, template, jsonPath, outputPath);
+        Path rendererLog = runRenderer(script, templateFile, jsonPath, outputPath);
         return readSuccessResult(rendererLog, outputPath);
     }
 
@@ -102,81 +99,28 @@ public class ReportDocxRenderer {
         }
     }
 
-    /** 模板：磁盘优先；否则按 classpath 相对路径解出来（同大小则复用已解出的副本） */
-    private Path resolveTemplate(String templatePath) {
-        if (templatePath == null || templatePath.isBlank()) {
-            throw new ServiceException("报告模板路径为空，无法渲染 DOCX");
-        }
-        Path onDisk = Path.of(templatePath.trim());
-        if (Files.isRegularFile(onDisk)) {
-            return onDisk;
-        }
-        Optional<Path> fromRoot = fromTemplatesRoot(templatePath);
-        if (fromRoot.isPresent()) {
-            log.info("模板取自固定目录：{}", fromRoot.get());
-            return fromRoot.get();
-        }
-        Path target = templateCopyTarget(templatePath);
-        ClassPathResource resource = new ClassPathResource(CLASSPATH_TEMPLATE_DIR + stripLeadingSlash(templatePath));
-        if (!resource.exists()) {
-            throw new ServiceException("模板文件既不在磁盘也不在 classpath：" + templatePath);
-        }
-        try {
-            if (Files.isRegularFile(target) && Files.size(target) == resource.contentLength()) {
-                return target;
-            }
-            Files.createDirectories(target.getParent());
-            try (InputStream input = resource.getInputStream()) {
-                Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-            return target;
-        } catch (IOException e) {
-            throw new ServiceException("模板释放失败：" + templatePath + "，" + e.getMessage());
-        }
-    }
-
     /**
-     * 模板固定目录（report.renderer.templates-root）解析：
-     * 按库里的相对路径拼到根目录下；未配根目录、路径越界或文件不存在都返回空，
-     * 表示「本层没有」，由调用方继续走 classpath 兜底。
+     * 定位模板文件：固定目录 + 模板名 → {@code <模板目录>/<模板名>.docx}。
+     * 目录没配、文件不存在都直接报错，并把期望路径写清楚（不猜、不兜底）。
+     *
+     * @param template 模板行（用 template_name 定位文件名）
+     * @return 模板文件绝对路径
      */
-    private Optional<Path> fromTemplatesRoot(String templatePath) {
+    public Path locateTemplate(ReportTemplateVo template) {
         String configured = properties.getTemplatesRoot();
         if (configured == null || configured.isBlank()) {
-            return Optional.empty();
+            throw new ServiceException("未配置模板目录（report.renderer.templates-root），无法渲染 DOCX");
         }
         Path root = Path.of(configured.trim()).toAbsolutePath().normalize();
-        Path candidate = root.resolve(stripLeadingSlash(templatePath)).normalize();
-        if (!candidate.startsWith(root)) {
-            log.warn("模板路径越出固定目录，忽略：{}（根目录 {}）", templatePath, root);
-            return Optional.empty();
+        Path file = root.resolve(template.getTemplateName() + ".docx").normalize();
+        if (!file.startsWith(root)) {
+            throw new ServiceException("模板名不合法（越出模板目录）：" + template.getTemplateName());
         }
-        return Files.isRegularFile(candidate) ? Optional.of(candidate) : Optional.empty();
-    }
-
-    /** 去掉开头的 / 与 ./，把库里的相对路径当相对路径用（绝对路径另走磁盘分支） */
-    private String stripLeadingSlash(String templatePath) {
-        String relative = templatePath.trim().replace('\\', '/');
-        while (relative.startsWith("/")) {
-            relative = relative.substring(1);
+        if (!Files.isRegularFile(file)) {
+            throw new ServiceException("模板文件不存在：" + file + "；请把 " + template.getTemplateName()
+                + ".docx 放到 " + root);
         }
-        return relative.startsWith("./") ? relative.substring(2) : relative;
-    }
-
-    /**
-     * 模板副本路径：保留库里登记的相对路径与文件名（如 report-templates/pharma-shengyu/v1/template.docx），
-     * 让渲染日志/排障时看到的模板名与库登记、与参考工程一致；
-     * 同时归一化并挡掉 .. —— 防止库里的路径越出模板缓存目录。
-     */
-    private Path templateCopyTarget(String templatePath) {
-        Path root = rendererTmpDir().resolve("templates").normalize();
-        // 副本按 jar 里的相对路径落位（templates/report-templates/<文件名>），排障时与 classpath 视图一致
-        String relative = CLASSPATH_TEMPLATE_DIR + stripLeadingSlash(templatePath);
-        Path target = root.resolve(relative).normalize();
-        if (!target.startsWith(root)) {
-            throw new ServiceException("模板路径不合法（越出缓存目录）：" + templatePath);
-        }
-        return target;
+        return file;
     }
 
     /** 跑一次渲染，返回日志文件路径；退出码非 0 直接抛业务异常 */

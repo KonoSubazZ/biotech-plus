@@ -13,25 +13,21 @@ template-backend/script/tests/test_render_report_docx.py    # 单测（含真实
 
 ## 模板文件放哪（固定目录约定）
 
-模板文件**平铺**在一个固定目录里，不按项目/版本建目录；文件名用**模板中文名 + 版本**
-（模板数量多时按中文名找人/找文件更直观，编码只留在 `template_code` 里做程序标识）。
+模板文件**平铺**在一个固定目录里，文件名 = **模板名 + `.docx`**（模板名取 `report_template.template_name`）。
 
 ```text
-/home/liushangzhi/project/templates/                            # 固定目录（容器内挂 /app/templates）
-├── 同源重组修复（HRR）通路基因检测报告-圣域_v1.docx              # 模板实体
-└── 同源重组修复（HRR）通路基因检测报告-圣域_v1.example.json      # 渲染入参样例（试渲染/联调用）
+/home/liushangzhi/project/templates/                          # 固定目录（容器内挂 /app/templates）
+├── 同源重组修复（HRR）通路基因检测报告-圣域.docx                # 模板实体
+└── 同源重组修复（HRR）通路基因检测报告-圣域.example.json        # 渲染入参样例（试渲染/联调用）
 ```
 
-库里 `report_template.template_path` 存的就是这个文件名，换版本 = 放一个新文件
-（如 `…-圣域_v2.docx`）+ 把 template_path/template_sha256 指过去。
+查找口径只有一条路：**报告的产品 → product_template → report_template → 固定目录/模板名.docx**。
+产品没配模板就报「当前产品未配置模板：xxx」；目录里没有对应文件就报「模板文件不存在：<路径>」，
+不做 classpath / 任意路径兜底。`template_path` 只作登记说明，不参与查找。
 
-运行时解析顺序（前者命中就用前者）：
-1. 库里 `report_template.template_path` 直接当磁盘路径存在；
-2. 拼到固定目录下存在（启动参数 `--report.renderer.templates-root=/app/templates`，
-   环境变量写法是 `REPORT_RENDERER_TEMPLATESROOT`）—— 新增/改模板只要丢文件进去，不用重新打 jar；
-3. classpath 里的 `report-templates/...`（随 jar 交付的兜底，保证没挂目录也能跑）。
-
-命中固定目录时会打一条 INFO 日志（`模板取自固定目录：…`），便于发现「磁盘上那份和仓库里那份不一致」的漂移。
+固定目录由启动参数给定：`--report.renderer.templates-root=/app/templates`
+（环境变量写法 `REPORT_RENDERER_TEMPLATESROOT`；本机 deploy.sh 的 `TEMPLATES_DIR` 指向宿主目录）。
+新增/改模板只要把文件丢进这个目录，不用重新打 jar。
 
 Java 调用方：`org.dromara.report.service.ReportDocxRenderer`（ProcessBuilder 参数数组 + stdout/stderr
 重定向到 `.renderer-*.log` + 超时后 `destroyForcibly`；退出码 2/3/4 与本文错误码逐字对应）。

@@ -46,9 +46,10 @@ public class ReportTemplateDataService {
         ReportModuleContext context = moduleContext(input, template);
 
         ReportTemplateData data = new ReportTemplateData();
-        data.setTemplateId(template == null ? null : template.getTemplateId());
-        data.setTemplateCode(template == null ? input.getContext().getTemplateCode() : template.getTemplateCode());
-        data.setTemplateVersion(template == null ? input.getContext().getTemplateVersion() : template.getTemplateVersion());
+        // 模板由产品决定，进到这里必定非空（requireTemplateByProduct 已拦）
+        data.setTemplateId(template.getTemplateId());
+        data.setTemplateCode(template.getTemplateCode());
+        data.setTemplateVersion(template.getTemplateVersion());
         data.setAnalysisId(input.getContext().getAnalysisId());
         data.setReportId(input.getContext().getReportId());
 
@@ -63,30 +64,27 @@ public class ReportTemplateDataService {
     }
 
     /**
-     * 解析本次使用的模板（优先级：入参编码 → 报告已绑定模板 → 产品默认模板 → 无模板）。
+     * 解析本次使用的模板：<b>只看产品</b> —— 报告的产品 → product_template → report_template。
+     * 产品没配模板（或报告没填产品）直接报错，让用户看到「当前产品未配置模板」，
+     * 不再有「请求带编码 / 报告绑定模板」这些旁路。
      *
-     * @param templateCode     请求里的模板编码（可为空）
-     * @param reportTemplateId 报告已绑定的 template_id（可为空）
-     * @param productId        报告产品ID（可为空）
-     * @param productName      报告产品名（product_id 为空时按名字定位产品）
-     * @return 模板；都没有则返回 null（只输出公共字段）
+     * @param productId   报告产品ID（可为空）
+     * @param productName 报告产品名（product_id 为空时按产品名/编码定位产品）
+     * @return 该产品启用的模板（默认优先），必定非空
      */
-    public ReportTemplateVo resolveTemplate(String templateCode, Long reportTemplateId, Long productId, String productName) {
-        if (StringUtils.hasText(templateCode)) {
-            ReportTemplateVo byCode = reportTemplateMapper.selectEnabledByCode(templateCode.trim());
-            if (byCode == null) {
-                throw new ServiceException("报告模板不存在或已停用：" + templateCode);
-            }
-            return byCode;
-        }
-        if (reportTemplateId != null) {
-            ReportTemplateVo byId = reportTemplateMapper.selectVoById(reportTemplateId);
-            if (byId != null) {
-                return byId;
-            }
-        }
+    public ReportTemplateVo requireTemplateByProduct(Long productId, String productName) {
         Long resolvedProductId = resolveProductId(productId, productName);
-        return resolvedProductId == null ? null : reportTemplateMapper.selectDefaultByProductId(resolvedProductId);
+        ReportTemplateVo template = resolvedProductId == null ? null
+            : reportTemplateMapper.selectDefaultByProductId(resolvedProductId);
+        if (template == null) {
+            throw new ServiceException("当前产品未配置模板：" + productLabel(productId, productName));
+        }
+        return template;
+    }
+
+    /** 报错文案里的产品标识：优先产品名，其次 productId */
+    private String productLabel(Long productId, String productName) {
+        return StringUtils.hasText(productName) ? productName : "productId=" + productId;
     }
 
     /**
