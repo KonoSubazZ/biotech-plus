@@ -4,14 +4,12 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
- * 报告预览 JSON（对齐设计书 7.6 的 ReportTemplateData 短路径契约）
+ * 报告预览返回体：数据 + 来源标记。
  * <p>
- * 只返回、不落库、不写文件；同输入必须产生相同结果（不写时间戳/随机值）。
+ * 报告已生成过时预览直接读最近一次生成的 JSON 制品（多人共享、不用重复匹配），
+ * 所以要把「这份数据是哪来的」明确告诉前端，页面才能提示用户。
  *
  * @author <你的名字>
  */
@@ -21,42 +19,12 @@ public class InterpretationPreviewVo implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 契约版本，与设计书一致 */
-    private String schemaVersion = "1.2";
+    /** 数据来源：artifact = 已生成的 JSON 制品；realtime = 实时查库重新匹配组装 */
+    private String source;
 
-    /** 模板编码 */
-    private String templateCode;
+    /** 制品生成时间（source=artifact 时有值） */
+    private String artifactGeneratedAt;
 
-    /** 模板版本 */
-    private String templateVersion;
-
-    /** 分析数据ID */
-    private Long analysisId;
-
-    /** 报告ID */
-    private Long reportId;
-
-    /** 报告基础信息 */
-    private Map<String, Object> reportInfo = new LinkedHashMap<>();
-
-    /** 样本信息（LIMS 映射，与 Tab① 同口径） */
-    private Map<String, Object> sampleInfo = new LinkedHashMap<>();
-
-    /** 体细胞变异解析（公共字段） */
-    private PreviewSectionVo somaticVariants;
-
-    /** 肿瘤遗传风险：胚系变异（公共字段） */
-    private PreviewSectionVo germlineVariants;
-
-    /** 圣域个性化体细胞列表（模板 module_code 命中才产出，否则空） */
-    private List<Map<String, Object>> shengyuSomaticVariants;
-
-    /** 圣域个性化胚系列表 */
-    private List<Map<String, Object>> shengyuGermlineVariants;
-
-    /** 质控（本页暂未实现，保留字段对齐契约） */
-    private Map<String, Object> qualityControl = new LinkedHashMap<>();
-
-    /** 非关键缺失等告警；不阻断预览 */
-    private List<String> warnings;
+    /** 预览 JSON（与生成时同一份契约 ReportTemplateData） */
+    private ReportTemplateData data;
 }

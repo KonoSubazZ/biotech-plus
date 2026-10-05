@@ -3,6 +3,7 @@ package org.dromara.report.service;
 import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
+import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.ReportTemplateData;
 
@@ -23,6 +24,15 @@ public interface IInterpretationPreviewService {
      * @return 报告 JSON（ReportTemplateData）
      */
     ReportTemplateData buildPreview(InterpretationPreviewBo bo);
+
+    /**
+     * 页面预览：报告已生成过、且本次生效模板与制品一致时，直接读最近一次生成的 JSON 制品
+     * （多人共享、免重复匹配）；否则实时查库组装。入参 forceRealtime=true 强制实时组装。
+     *
+     * @param bo 入参（analysisId / reportId / templateId / forceRealtime）
+     * @return 预览结果（含数据来源标记）
+     */
+    InterpretationPreviewVo preview(InterpretationPreviewBo bo);
 
     /**
      * 人工选模板用：报告产品对应的候选模板列表（默认模板排最前）。

@@ -19,6 +19,7 @@ import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
 import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
+import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
@@ -165,18 +166,18 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * Tab④ 报告预览：组装预览 JSON 并原样返回（对齐设计书 8.1；只返回、不落库、不写文件）。
+     * Tab④ 报告预览：报告已生成过且模板一致时直接读最近一次生成的 JSON 制品（多人共享、免重复匹配），
+     * 否则实时查库组装；入参 forceRealtime=true 强制实时重算。
      * <p>
-     * 返回的就是生成时那份 JSON 契约（ReportTemplateData）：公共字段 + 体细胞/胚系两节 + 模板专属模块，
-     * 前端直接按它渲染；模板由报告的产品决定（见 ReportTemplateDataService.requireTemplateByProduct）。
+     * 只返回、不落库、不写文件；返回体的 data 就是生成时那份 JSON 契约，前端直接按它渲染。
      *
-     * @param bo 入参（analysisId / reportId）
-     * @return 预览 JSON
+     * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空 / forceRealtime：强制实时）
+     * @return 预览数据 + 来源标记（artifact / realtime）
      */
     @SaCheckPermission("report:interpretation:preview")
     @PostMapping("/preview")
-    public R<ReportTemplateData> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
-        return R.ok(previewService.buildPreview(bo));
+    public R<InterpretationPreviewVo> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
+        return R.ok(previewService.preview(bo));
     }
 
     /**

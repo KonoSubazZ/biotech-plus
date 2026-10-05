@@ -13,6 +13,7 @@ import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
+import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.ReportTemplateData;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
@@ -25,15 +26,21 @@ import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IInterpretationService;
 
 import static org.dromara.report.service.impl.PreviewSupport.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -62,6 +69,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class InterpretationPreviewServiceImpl implements IInterpretationPreviewService {
 
+    /** 预览来源：读已生成的 JSON 制品 */
+    private static final String SOURCE_ARTIFACT = "artifact";
+
+    /** 预览来源：实时查库重新匹配组装 */
+    private static final String SOURCE_REALTIME = "realtime";
+
     private final InterpretationMapper interpretationMapper;
     private final NkbEvidenceMapper nkbEvidenceMapper;
     private final IInterpretationService interpretationService;
@@ -72,6 +85,12 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     private final VariantDescriptionEnricher descriptionEnricher;
 
     private final ReportTemplateDataService reportTemplateDataService;
+
+    private final ObjectMapper objectMapper;
+
+    /** JSON/DOCX 制品根目录（与 ReportGenerationService 同一配置项） */
+    @Value("${report.artifact.root:/tmp/report-artifacts}")
+    private String artifactRoot;
 
     private static final Map<Integer, String> SIGNIFICANCE_LABEL = Map.of(
         1, "致病", 2, "可能致病", 3, "未知临床意义", 4, "可能良性", 5, "良性");
@@ -101,6 +120,63 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
             result.add(item);
         }
         return result;
+    }
+
+    @Override
+    public InterpretationPreviewVo preview(InterpretationPreviewBo bo) {
+        Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
+        ReportTemplateVo template = reportTemplateDataService.requireTemplateByProduct(
+            asLong(report.get("productId")), asString(report.get("product")), bo.getTemplateId());
+        if (!Boolean.TRUE.equals(bo.getForceRealtime())) {
+            Optional<InterpretationPreviewVo> generated = readGeneratedArtifact(report, template);
+            if (generated.isPresent()) {
+                return generated.get();
+            }
+        }
+        InterpretationPreviewVo vo = new InterpretationPreviewVo();
+        vo.setSource(SOURCE_REALTIME);
+        vo.setData(buildPreview(bo));
+        return vo;
+    }
+
+    /**
+     * 读最近一次生成的 JSON 制品：报告生成过、制品文件在、且生成时用的模板与本次生效模板一致时才用。
+     * 任一条不满足都返回空，由调用方走实时组装（多用户进页面读同一份文件 = 天然共享，不用重复匹配）。
+     */
+    private Optional<InterpretationPreviewVo> readGeneratedArtifact(Map<String, Object> report,
+                                                                    ReportTemplateVo template) {
+        String storedPath = asString(report.get("reportJsonPath"));
+        Long generatedTemplateId = asLong(report.get("templateId"));
+        if (storedPath == null || !Objects.equals(generatedTemplateId, template.getTemplateId())) {
+            return Optional.empty();
+        }
+        Path file = Paths.get(storedPath).toAbsolutePath().normalize();
+        Path root = Paths.get(artifactRoot).toAbsolutePath().normalize();
+        if (!file.startsWith(root)) {
+            log.warn("报告制品路径不在制品目录内，忽略：{}", storedPath);
+            return Optional.empty();
+        }
+        if (!Files.isRegularFile(file)) {
+            return Optional.empty();
+        }
+        try {
+            ReportTemplateData data = objectMapper.readValue(
+                Files.readString(file, StandardCharsets.UTF_8), ReportTemplateData.class);
+            InterpretationPreviewVo vo = new InterpretationPreviewVo();
+            vo.setSource(SOURCE_ARTIFACT);
+            vo.setArtifactGeneratedAt(displayTime(report.get("reportGeneratedAt")));
+            vo.setData(data);
+            return Optional.of(vo);
+        } catch (Exception e) {
+            log.warn("读取已生成报告 JSON 失败，退回实时组装：{}，{}", storedPath, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /** 制品时间给前端看：把 ISO 的 T 换成空格（2026-10-05T13:52:06 → 2026-10-05 13:52:06） */
+    private String displayTime(Object value) {
+        String time = asString(value);
+        return time == null ? null : time.replace('T', ' ');
     }
 
     @Override

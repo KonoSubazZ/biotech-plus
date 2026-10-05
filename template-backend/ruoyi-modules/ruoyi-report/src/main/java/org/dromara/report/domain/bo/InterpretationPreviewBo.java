@@ -33,4 +33,7 @@ public class InterpretationPreviewBo implements Serializable {
      * 不传用该产品的默认模板（见 ReportTemplateDataService.requireTemplateByProduct）。
      */
     private Long templateId;
+
+    /** 强制实时组装（忽略已生成的 JSON 制品，用于「实时重算」按钮） */
+    private Boolean forceRealtime;
 }
