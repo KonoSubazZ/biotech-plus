@@ -2,6 +2,8 @@
 
 > 来源：参考工程 `/home/liushangzhi/project/biotech/backend/cool-admin-8.0.0.jar`
 > → `BOOT-INF/classes/report-templates/pharma-shengyu/v1/{template.docx,payload.example.json}`
+> （本仓按「实体固定 template.docx + 样例 <模板名>.example.json」的约定，样例已改名为
+> `pharma-shengyu.example.json`，内容不变）
 > 落位：`template-backend/ruoyi-modules/ruoyi-report/src/main/resources/report-templates/pharma-shengyu/v1/`
 > 落位文件与参考工程**逐字节一致**：`sha256 = 2518E0A35427833FB9A26570129C215BAEAFF57A5644A2909A4065F45B5E396D`
 > （与 `biotech` 库 `report_template.template_sha256` 登记值完全一致）
@@ -25,8 +27,8 @@
 
 | 模板标签 | 提供方 |
 |---|---|
-| `{{reportInfo.reportDate}}` / `{{reportInfo.specimentType}}` | `CommonReportModuleAssembler`（tissue / blood 两值，与模板 `{% if %}` 比较的字符串一致） |
-| `{{sampleInfo.researchCenterName}}` `.gender` `.disease` `.tissueCollectionDate` | `CommonReportModuleAssembler`（其余 sampleInfo 字段模板未引用） |
+| `{{reportDate}}` / `{{specimenType}}` | `CommonReportModuleAssembler`（tissue / blood 两值，与模板 `{% if %}` 比较的字符串一致） |
+| `{{researchCenterName}}` `{{gender}}` `{{disease}}`（模板未引用 tissueCollectionDate） | `CommonReportModuleAssembler`（其余 sampleInfo 字段模板未引用） |
 | `{%tr for it in shengyuSomaticVariants %}` + `{{it.gene}}` `{{it.mutationType}}` `{{it.result}}` `{{it.abundanceOrCopyNumber}}` `{{it.classification}}` | `ShengyuSomaticVariantsV1ModuleHandler` → `SomaticVariant` 的 5 个字段，逐一对应 |
 | `{%tr for it in shengyuGermlineVariants %}` + `{{it.gene}}` `{{it.mutationType}}` `{{it.result}}` `{{it.zygosity}}` `{{it.classification}}` | `ShengyuGermlineVariantsV1ModuleHandler` → `GermlineVariant` 的 5 个字段，逐一对应 |
 | `{% set q=qualityControl %}` `{% set s=q.sampleQc %}` `{% set c=q.controlQc %}` + `{{s.xxx}}` `{{c.xxx}}`（各 8 项，`\|d('/',true)` 兜空） | `ShengyuQcV1ModuleHandler` → `qualityControl.sampleQc` / `.controlQc`；8 个 key 全部在 Handler 的 `KEY` 清单里（tumorCellContent / dnaTotal / dnaDegradation / preLibraryTotal / meanDepth / coverageUniformity / genomeAlignmentRate / baseQualityQ30Rate） |

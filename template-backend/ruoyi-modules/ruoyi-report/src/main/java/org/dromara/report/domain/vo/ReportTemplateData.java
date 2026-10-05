@@ -110,6 +110,9 @@ public class ReportTemplateData implements Serializable {
 
         /** 标本类型（tissue / blood；沿用参考工程的拼写 specimentType） */
         private String specimentType;
+
+        /** 报告名（report_template.report_name 渲染结果；供 DOCX 封面/页眉引用，与落盘文件名同源） */
+        private String reportName;
     }
 
     /** 样本信息（公共字段；字段名与设计书 §7.6 / 参考工程逐字一致） */

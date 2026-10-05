@@ -604,15 +604,17 @@
         LIMIT 1
     </select>
 
-    <!-- 正式生成：登记 JSON 制品路径与所用模板 -->
-    <update id="updateReportJsonArtifact">
+    <!-- 正式生成：登记 JSON/DOCX 制品路径、报告名与所用模板 -->
+    <update id="updateReportArtifact">
         UPDATE analysis_report
-        SET template_id         = #{templateId},
-            template            = #{templateCode},
-            report_json_path    = #{jsonPath},
-            report_generated_by = #{generatedBy},
-            report_generated_at = NOW(),
-            update_time         = NOW()
+        SET template_id            = #{templateId},
+            template               = #{templateCode},
+            report_json_path       = #{jsonPath},
+            report_file_raw_path   = #{docxPath},
+            report_name            = #{reportName},
+            report_generated_by    = #{generatedBy},
+            report_generated_at    = NOW(),
+            update_time            = NOW()
         WHERE report_id = #{reportId} AND del_flag = '0'
     </update>
 

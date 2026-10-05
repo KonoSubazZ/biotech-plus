@@ -253,18 +253,23 @@ public interface InterpretationMapper {
     Map<String, Object> selectControlQc(@Param("analysisId") Long analysisId);
 
     /**
-     * 正式生成：登记本次 JSON 制品路径与所用模板（不覆盖旧文件，只把库里的路径指向最新制品）。
+     * 正式生成：登记本次 JSON/DOCX 制品路径、报告名与所用模板
+     * （不覆盖旧文件，只把库里的路径指向最新制品）。
      *
-     * @param reportId    报告ID
-     * @param templateId  模板ID
+     * @param reportId     报告ID
+     * @param templateId   模板ID
      * @param templateCode 模板编码
-     * @param jsonPath    JSON 制品路径
-     * @param generatedBy 产出人
+     * @param jsonPath     JSON 制品路径
+     * @param docxPath     DOCX 制品路径
+     * @param reportName   报告名（report_template.report_name 渲染结果，不含唯一后缀；未配置时为 null）
+     * @param generatedBy  产出人
      * @return 影响行数
      */
-    int updateReportJsonArtifact(@Param("reportId") Long reportId,
-                                 @Param("templateId") Long templateId,
-                                 @Param("templateCode") String templateCode,
-                                 @Param("jsonPath") String jsonPath,
-                                 @Param("generatedBy") String generatedBy);
+    int updateReportArtifact(@Param("reportId") Long reportId,
+                             @Param("templateId") Long templateId,
+                             @Param("templateCode") String templateCode,
+                             @Param("jsonPath") String jsonPath,
+                             @Param("docxPath") String docxPath,
+                             @Param("reportName") String reportName,
+                             @Param("generatedBy") String generatedBy);
 }

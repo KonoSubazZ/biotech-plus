@@ -16,7 +16,8 @@ import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.ReportTemplateBo;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.service.IReportTemplateService;
-import org.dromara.report.service.ReportNameCatalog;
+import org.dromara.report.service.ReportNameResolver;
+import org.dromara.report.service.ReportNameVariables;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,7 +28,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +48,7 @@ public class ReportTemplateController extends BaseController {
 
     private final IReportTemplateService reportTemplateService;
 
-    private final ReportNameCatalog reportNameCatalog;
+    private final ReportNameVariables reportNameVariables;
 
     /**
      * 分页查询报告模板列表
@@ -77,17 +77,18 @@ public class ReportTemplateController extends BaseController {
     /**
      * 报告命名可用变量（模板表单的「报告命名」提示与试算用）。
      * <p>
-     * catalog = 可引用的叶子路径；sample = 样例值。同一份字典也用于保存期校验，
-     * 前端不要再自己维护变量清单。
+     * catalog = 可用字段变量；sample = 样例值；defaultPattern = report_name 为空时的默认拼接规则。
+     * 变量清单与保存期校验同源，前端不要再自己维护一份。
      *
-     * @return 变量字典
+     * @return 变量清单与样例
      */
     @SaCheckPermission("report:template:query")
     @GetMapping("/name-vars")
     public R<Map<String, Object>> nameVars() {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("catalog", new ArrayList<>(reportNameCatalog.getPaths()));
-        result.put("sample", reportNameCatalog.getSample());
+        result.put("catalog", reportNameVariables.getVariables());
+        result.put("sample", reportNameVariables.getSample());
+        result.put("defaultPattern", ReportNameResolver.DEFAULT_PATTERN);
         return R.ok(result);
     }
 

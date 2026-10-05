@@ -13,7 +13,7 @@ import org.dromara.report.domain.ReportTemplate;
 import org.dromara.report.domain.bo.ReportTemplateBo;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.mapper.ReportTemplateMapper;
-import org.dromara.report.service.ReportNameCatalog;
+import org.dromara.report.service.ReportNameVariables;
 import org.dromara.report.service.IReportTemplateService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +42,7 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
 
     private final ReportTemplateMapper baseMapper;
 
-    private final ReportNameCatalog reportNameCatalog;
+    private final ReportNameVariables reportNameVariables;
 
     @Override
     public TableDataInfo<ReportTemplateVo> selectPageList(ReportTemplateBo bo, PageQuery pageQuery) {
@@ -66,7 +66,7 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
     @Transactional(rollbackFor = Exception.class)
     public Boolean insertByBo(ReportTemplateBo bo) {
         assertCodeUsable(bo.getTemplateCode(), null);
-        reportNameCatalog.validate(bo.getReportName());
+        reportNameVariables.validate(bo.getReportName());
         ReportTemplate entity = MapstructUtils.convert(bo, ReportTemplate.class);
         baseMapper.insert(entity);
         syncProductTemplates(entity.getTemplateId(), bo.getProductIds());
@@ -82,7 +82,7 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
         // 先确认记录存在，避免把「改不到」当成「改成功」
         queryById(bo.getTemplateId());
         assertCodeUsable(bo.getTemplateCode(), bo.getTemplateId());
-        reportNameCatalog.validate(bo.getReportName());
+        reportNameVariables.validate(bo.getReportName());
         ReportTemplate entity = MapstructUtils.convert(bo, ReportTemplate.class);
         baseMapper.updateById(entity);
         syncProductTemplates(bo.getTemplateId(), bo.getProductIds());
