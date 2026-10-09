@@ -67,9 +67,25 @@ export function fetchUpdateVariantReportStatus(data: {
   });
 }
 
-/** Tab④ 报告预览：按模板组装预览 JSON（只返回、不落库） */
-export function fetchBuildInterpretationPreview(data: { analysisId: number; reportId: number }) {
-  return request<Api.Report.InterpretationPreview>({
+/** 人工选模板：报告产品对应的候选模板列表（默认模板排最前） */
+export function fetchGetInterpretationTemplateOptions(params: { analysisId: number; reportId: number }) {
+  return request<Api.Report.InterpretationTemplateOption[]>({
+    url: '/report/interpretation/template-options',
+    method: 'get',
+    params
+  });
+}
+
+/**
+ * Tab④ 报告预览：报告已生成过且模板一致时，后端直接读那份已落库的 JSON 渲染（免重复匹配），
+ * 否则实时组装。只返回、不落库。
+ */
+export function fetchBuildInterpretationPreview(data: {
+  analysisId: number;
+  reportId: number;
+  templateId?: number;
+}) {
+  return request<Api.Report.InterpretationPreviewResult>({
     url: '/report/interpretation/preview',
     method: 'post',
     data

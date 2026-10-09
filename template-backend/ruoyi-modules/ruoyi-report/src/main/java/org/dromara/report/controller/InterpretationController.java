@@ -19,6 +19,7 @@ import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
 import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
+import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
@@ -165,24 +166,41 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * Tab④ 报告预览：按模板组装预览 JSON（对齐设计书 8.1；只返回、不落库、不写文件）
+     * Tab④ 报告预览：报告已生成过且生成时用的模板与本次一致 → 直接读那份已落库的 JSON 渲染
+     * （多人进页面读同一份，不用重复匹配）；否则实时查库组装。
+     * <p>
+     * 只返回、不落库、不写文件；返回体的 data 就是生成时那份 JSON 契约，前端直接按它渲染。
      *
-     * @param bo 入参（analysisId / reportId / templateCode）
-     * @return 预览 JSON
+     * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
+     * @return 预览数据 + 来源标记（artifact / realtime）
      */
     @SaCheckPermission("report:interpretation:preview")
     @PostMapping("/preview")
-    public R<ReportTemplateData> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
-        return R.ok(previewService.buildPreview(bo));
+    public R<InterpretationPreviewVo> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
+        return R.ok(previewService.preview(bo));
     }
 
     /**
-     * 正式生成：重新组装 JSON 并写制品文件、登记 analysis_report.report_json_path。
+     * 人工选模板：报告产品对应的候选模板列表（默认模板排最前）。
      * <p>
-     * 当前阶段只出 final JSON（DOCX/PDF 渲染后置）；不接受前端回传的预览 JSON。
+     * 一个产品可能配多个模板，前端用它在「报告预览/生成」处给下拉，选中后把 templateId 传回预览/生成接口。
      *
-     * @param bo 入参（analysisId / reportId / templateCode）
-     * @return 含 reportId / templateCode / fileName / jsonPath 的结果
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     * @return [{templateId, templateName, templateVersion, defaultTemplate}]
+     */
+    @SaCheckPermission("report:interpretation:preview")
+    @GetMapping("/template-options")
+    public R<List<Map<String, Object>>> templateOptions(@RequestParam Long analysisId, @RequestParam Long reportId) {
+        return R.ok(previewService.templateOptions(analysisId, reportId));
+    }
+
+    /**
+     * 正式生成：重新组装 JSON → 写 JSON 制品 → 按「产品 → 模板 → 固定目录/<模板名>.docx」渲染 DOCX
+     * → 登记 analysis_report 的模板、两条制品路径与报告名。不接受前端回传的预览 JSON。
+     *
+     * @param bo 入参（analysisId / reportId）
+     * @return 含 reportId / templateCode / reportName / jsonPath / docxPath / 渲染信息的结果
      */
     @SaCheckPermission("report:interpretation:generate")
     @Log(title = "报告生成", businessType = BusinessType.INSERT)

@@ -331,6 +331,8 @@
                r.cancer_type      AS cancerType,
                r.analysis_date    AS analysisDate,
                r.report_type      AS reportType,
+               r.report_json_path AS reportJsonPath,
+               r.report_generated_at AS reportGeneratedAt,
                r.status           AS status,
                t.template_code    AS templateCode,
                t.template_version AS templateVersion,

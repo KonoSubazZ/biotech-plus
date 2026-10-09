@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { NButton, NSelect, NTag } from 'naive-ui';
 import {
   fetchBuildInterpretationPreview,
+  fetchGetInterpretationTemplateOptions,
   fetchParentCandidates,
   fetchUpdateGermlineSignificance,
   fetchUpdateVariantTarget
@@ -83,6 +84,34 @@ const contextLine = computed(() => {
 /** JSON 原文（放 script 里，模板只负责渲染字符串） */
 const previewJson = computed(() => JSON.stringify(preview.value ?? {}, null, 2));
 
+/** 预览数据来源：artifact = 后端读「已生成的 JSON 制品」，realtime = 实时重新匹配组装 */
+const previewSource = ref<'artifact' | 'realtime' | ''>('');
+const previewArtifactTime = ref<string | null>(null);
+
+/** 人工选模板：一个产品可能配多个模板，默认选中产品默认模板（接口里 defaultTemplate=true 那条） */
+const templateId = ref<number | null>(null);
+const templateOptions = ref<{ label: string; value: number }[]>([]);
+
+async function loadTemplateOptions() {
+  if (!props.analysisId || !props.reportId) {
+    return;
+  }
+  const { data, error } = await fetchGetInterpretationTemplateOptions({
+    analysisId: props.analysisId,
+    reportId: props.reportId
+  });
+  if (error) {
+    return;
+  }
+  const rows = data ?? [];
+  templateOptions.value = rows.map(row => ({
+    label: row.defaultTemplate ? `${row.templateName}（默认）` : row.templateName,
+    value: row.templateId
+  }));
+  const preset = rows.find(row => row.defaultTemplate) ?? rows[0];
+  templateId.value = preset ? preset.templateId : null;
+}
+
 async function loadPreview() {
   if (!props.analysisId || !props.reportId) {
     return;
@@ -91,14 +120,23 @@ async function loadPreview() {
   try {
     const { data, error } = await fetchBuildInterpretationPreview({
       analysisId: props.analysisId,
-      reportId: props.reportId
+      reportId: props.reportId,
+      templateId: templateId.value ?? undefined
     });
     if (!error) {
-      preview.value = data;
+      preview.value = data?.data ?? null;
+      previewSource.value = data?.source ?? '';
+      previewArtifactTime.value = data?.artifactGeneratedAt ?? null;
     }
   } finally {
     editing.value = false;
   }
+}
+
+/** 先取候选模板（定默认值），再出预览 */
+async function initPreview() {
+  await loadTemplateOptions();
+  await loadPreview();
 }
 
 /** 保存临床意义后立即重新预览（设计书：改报出/临床意义/改靶后重新调用即可拿到新 JSON） */
@@ -465,7 +503,7 @@ const sectionMeta = computed(() => [
   }
 ]);
 
-watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true });
+watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate: true });
 </script>
 
 <template>
@@ -475,12 +513,24 @@ watch(() => [props.analysisId, props.reportId], loadPreview, { immediate: true }
         <NSpace align="center" :size="12">
           <span class="font-medium">报告预览</span>
           <NTag size="small" type="info">schema {{ preview?.schemaVersion ?? '-' }}</NTag>
-          <span class="text-13px op-60">模板 {{ preview?.templateCode ?? '未绑定' }}</span>
+          <NTag v-if="previewSource === 'artifact'" size="small" type="success">
+            已生成报告{{ previewArtifactTime ? `（${previewArtifactTime}）` : '' }}
+          </NTag>
+          <NTag v-else-if="previewSource === 'realtime'" size="small" type="warning">实时组装</NTag>
+          <NSelect
+            v-model:value="templateId"
+            class="w-300px"
+            size="small"
+            :options="templateOptions"
+            :consistent-menu-width="false"
+            placeholder="模板（默认用产品默认模板）"
+            @update:value="() => loadPreview()"
+          />
           <span class="text-13px op-60">{{ contextLine }}</span>
         </NSpace>
         <NSpace :size="8">
           <NButton size="small" @click="jsonVisible = true">查看 JSON</NButton>
-          <NButton size="small" type="primary" ghost :loading="editing" @click="loadPreview">重新预览</NButton>
+          <NButton size="small" type="primary" ghost :loading="editing" @click="() => loadPreview()">重新预览</NButton>
         </NSpace>
       </NSpace>
       <NAlert v-if="preview?.warnings?.length" type="warning" :bordered="false" class="mt-12px">

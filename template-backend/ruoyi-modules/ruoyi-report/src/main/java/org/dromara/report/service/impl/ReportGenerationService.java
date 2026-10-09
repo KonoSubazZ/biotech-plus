@@ -76,7 +76,7 @@ public class ReportGenerationService {
     public Map<String, Object> generate(InterpretationPreviewBo bo) {
         ReportTemplateData data = previewService.buildPreview(bo);
         Map<String, Object> reportRow = interpretationMapper.selectReportRow(bo.getReportId());
-        ReportTemplateVo template = resolveTemplate(data, reportRow);
+        ReportTemplateVo template = resolveTemplate(bo, data, reportRow);
         String reportName = resolveReportName(template, data, reportRow);
         applyReportName(data, reportName);
 
@@ -95,11 +95,16 @@ public class ReportGenerationService {
         }
     }
 
-    /** 模板解析：只看产品（产品 → product_template → report_template）；没配就报「当前产品未配置模板」 */
-    private ReportTemplateVo resolveTemplate(ReportTemplateData data, Map<String, Object> reportRow) {
+    /**
+     * 模板解析：报告产品 → product_template → report_template；
+     * 请求里带了 templateId 就用人工选的那条（必须属于该产品），否则用产品默认模板。
+     */
+    private ReportTemplateVo resolveTemplate(InterpretationPreviewBo bo, ReportTemplateData data,
+                                             Map<String, Object> reportRow) {
         return templateDataService.requireTemplateByProduct(
             toLong(reportRow == null ? null : reportRow.get("productId")),
-            reportRow == null ? null : text(reportRow.get("product")));
+            reportRow == null ? null : text(reportRow.get("product")),
+            bo.getTemplateId());
     }
 
     /**

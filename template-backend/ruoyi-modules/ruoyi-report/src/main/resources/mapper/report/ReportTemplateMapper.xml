@@ -51,8 +51,8 @@
         ORDER BY pt.template_id, pt.sort_order, pt.id
     </select>
 
-    <!-- 预览/生成：报告产品在 product_template 里配置的模板（默认优先） -->
-    <select id="selectDefaultByProductId" resultType="org.dromara.report.domain.vo.ReportTemplateVo">
+    <!-- 预览/生成：报告产品可选的模板（默认优先，人工选模板从这里挑） -->
+    <select id="selectEnabledByProductId" resultType="org.dromara.report.domain.vo.ReportTemplateVo">
         SELECT t.template_id      AS templateId,
                t.template_code    AS templateCode,
                t.template_name    AS templateName,
@@ -69,7 +69,6 @@
         WHERE pt.product_id = #{productId} AND pt.del_flag = '0' AND pt.enabled = 1
           AND t.status = 'ENABLED'
         ORDER BY pt.is_default DESC, pt.sort_order, t.template_id
-        LIMIT 1
     </select>
 
     <!-- 报告产品：product_id 为空时按产品名/编码定位 product_config.id -->

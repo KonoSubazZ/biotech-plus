@@ -1,6 +1,7 @@
 package org.dromara.report.domain.vo;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
@@ -80,6 +81,16 @@ public class ReportTemplateData implements Serializable {
     @JsonAnyGetter
     public Map<String, Object> personalizedModules() {
         return personalizedModules;
+    }
+
+    /**
+     * 反序列化时把顶层未知字段收回容器（与 {@link #personalizedModules()} 对称）。
+     * <p>
+     * 预览要能直接读「已生成的报告 JSON」，缺了它那些模板专属字段会被当成未知字段丢掉。
+     */
+    @JsonAnySetter
+    public void putPersonalizedModuleFromJson(String field, Object value) {
+        personalizedModules.put(field, value);
     }
 
     /** 供 Java 侧读取（不参与序列化，避免出现重复的 personalizedModules 键） */
