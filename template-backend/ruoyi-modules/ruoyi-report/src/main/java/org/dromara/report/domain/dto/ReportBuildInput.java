@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.domain.dto;
 
 import lombok.Data;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
@@ -7,6 +7,7 @@ import org.dromara.report.domain.vo.ReportTemplateVo;
 
 import java.util.List;
 import java.util.Map;
+import org.dromara.report.service.template.ReportTemplateDataService;
 
 /**
  * 报告 JSON 组装入参：预览服务把已经算好的东西一次性交给 {@link ReportTemplateDataService}，
@@ -17,7 +18,7 @@ import java.util.Map;
  * @author <你的名字>
  */
 @Data
-class ReportBuildInput {
+public class ReportBuildInput {
 
     /** 预览上下文（分析批次、报告、癌种、性别、产品基因…） */
     private PreviewContext context;

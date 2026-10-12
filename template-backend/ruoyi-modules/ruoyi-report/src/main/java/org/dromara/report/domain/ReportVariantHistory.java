@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import org.dromara.common.mybatis.core.domain.TenantEntity;
 
 import java.util.Date;
+import org.dromara.report.service.impl.preview.ReportVariantHistoryWriter;
 
 /**
  * 报告位点检出历史对象 report_variant_history

@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.template;
 
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.report.domain.dto.ReportModuleContext;
@@ -15,12 +15,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.dromara.report.domain.SampleInfo;
+import org.dromara.report.domain.vo.InterpretationLimsVo;
 
 /**
  * 公共字段组装器（设计书 §0.1 / §7.2）。
  * <p>
  * 无条件写入「所有报告都成立」的部分：报告信息、样本信息、体细胞/胚系完整预览、样本类型开关与告警。
- * 模板专属字段一律不在这里出现 —— 它们由 {@code service/template} 下的 Handler 挂到顶层动态字段。
+ * 模板专属字段一律不在这里出现 —— 它们由同包的 Handler 挂到顶层动态字段。
  * <p>
  * 取值口径：缺值保持 null；只有明确要展示的位（如圣域补空行）才由 Handler 补 "/"。
  *

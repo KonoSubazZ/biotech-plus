@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import org.dromara.report.service.impl.preview.ReportVariantHistoryWriter;
 
 /**
  * 历史检出（报告管理 › 历史检出）

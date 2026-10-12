@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.impl.preview;
 
 import java.util.ArrayList;
 import java.util.Collections;

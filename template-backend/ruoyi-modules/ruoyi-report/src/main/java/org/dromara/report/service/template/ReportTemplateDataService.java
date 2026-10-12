@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.template;
 
 import lombok.RequiredArgsConstructor;
 import org.dromara.common.core.exception.ServiceException;
@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.dromara.report.domain.dto.PreviewContext;
+import org.dromara.report.domain.dto.ReportBuildInput;
 
 /**
  * 报告模板数据组装（设计书 §7.1 / §8.1）。

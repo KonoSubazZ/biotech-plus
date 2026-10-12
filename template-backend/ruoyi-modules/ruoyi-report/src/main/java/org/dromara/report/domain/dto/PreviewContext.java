@@ -1,8 +1,9 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.domain.dto;
 
 import lombok.Data;
 
 import java.util.List;
+import org.dromara.report.service.impl.NkbDiseaseScopeResolver;
 
 /**
  * 报告预览上下文（一次性把公共查询做完，避免每个位点重复查库）
@@ -12,7 +13,7 @@ import java.util.List;
  * @author <你的名字>
  */
 @Data
-class PreviewContext {
+public class PreviewContext {
 
     private Long analysisId;
 

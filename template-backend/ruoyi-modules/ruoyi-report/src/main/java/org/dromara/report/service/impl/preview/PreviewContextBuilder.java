@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.impl.preview;
 
 import lombok.RequiredArgsConstructor;
 import org.dromara.common.core.exception.ServiceException;
@@ -19,6 +19,9 @@ import static org.dromara.report.service.impl.PreviewSupport.asString;
 import static org.dromara.report.service.impl.PreviewSupport.firstNonBlank;
 import static org.dromara.report.service.impl.PreviewSupport.nkb;
 import static org.dromara.report.service.impl.PreviewSupport.normalizeGender;
+import org.dromara.report.domain.dto.PreviewContext;
+import org.dromara.report.service.template.ReportTemplateDataService;
+import org.dromara.report.service.impl.NkbDiseaseScopeResolver;
 
 /**
  * 预览上下文（{@link PreviewContext}）构建：把「报告行 + LIMS 上下文 + 模板」拼成

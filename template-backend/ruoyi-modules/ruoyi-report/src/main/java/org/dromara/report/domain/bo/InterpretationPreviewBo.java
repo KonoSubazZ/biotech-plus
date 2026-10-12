@@ -5,6 +5,8 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import org.dromara.report.service.template.CommonReportModuleAssembler;
+import org.dromara.report.service.template.ReportTemplateDataService;
 
 /**
  * 报告预览/生成入参（对齐设计书 8.1 POST /admin/report/template/data）

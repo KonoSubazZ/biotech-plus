@@ -29,7 +29,7 @@ import java.util.function.Supplier;
  * @author <你的名字>
  */
 @Slf4j
-final class PreviewSupport {
+public final class PreviewSupport {
 
     private PreviewSupport() {
     }
@@ -37,7 +37,7 @@ final class PreviewSupport {
     /** 单个文件内容序列化用（与 ruoyi 全局 Jackson 配置无关，只用于历史 match_result） */
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    static List<Map<String, Object>> filterByProductGenes(List<PreviewVariantVo> items, List<String> productGenes) {
+    public static List<Map<String, Object>> filterByProductGenes(List<PreviewVariantVo> items, List<String> productGenes) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (PreviewVariantVo item : items) {
             if (!productGenes.contains(item.getGene())) {
@@ -54,7 +54,7 @@ final class PreviewSupport {
         return out;
     }
 
-    static boolean pipelineHas(String moduleCode, String module) {
+    public static boolean pipelineHas(String moduleCode, String module) {
         if (!StringUtils.hasText(moduleCode)) {
             return false;
         }
@@ -66,7 +66,7 @@ final class PreviewSupport {
         return false;
     }
 
-    static String mutationTypeCode(String sourceType, String mutationTypeRaw) {
+    public static String mutationTypeCode(String sourceType, String mutationTypeRaw) {
         if ("CNV".equals(sourceType)) {
             return "CNV";
         }
@@ -83,7 +83,7 @@ final class PreviewSupport {
         return "S";
     }
 
-    static String normalizeGender(String gender) {
+    public static String normalizeGender(String gender) {
         if (gender == null) {
             return "UNKNOWN";
         }
@@ -97,11 +97,11 @@ final class PreviewSupport {
     // ---------------------------------------------------------------- 工具
 
     /** NKB 跨库只读查询：nkb 表没有 tenant_id，必须绕过租户拦截 */
-    static <T> T nkb(java.util.function.Supplier<T> action) {
+    public static <T> T nkb(java.util.function.Supplier<T> action) {
         return TenantContext.withoutTenant(action::get);
     }
 
-    static String toJson(Object value) {
+    public static String toJson(Object value) {
         try {
             return JSON.writeValueAsString(value == null ? List.of() : value);
         } catch (Exception e) {
@@ -117,7 +117,7 @@ final class PreviewSupport {
      * 调用方应按最新规则重算并覆盖同一条历史，避免旧规则结果长期生效。
      */
     @SuppressWarnings("unchecked")
-    static NkbDrugMatcher.MatchResult parseMatchResult(String json) {
+    public static NkbDrugMatcher.MatchResult parseMatchResult(String json) {
         NkbDrugMatcher.MatchResult result = null;
         if (!StringUtils.hasText(json)) {
             return result;
@@ -159,7 +159,7 @@ final class PreviewSupport {
         return result;
     }
 
-    static String sha256(String raw) {
+    public static String sha256(String raw) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
@@ -173,7 +173,7 @@ final class PreviewSupport {
         }
     }
 
-    static String nz(String value) {
+    public static String nz(String value) {
         return value == null ? "" : value.trim();
     }
 
@@ -200,7 +200,7 @@ final class PreviewSupport {
      * @param fusionQuality 融合质量串（含 DNA → DNA，否则 RNA）
      * @return 展示值
      */
-    static String typeText(String sourceType, boolean germline, String fusionQuality) {
+    public static String typeText(String sourceType, boolean germline, String fusionQuality) {
         if (germline) {
             return "G";
         }
@@ -210,7 +210,7 @@ final class PreviewSupport {
     }
 
     /** 融合的核酸类型：fusion_quality 含 DNA → DNA；否则按 en7 口径视为 RNA */
-    static String nucleicAcid(String fusionQuality) {
+    public static String nucleicAcid(String fusionQuality) {
         boolean dna = fusionQuality != null
             && fusionQuality.toUpperCase(java.util.Locale.ROOT).contains("DNA");
         return dna ? "DNA" : "RNA";
@@ -225,7 +225,7 @@ final class PreviewSupport {
      * @param exonicFunc VEP 变异类型（如 nonsynonymous SNV）
      * @return 中文展示值；空时返回 null
      */
-    static String variantTypeText(String exonicFunc) {
+    public static String variantTypeText(String exonicFunc) {
         String empty = null;
         if (!StringUtils.hasText(exonicFunc)) {
             return empty;
@@ -261,7 +261,7 @@ final class PreviewSupport {
      * @param fusionQuality 融合质量串
      * @return 展示值；无丰度口径时返回 null（前端显示 -）
      */
-    static String abundanceText(String sourceType, Object freqRaw, String fusionQuality) {
+    public static String abundanceText(String sourceType, Object freqRaw, String fusionQuality) {
         String empty = null;
         if (freqRaw == null || !StringUtils.hasText(String.valueOf(freqRaw))) {
             return empty;
@@ -300,7 +300,7 @@ final class PreviewSupport {
      * @param evidence 证据列表（可为空）
      * @return 排序权重
      */
-    static float orderNum(Object freqRaw, boolean fused, boolean cnvLike, Object cosmic,
+    public static float orderNum(Object freqRaw, boolean fused, boolean cnvLike, Object cosmic,
                           List<PreviewDrugVo> evidence) {
         float order = freqOrderBase(freqRaw);
         boolean hasDrug = evidence != null && !evidence.isEmpty();
@@ -326,7 +326,7 @@ final class PreviewSupport {
      * @param freqRaw 原始丰度
      * @return 归一后的丰度；空或 `.` 返回 null（不输出丰度句）
      */
-    static String translationFreq(Object freqRaw) {
+    public static String translationFreq(Object freqRaw) {
         String empty = null;
         if (freqRaw == null) {
             return empty;
@@ -377,7 +377,7 @@ final class PreviewSupport {
      * @param item     位点行
      * @param germline 是否胚系
      */
-    static void decorate(Map<String, Object> row, PreviewVariantVo item, boolean germline) {
+    public static void decorate(Map<String, Object> row, PreviewVariantVo item, boolean germline) {
         String sourceType = item.getSourceType();
         Object freqRaw = row.get("freqRaw");
         Object cosmic = row.get("cosmic");
@@ -395,14 +395,14 @@ final class PreviewSupport {
     }
 
     /** 默认排序：orderNum 降序（有用药证据、丰度高、有 Cosmic 的在前）；同权重按来源主键稳定 */
-    static List<PreviewVariantVo> sortByOrderNum(List<PreviewVariantVo> items) {
+    public static List<PreviewVariantVo> sortByOrderNum(List<PreviewVariantVo> items) {
         items.sort(java.util.Comparator.comparing((PreviewVariantVo row) ->
             row.getOrderNum() == null ? 0f : row.getOrderNum()).reversed()
             .thenComparing(PreviewVariantVo::getSourceId));
         return items;
     }
 
-    static String firstNonBlank(String... values) {
+    public static String firstNonBlank(String... values) {
         String hit = null;
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -413,16 +413,16 @@ final class PreviewSupport {
         return hit;
     }
 
-    static String asString(Object value) {
+    public static String asString(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
-    static Long asLong(Object value) {
+    public static Long asLong(Object value) {
         return value == null ? null
             : (value instanceof Number number ? number.longValue() : Long.valueOf(String.valueOf(value)));
     }
 
-    static Integer asInt(Object value) {
+    public static Integer asInt(Object value) {
         return value == null ? null
             : (value instanceof Number number ? number.intValue() : Integer.valueOf(String.valueOf(value)));
     }

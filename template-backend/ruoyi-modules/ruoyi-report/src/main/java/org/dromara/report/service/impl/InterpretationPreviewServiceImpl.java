@@ -37,11 +37,18 @@ import org.dromara.report.mapper.NkbEvidenceMapper;
 import static org.dromara.report.service.impl.PreviewSupport.asLong;
 import static org.dromara.report.service.impl.PreviewSupport.asString;
 import static org.dromara.report.service.impl.PreviewSupport.nkb;
+import org.dromara.report.service.impl.preview.PreviewContextBuilder;
+import org.dromara.report.service.impl.preview.VariantMatcher;
+import org.dromara.report.service.impl.preview.VariantEditService;
+import org.dromara.report.service.impl.preview.ReportVariantHistoryWriter;
+import org.dromara.report.domain.dto.PreviewContext;
+import org.dromara.report.domain.dto.ReportBuildInput;
+import org.dromara.report.service.template.ReportTemplateDataService;
 
 /**
  * 报告预览：查数据、出 JSON（设计书 §7.6 JSON 契约 + §8 预览接口）。
  * <p>
- * 这个类只做「入口 + 组装」，具体分工都在同包的协作类里：
+ * 这个类只做「入口 + 组装」，具体分工都在协作类里（`service/impl/preview` 子包 + 同包工具 {@link PreviewSupport}）：
  * <ul>
  *   <li>{@link PreviewContextBuilder}：报告行 + LIMS 上下文 + 模板 → 预览上下文。</li>
  *   <li>{@link VariantMatcher}：体细胞/胚系位点匹配知识库 + 匹配历史冻结/复用。</li>

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.dromara.report.service.impl.PreviewSupport.asString;
+import org.dromara.report.service.impl.preview.PreviewContextBuilder;
 
 /**
  * 报告审核：状态流转 + 提交审核时冻结匹配历史。

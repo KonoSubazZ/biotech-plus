@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.impl.preview;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +22,8 @@ import java.util.Map;
 import static org.dromara.report.service.impl.PreviewSupport.asLong;
 import static org.dromara.report.service.impl.PreviewSupport.asString;
 import static org.dromara.report.service.impl.PreviewSupport.nkb;
+import org.dromara.report.domain.dto.PreviewContext;
+import org.dromara.report.service.impl.NkbDrugMatcher;
 
 /**
  * 位点人工干预：改靶（人工指定知识库父级）、胚系五级临床意义确认、父级候选检索。

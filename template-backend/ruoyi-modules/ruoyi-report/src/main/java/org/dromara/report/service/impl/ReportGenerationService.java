@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.dromara.report.service.template.ReportTemplateDataService;
 
 /**
  * 报告正式生成（设计书 §9.1）：重新组装 JSON → 解析报告名 → 写 JSON → 调 Python 渲染 DOCX → 登记制品。

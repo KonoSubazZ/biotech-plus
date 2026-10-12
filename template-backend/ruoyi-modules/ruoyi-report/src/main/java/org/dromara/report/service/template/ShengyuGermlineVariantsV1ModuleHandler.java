@@ -3,7 +3,7 @@ package org.dromara.report.service.template;
 import lombok.RequiredArgsConstructor;
 import org.dromara.report.domain.dto.ReportModuleContext;
 import org.dromara.report.domain.vo.ReportTemplateData;
-import org.dromara.report.service.impl.CommonReportModuleAssembler;
+import org.dromara.report.service.template.CommonReportModuleAssembler;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.impl.preview;
 
 import lombok.RequiredArgsConstructor;
 import org.dromara.common.satoken.utils.TenantContext;
@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.dromara.report.service.impl.PreviewSupport;
 
 /**
  * 位点说明装配（对齐 en7 的 getVarDrugNote 六段说明 + 证据/临床试验两类证据）：

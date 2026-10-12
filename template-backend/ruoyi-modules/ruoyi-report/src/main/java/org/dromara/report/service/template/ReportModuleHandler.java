@@ -6,6 +6,10 @@ import org.dromara.report.domain.vo.ReportTemplateData;
 /**
  * 报告个性化模块处理器（设计书 §7.4）。
  * <p>
+ * <b>本包（service/template）是「报告模板扩展点包」</b>：策略接口与其实现同包，后续按
+ * {@code report_template.module_code} 新增/维护 Handler 只进这一个包 —— 注册表靠 Spring
+ * 全量注入（见 {@link ReportModuleHandlerRegistry}），不用改注册表、不用改 Controller。
+ * <p>
  * 约束：
  * <ul>
  *   <li>{@link #moduleCode()} 在应用内唯一，与 report_template.module_code 里的编码做大小写统一。</li>

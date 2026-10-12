@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.impl.preview;
 
 import org.springframework.util.StringUtils;
 

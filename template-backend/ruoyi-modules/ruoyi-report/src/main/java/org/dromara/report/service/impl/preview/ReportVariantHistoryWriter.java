@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.impl.preview;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +18,8 @@ import java.util.Map;
 
 import static org.dromara.report.service.impl.PreviewSupport.asString;
 import static org.dromara.report.service.impl.PreviewSupport.toJson;
+import org.dromara.report.domain.dto.PreviewContext;
+import org.dromara.report.service.impl.PreviewSupport;
 
 /**
  * 报告位点检出历史写入：**提交审核**时把该报告「报出」的位点落库（供「历史检出」页检索）。

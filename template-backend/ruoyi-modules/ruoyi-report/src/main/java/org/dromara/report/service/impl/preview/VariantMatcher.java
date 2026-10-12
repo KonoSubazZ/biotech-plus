@@ -1,4 +1,4 @@
-package org.dromara.report.service.impl;
+package org.dromara.report.service.impl.preview;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +22,9 @@ import static org.dromara.report.service.impl.PreviewSupport.nz;
 import static org.dromara.report.service.impl.PreviewSupport.parseMatchResult;
 import static org.dromara.report.service.impl.PreviewSupport.sha256;
 import static org.dromara.report.service.impl.PreviewSupport.toJson;
+import org.dromara.report.domain.dto.PreviewContext;
+import org.dromara.report.service.impl.NkbDrugMatcher;
+import org.dromara.report.service.impl.PreviewSupport;
 
 /**
  * 位点匹配：把「报出」的体细胞/胚系位点匹配到 NKB 药物证据，并维护匹配历史。
