@@ -37,7 +37,8 @@ public final class PreviewSupport {
     /** 单个文件内容序列化用（与 ruoyi 全局 Jackson 配置无关，只用于历史 match_result） */
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    public static List<Map<String, Object>> filterByProductGenes(List<PreviewVariantVo> items, List<String> productGenes) {
+    public static List<Map<String, Object>> filterByProductGenes(
+        List<PreviewVariantVo> items, List<String> productGenes) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (PreviewVariantVo item : items) {
             if (!productGenes.contains(item.getGene())) {
