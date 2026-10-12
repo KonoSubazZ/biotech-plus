@@ -65,6 +65,7 @@ function createDefaultModel(): Api.Qc.QcStandardForm {
   return {
     productId: null,
     qcItem: '',
+    qcParam: null,
     qcCategory: 'wet_lab',
     minValue: null,
     maxValue: null,
@@ -144,6 +145,12 @@ watch(visible, () => {
           </NFormItem>
           <NFormItem label="质控类别" path="qcCategory">
             <NSelect v-model:value="model.qcCategory" :options="categoryOptions" placeholder="请选择质控类别" />
+          </NFormItem>
+          <NFormItem class="md:col-span-2" label="质控参数" path="qcParam">
+            <NInput
+              v-model:value="model.qcParam"
+              placeholder="英文原始字段名（判定用），如 raw_base、average_depth"
+            />
           </NFormItem>
           <NFormItem label="合格下限" path="minValue">
             <NInput v-model:value="model.minValue" placeholder="留空表示不设下限（可写 <0.5）" />

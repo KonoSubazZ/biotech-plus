@@ -75,6 +75,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         render: row => productNameMap.value[row.productId] ?? row.productId
       },
       { key: 'qcItem', title: '质控项目', align: 'center', minWidth: 160 },
+      { key: 'qcParam', title: '质控参数', align: 'center', minWidth: 160 },
       {
         key: 'qcCategory',
         title: '质控类别',
