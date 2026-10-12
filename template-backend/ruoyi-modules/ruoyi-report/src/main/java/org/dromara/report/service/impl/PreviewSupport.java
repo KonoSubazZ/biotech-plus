@@ -84,6 +84,28 @@ public final class PreviewSupport {
         return "S";
     }
 
+    /**
+     * 变异类型（展示口径，含固定说明）。
+     * <ul>
+     *   <li>CNV → `基因扩增`</li>
+     *   <li>FUSION → `基因融合`</li>
+     *   <li>其余（SNV/Indel、胚系）复用 VEP `ExonicFunc` 的中文（{@link #variantTypeText}）</li>
+     * </ul>
+     *
+     * @param sourceType     来源表（SNP_INDEL / CNV / FUSION / CR_ALL）
+     * @param vepVariantType VEP 变异类型中文（{@link #variantTypeText} 的结果）
+     * @return 变异类型展示值
+     */
+    public static String variantType(String sourceType, String vepVariantType) {
+        return FIXED_VARIANT_TYPE.getOrDefault(sourceType, vepVariantType);
+    }
+
+    /** 变异类型固定说明：这两类没有 VEP 变异类型可复用，用固定口径 */
+    private static final Map<String, String> FIXED_VARIANT_TYPE = Map.of(
+        "CNV", "基因扩增",
+        "FUSION", "基因融合"
+    );
+
     public static String normalizeGender(String gender) {
         if (gender == null) {
             return "UNKNOWN";
@@ -386,7 +408,9 @@ public final class PreviewSupport {
         item.setFileType(asString(row.get("fileType")));
         item.setNucleicAcid("FUSION".equals(sourceType) ? nucleicAcid(fusionQuality) : null);
         item.setTypeText(typeText(sourceType, germline, fusionQuality));
-        item.setVariantTypeText(variantTypeText(asString(row.get("mutationTypeRaw"))));
+        String variantType = variantType(sourceType, variantTypeText(asString(row.get("mutationTypeRaw"))));
+        item.setVariantTypeText(variantType);
+        item.setVariantType(variantType);
         item.setAbundanceText(abundanceText(sourceType, freqRaw, fusionQuality));
         boolean fused = "FUSION".equals(sourceType);
         boolean cnvLike = "CNV".equals(sourceType)

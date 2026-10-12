@@ -142,8 +142,14 @@ public class PreviewVariantVo implements Serializable {
     /** 类型列展示值（体系|变异类别|核酸类型，见 NkbDrugMatcher#typeText） */
     private String typeText;
 
-    /** 变异类型展示值（VEP ExonicFunc → 中文：错义突变/移码突变…，见 PreviewSupport#variantTypeText） */
+    /** 变异类型展示值（VEP ExonicFunc → 中文：错义突变/移码突变…；CNV/Fusion 为固定说明，见 PreviewSupport#variantType） */
     private String variantTypeText;
+
+    /**
+     * 变异类型（固定口径，与 {@link #variantTypeText} 同值）：
+     * CNV → 基因扩增；FUSION → 基因融合；SNV/Indel、胚系复用 VEP 中文变异类型。
+     */
+    private String variantType;
 
     /** 丰度/reads 展示值：DNA → "45.47%"；RNA → reads 数（无单位）；扩增/缺失 → 拷贝数 */
     private String abundanceText;

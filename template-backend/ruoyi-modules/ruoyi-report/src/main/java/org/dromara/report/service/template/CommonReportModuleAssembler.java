@@ -58,7 +58,7 @@ public class CommonReportModuleAssembler {
         target.setShowTissueBloodSample(isTissueSample(productOf(report)));
         target.setShowBloodOnlySample(isBloodOnlySample(productOf(report), false));
 
-        target.setSomaticVariants(section(context, context.getSomaticVariants()));
+        target.setSomaticVariants(somaticSection(context));
         target.setGermlineVariants(section(context, context.getGermlineVariants()));
         target.setWarnings(context.getWarnings());
     }
@@ -102,6 +102,38 @@ public class CommonReportModuleAssembler {
         section.getSummary().put("matchedCount", matched);
         section.getSummary().put("unmatchedCount", safeItems.size() - matched);
         return section;
+    }
+
+    /**
+     * 体细胞位点分节：等于公共分节（reportedCount / matchedCount / unmatchedCount），
+     * 另按源类型追加报出位点个数 —— SNV/Indel、CNV、Fusion。
+     *
+     * @param context 模块上下文
+     * @return 体细胞分节
+     */
+    public PreviewSectionVo somaticSection(ReportModuleContext context) {
+        PreviewSectionVo section = section(context, context.getSomaticVariants());
+        section.getSummary().put("snvIndelCount", countBySourceType(section.getItems(), "SNP_INDEL"));
+        section.getSummary().put("cnvCount", countBySourceType(section.getItems(), "CNV"));
+        section.getSummary().put("fusionCount", countBySourceType(section.getItems(), "FUSION"));
+        return section;
+    }
+
+    /**
+     * 报出位点个数按源类型计数。
+     * <p>
+     * 入参位点全部来自「报出（is_reported=1）」查询，所以计数即报出个数；
+     * 源类型口径见 {@code InterpretationMapper.selectReportedSomaticVariants}
+     * （SNP_INDEL / CNV / FUSION）。
+     *
+     * @param items      分节里的报出位点
+     * @param sourceType 源类型
+     * @return 该类型的报出位点个数
+     */
+    private long countBySourceType(List<PreviewVariantVo> items, String sourceType) {
+        return items == null ? 0L : items.stream()
+            .filter(item -> sourceType.equalsIgnoreCase(item.getSourceType()))
+            .count();
     }
 
     /**

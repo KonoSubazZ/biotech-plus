@@ -35,6 +35,9 @@
       "reportedCount": 1,
       "matchedCount": 1,
       "unmatchedCount": 0,
+      "snvIndelCount": 1,
+      "cnvCount": 0,
+      "fusionCount": 0,
       "highEvidenceCount": 0
     },
     "items": [
