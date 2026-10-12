@@ -6,9 +6,10 @@
 --       每个列的 COMMENT 里都写了「源表列 XXX」，可与原表逐列对照。
 --       源表列没有 COMMENT，所以除少数能确定含义的列外，中文名留空、以源列名为准（要补中文名给我对照表即可）。
 -- 类型映射：varchar(n) 原样；longtext→text（ai-rules/04-db-schema §7）；源表 122 列全是字符型。
--- 补齐项：主键自增、公共字段、del_flag、tenant_id、uk_sample_file_barcode(tenant_id, barcode)、idx_tenant_id。
--- 业务键：barcode（源表列 BARCODE，样本编号）—— 导入按它 upsert；质控记录 qc_record.subbarcode 也指向它
---         （实验室侧把同一个编号叫 subbarcode，两边叫法不同，值是同一个）。
+-- 补齐项：主键自增、公共字段、del_flag、tenant_id、uk_sample_file_subbarcode(tenant_id, subbarcode)、idx_tenant_id。
+-- 业务键：subbarcode（源表列 BARCODE，样本编号）—— 导入按它 upsert；湿实验质控 wet_lab_qc.subbarcode
+--         也指向它。2026-10-08 起样本侧字段由 barcode 统一改名为 subbarcode（全仓一个叫法），
+--         迁移见 script/sql/update/update_5.6.8-sample-file-subbarcode.sql。
 -- 规范：ai-rules/04-db-schema.md     模板：ai-templates/db/table-template.sql
 -- 体检：python3 tools/check_db_schema.py   （error 必须为 0）
 
@@ -21,7 +22,7 @@ CREATE TABLE IF NOT EXISTS `sample_file` (
     id                            bigint        NOT NULL AUTO_INCREMENT  COMMENT '主键',
 
     age                           varchar(50)  COMMENT '年龄（源表列 AGE）',
-    barcode                       varchar(100)  COMMENT '样本编号（源表列 BARCODE）',
+    subbarcode                       varchar(100)  COMMENT '样本编号（源表列 BARCODE）',
     bed                           varchar(100)  COMMENT '床位（源表列 BED）',
     birth_day                     varchar(100)  COMMENT '出生日期（源表列 BIRTHDAY）',
     birthplace                    varchar(100)  COMMENT '源表列 BIRTHPLACE',
@@ -156,7 +157,7 @@ CREATE TABLE IF NOT EXISTS `sample_file` (
     PRIMARY KEY (id),
     KEY idx_tenant_id (tenant_id),
     -- 样本编号在一个租户内唯一：导入按它「有则更新、无则新增」，唯一键要求 tenant_id 打头（04-db-schema §4）
-    UNIQUE KEY uk_sample_file_barcode (tenant_id, barcode)
+    UNIQUE KEY uk_sample_file_subbarcode (tenant_id, subbarcode)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='样本信息';
 
 

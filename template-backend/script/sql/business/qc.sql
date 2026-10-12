@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS `qc_standard` (
 
     -- 业务字段（设计文档 §1.2）
     product_id    bigint       NOT NULL                          COMMENT '关联产品（product_config.id）',
-    qc_item       varchar(100) NOT NULL                          COMMENT '质控项目名称（与 qc_record.qc_item 对应）',
+    qc_item       varchar(100) NOT NULL                          COMMENT '质控项目名称（中文展示名）',
+    qc_param      varchar(100)                                   COMMENT '质控参数（英文原始字段名，判定时与生信质控实际值比对；中文名见 qc_item）',
     qc_category   varchar(20)  NOT NULL DEFAULT 'wet_lab'        COMMENT '质控类别（wet_lab 湿实验 / bioinfo 生信）',
     min_value     varchar(50)                                    COMMENT '合格下限（NULL 表示不设下限）',
     max_value     varchar(50)                                    COMMENT '合格上限（NULL 表示不设上限）',

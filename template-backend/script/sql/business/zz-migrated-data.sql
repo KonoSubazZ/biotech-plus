@@ -10,13 +10,15 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
+-- 手工补列 qc_param（值同 qc_item）：建表基线 business/qc.sql 已含该列，
+-- 已有库的补列与回填见 script/sql/update/update_5.6.11-qc-standard-qc-param.sql
 LOCK TABLES `qc_standard` WRITE;
 /*!40000 ALTER TABLE `qc_standard` DISABLE KEYS */;
-INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (5,2,'row_base','bioinfo','2',NULL,NULL,'active',NULL,1,'2026-10-03 00:03:54',1,'2026-10-03 00:03:54','0','000000');
-INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (6,2,'average_depth','bioinfo','95',NULL,NULL,'active',NULL,1,'2026-10-03 00:04:40',1,'2026-10-03 00:04:40','0','000000');
-INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (7,2,'coverage_target','bioinfo','99',NULL,NULL,'active',NULL,1,'2026-10-03 00:05:01',1,'2026-10-03 00:05:01','0','000000');
-INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (8,2,'probe_capture_ratio','bioinfo','70',NULL,NULL,'active',NULL,1,'2026-10-03 00:05:14',1,'2026-10-03 00:05:14','0','000000');
-INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (9,2,'peak_size','bioinfo','160',NULL,NULL,'active',NULL,1,'2026-10-03 00:05:30',1,'2026-10-03 00:05:30','0','000000');
+INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_param`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (5,2,'row_base','row_base','bioinfo','2',NULL,NULL,'active',NULL,1,'2026-10-03 00:03:54',1,'2026-10-03 00:03:54','0','000000');
+INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_param`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (6,2,'average_depth','average_depth','bioinfo','95',NULL,NULL,'active',NULL,1,'2026-10-03 00:04:40',1,'2026-10-03 00:04:40','0','000000');
+INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_param`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (7,2,'coverage_target','coverage_target','bioinfo','99',NULL,NULL,'active',NULL,1,'2026-10-03 00:05:01',1,'2026-10-03 00:05:01','0','000000');
+INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_param`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (8,2,'probe_capture_ratio','probe_capture_ratio','bioinfo','70',NULL,NULL,'active',NULL,1,'2026-10-03 00:05:14',1,'2026-10-03 00:05:14','0','000000');
+INSERT IGNORE INTO `qc_standard` (`id`, `product_id`, `qc_item`, `qc_param`, `qc_category`, `min_value`, `max_value`, `unit`, `status`, `remark`, `create_by`, `create_time`, `update_by`, `update_time`, `del_flag`, `tenant_id`) VALUES (9,2,'peak_size','peak_size','bioinfo','160',NULL,NULL,'active',NULL,1,'2026-10-03 00:05:30',1,'2026-10-03 00:05:30','0','000000');
 /*!40000 ALTER TABLE `qc_standard` ENABLE KEYS */;
 UNLOCK TABLES;
 
