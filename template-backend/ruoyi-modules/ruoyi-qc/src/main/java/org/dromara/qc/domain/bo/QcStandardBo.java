@@ -28,10 +28,14 @@ public class QcStandardBo extends BaseEntity {
     @NotNull(message = "关联产品不能为空")
     private Long productId;
 
-    /** 质控项目名称 */
+    /** 质控项目名称（中文展示名） */
     @NotBlank(message = "质控项目名称不能为空")
     @Size(max = 100, message = "质控项目名称长度不能超过 100")
     private String qcItem;
+
+    /** 质控参数（英文原始字段名，判定时与实际质控值比对） */
+    @Size(max = 100, message = "质控参数长度不能超过 100")
+    private String qcParam;
 
     /** 质控类别 */
     @NotBlank(message = "质控类别不能为空")

@@ -17,12 +17,7 @@ public final class TenantContext {
     public static String getTenantId() {
         String id = TENANT.get();
         if (id == null) {
-            try {
-                LoginUser user = LoginHelper.getLoginUser();
-                id = user == null ? null : user.getTenantId();
-            } catch (Exception ignored) {
-                // No authenticated request; a tenant must be supplied by trusted background code.
-            }
+            id = loginTenantId();
         }
         if (id == null || id.isBlank()) {
             throw new ServiceException("缺少租户身份，请重新登录");
@@ -34,8 +29,28 @@ public final class TenantContext {
         return Boolean.TRUE.equals(IGNORED.get());
     }
 
+    /**
+     * 平台身份：默认租户 000000 的账号与超级管理员同为平台身份，查询/更新不再拼租户条件，可跨药企查看与维护。
+     * 显式切入某个租户（withTenant）时平台身份失效，避免平台账号误改指定租户以外的数据。
+     */
     public static boolean isAdmin() {
-        return TENANT.get() == null && LoginHelper.isSuperAdmin();
+        if (TENANT.get() != null) {
+            return false;
+        }
+        return LoginHelper.isSuperAdmin() || DEFAULT_TENANT_ID.equals(loginTenantId());
+    }
+
+    /**
+     * 当前登录用户所属租户；无登录上下文（后台任务、匿名请求）返回 null
+     */
+    private static String loginTenantId() {
+        try {
+            LoginUser user = LoginHelper.getLoginUser();
+            return user == null ? null : user.getTenantId();
+        } catch (Exception ignored) {
+            // No authenticated request; a tenant must be supplied by trusted background code.
+            return null;
+        }
     }
 
     public static String cacheScope() {
@@ -54,6 +69,16 @@ public final class TenantContext {
                 IGNORED.set(previous);
             }
         }
+    }
+
+    /**
+     * 无返回值版本（与 withTenant 的两个重载对称）；拦截器里建立身份这类「一整段动作」用它
+     */
+    public static void withoutTenant(Runnable action) {
+        withoutTenant(() -> {
+            action.run();
+            return null;
+        });
     }
 
     public static <T> T withTenant(String tenantId, Supplier<T> action) {

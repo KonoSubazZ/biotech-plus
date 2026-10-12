@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.qc.mapper.QcFailedNotifyMapper">
+
+    <!-- 按样本编号回填通知单表头字段（跨表只读；调用方需 withoutTenant） -->
+    <select id="selectSampleForNotify" resultType="org.dromara.qc.domain.vo.QcNotifySampleVo">
+        SELECT id,
+               subbarcode,
+               contracts_no        AS studyNo,
+               order_code          AS projectNo,
+               pcode               AS participantNo,
+               testing_institution AS center,
+               collect_date        AS receiveDate,
+               sample_type         AS sampleType,
+               specimen_num        AS sampleCount,
+               erp_test_name       AS product,
+               customer_name       AS customerName
+        FROM sample_file
+        WHERE subbarcode = #{subbarcode}
+          AND del_flag = '0'
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!--
+      按样本编号取归属药企（sample_file.tenant_id）。通知单与两个质控接口同一口径：
+      取样本自身的归属，不用「客户名 → sys_tenant」二次翻译（客户名对不上时通知就生成不了）。
+      调用方需 withoutTenant。
+    -->
+    <select id="selectTenantIdBySubbarcode" resultType="java.lang.String">
+        SELECT tenant_id
+        FROM sample_file
+        WHERE subbarcode = #{subbarcode}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 该样本最近一条通知记录（回显「已生成」与上次填写内容） -->
+    <select id="selectLatestBySubbarcode" resultType="org.dromara.qc.domain.vo.QcFailedNotifyPrefillVo">
+        SELECT n.id                 AS lastNotifyId,
+               n.subbarcode        AS subbarcode,
+               n.sample_file_id    AS sampleFileId,
+               n.qc_category       AS qcCategory,
+               n.wet_lab_qc_id     AS wetLabQcId,
+               n.bioinfo_qc_id     AS bioinfoQcId,
+               n.notify_no         AS notifyNo,
+               n.notify_status     AS notifyStatus,
+               n.analysis_time     AS analysisTime,
+               n.product           AS product,
+               n.customer_name     AS customerName,
+               n.sample_type       AS sampleType,
+               n.qc_stage          AS qcStage,
+               n.terminate_measure AS terminateMeasure,
+               n.remedy            AS remedy,
+               n.reason            AS reason,
+               n.remedy_other      AS remedyOtherText,
+               n.reporter          AS reporter,
+               n.report_time       AS reportTime,
+               n.reviewer          AS reviewer,
+               n.review_time       AS reviewTime,
+               n.raw_docx_path     AS lastDocxName,
+               n.pdf_path          AS lastPdfName,
+               DATE_FORMAT(n.create_time, '%Y-%m-%d %H:%i:%s') AS lastGeneratedAt,
+               TRUE                AS `generated`   -- generated 是 MySQL 保留字，别名必须反引号
+        FROM qc_failed_notify n
+        WHERE n.subbarcode = #{subbarcode}
+          AND n.del_flag = '0'
+        ORDER BY n.id DESC
+        LIMIT 1
+    </select>
+
+</mapper>

@@ -28,6 +28,9 @@ public class QcStandardVo {
     /** 质控项目名称 */
     private String qcItem;
 
+    /** 质控参数（英文原始字段名） */
+    private String qcParam;
+
     /** 质控类别 */
     private String qcCategory;
 

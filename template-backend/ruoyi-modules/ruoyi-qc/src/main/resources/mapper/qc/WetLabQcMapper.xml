@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  湿实验质控：接口灌数据用的「按样本编号定位归属药企」与「含已逻辑删除行的取行/清理」。
+  约定（对齐 BioinfoQcMapper.xml）：
+    · 只写复杂/跨表 SQL；单表 CRUD 用 BaseMapperPlus
+    · 值一律 #{param} 绑定；不写 SELECT *
+    · 租户条件由租户拦截器自动附加，这里不写 tenant_id ——
+      但「按样本编号找药企」这一条必须在 TenantContext.withoutTenant(...) 里调用（见 WetLabQcServiceImpl.receive）
+-->
+<mapper namespace="org.dromara.qc.mapper.WetLabQcMapper">
+
+    <!--
+      样本编号 → 归属药企编号（sample_file.tenant_id）。样本自身的归属字段，服务端可信，
+      不用客户名去 sys_tenant 二次翻译（那一步会因为客户名对不上药企名而整批拒收）。
+      同编号多条时取最新一条；含已软删样本不加限制（软删样本仍可定位药企，避免接口推数据被静默丢）。
+    -->
+    <select id="selectTenantIdBySubbarcode" resultType="java.lang.String">
+        SELECT tenant_id
+        FROM sample_file
+        WHERE subbarcode = #{subbarcode}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!--
+      按样本编号取行，包含已逻辑删除的行（自定义 SQL 不走 @TableLogic 过滤）。
+      被删过的行仍占着唯一键 uk_wet_lab_qc_subbarcode，接口重复推送时要先恢复/清理。
+    -->
+    <select id="selectRowIncludingDeleted" resultType="org.dromara.qc.domain.WetLabQc">
+        SELECT id, subbarcode, patho_tumor_purity, dna_total_ng, dna_degradation, pre_lib_total_ng,
+               final_lib_conc, dna_total_ng_normal, pre_lib_total_ng_normal, final_lib_conc_normal, del_flag
+        FROM wet_lab_qc
+        WHERE subbarcode = #{subbarcode}
+        ORDER BY del_flag ASC, id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 物理清掉一行（仅用于给已逻辑删除的行腾出唯一键） -->
+    <delete id="purgeById">
+        DELETE FROM wet_lab_qc WHERE id = #{id}
+    </delete>
+
+</mapper>

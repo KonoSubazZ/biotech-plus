@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  生信质控：接口灌数据时的跨表只读查询。
+  约定（对齐 SampleInfoMapper.xml）：
+    · 只写复杂/跨表 SQL；单表 CRUD 用 BaseMapperPlus
+    · 值一律 #{param} 绑定；不写 SELECT *
+    · 租户条件由租户拦截器自动附加，这里不写 tenant_id ——
+      但「按样本编号找药企」这一链必须在 TenantContext.withoutTenant(...) 里调用，
+      因为样本可能属于别的药企（详见 BioinfoQcServiceImpl.resolveTenantId）
+-->
+<mapper namespace="org.dromara.qc.mapper.BioinfoQcMapper">
+
+    <!--
+      样本编号 → 客户名（= 药企名）。数据源 sample_file（web_crm 源表 myapp_webcrmsample 的落库副本）。
+      同编号多条时取最新一条；含已软删行不加限制（软删样本仍可定位药企，避免接口推数据被静默丢）。
+    -->
+    <select id="selectCustomerNameBySubbarcode" resultType="java.lang.String">
+        SELECT customer_name
+        FROM sample_file
+        WHERE subbarcode = #{subbarcode}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!--
+      客户名 → 药企编号：先按 tenant_id 精确匹配（customer_name 直接写药企编号的用法），
+      再按 tenant_name 精确匹配。只取启用中的药企；匹配不到返回 null（调用方按异常处理，不给默认租户）。
+    -->
+    <select id="selectTenantIdByCustomer" resultType="java.lang.String">
+        SELECT tenant_id
+        FROM sys_tenant
+        WHERE status = '0'
+          AND (tenant_id = #{customer} OR tenant_name = #{customer})
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+</mapper>

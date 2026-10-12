@@ -58,6 +58,11 @@
             <groupId>org.dromara</groupId>
             <artifactId>ruoyi-common-security</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-report</artifactId>
+            <!-- 复用报告模块的 DOCX 渲染器（ReportDocxRenderer）与制品/模板目录配置 -->
+        </dependency>
 
         <dependency>
             <groupId>org.dromara</groupId>
