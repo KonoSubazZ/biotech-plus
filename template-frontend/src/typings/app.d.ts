@@ -126,6 +126,11 @@ declare namespace App {
         /** Time format for watermark text */
         timeFormat: string;
       };
+      /** Page search panel */
+      search: {
+        /** Whether the search panel of list pages is expanded by default */
+        expanded: boolean;
+      };
       table: {
         /** Whether to show the table border */
         bordered: boolean;
@@ -509,6 +514,10 @@ declare namespace App {
           globalSearch: {
             title: string;
             visible: string;
+          };
+          search: {
+            title: string;
+            expanded: string;
           };
         };
         configOperation: {

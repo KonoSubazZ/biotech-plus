@@ -81,7 +81,8 @@ const getPresetDesc = (preset: ThemePreset): string => {
 
 const applyPreset = (preset: ThemePreset): void => {
   const mergedPreset = defu(preset, themeSettings);
-  const { themeScheme, grayscale, colourWeakness, layout, watermark, naiveui, ...rest } = mergedPreset;
+  // 预设只管外观；「搜索栏默认展开」这类通用偏好不从预设取值，避免应用预设把它静默重置回默认
+  const { themeScheme, grayscale, colourWeakness, layout, watermark, naiveui, search: _search, ...rest } = mergedPreset;
   themeStore.setThemeScheme(themeScheme);
   themeStore.setGrayscale(grayscale);
   themeStore.setColourWeakness(colourWeakness);

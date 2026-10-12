@@ -64,6 +64,9 @@ export const themeSettings: App.Theme.ThemeSetting = {
     enableTime: false,
     timeFormat: 'YYYY-MM-DD HH:mm'
   },
+  search: {
+    expanded: false
+  },
   table: {
     bordered: true,
     bottomBordered: true,

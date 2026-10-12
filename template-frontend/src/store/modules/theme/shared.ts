@@ -9,14 +9,8 @@ import { themeVars } from '@/theme/vars';
 
 /** Init theme settings */
 export function initThemeSettings() {
-  const isProd = import.meta.env.PROD;
-
-  // if it is development mode, the theme settings will not be cached, by update `themeSettings` in `src/theme/settings.ts` to update theme settings
-  if (!isProd) return themeSettings;
-
-  // if it is production mode, the theme settings will be cached in localStorage
-  // if want to update theme settings when publish new version, please update `overrideThemeSettings` in `src/theme/settings.ts`
-
+  // 主题设置一律读 localStorage 缓存（dev 也读）：否则本地预览改完主题一刷新就回到默认值。
+  // 想回到 src/theme/settings.ts 的默认值：点主题配置抽屉的「重置配置」，或清掉浏览器缓存。
   const localSettings = localStg.get('themeSettings');
 
   let settings = defu(localSettings, themeSettings);
@@ -99,6 +93,30 @@ function createThemePaletteColors(colors: App.Theme.ThemeColor, recommended = fa
   return colorPaletteVar;
 }
 
+/** Remove the `var()` wrapper of a css var */
+function removeVarPrefix(value: string) {
+  return value.replace('var(', '').replace(')', '');
+}
+
+/** Remove the `rgb()` wrapper of a css color var */
+function removeRgbPrefix(value: string) {
+  return value.replace('rgb(', '').replace(')', '');
+}
+
+/** Get css var name and value of one theme token */
+function getCssVarKeyValue(key: string, tokenKey: string, tokenValue: string, tokens: App.Theme.BaseToken) {
+  let cssVarsKey = removeVarPrefix(tokenValue);
+  let cssValue = tokens[key][tokenKey];
+
+  if (key === 'colors') {
+    cssVarsKey = removeRgbPrefix(cssVarsKey);
+    const { r, g, b } = getRgb(cssValue);
+    cssValue = `${r} ${g} ${b}`;
+  }
+
+  return [cssVarsKey, cssValue];
+}
+
 /**
  * Get css var by tokens
  *
@@ -107,32 +125,15 @@ function createThemePaletteColors(colors: App.Theme.ThemeColor, recommended = fa
 function getCssVarByTokens(tokens: App.Theme.BaseToken) {
   const styles: string[] = [];
 
-  function removeVarPrefix(value: string) {
-    return value.replace('var(', '').replace(')', '');
-  }
-
-  function removeRgbPrefix(value: string) {
-    return value.replace('rgb(', '').replace(')', '');
-  }
-
   for (const [key, tokenValues] of Object.entries(themeVars)) {
     for (const [tokenKey, tokenValue] of Object.entries(tokenValues)) {
-      let cssVarsKey = removeVarPrefix(tokenValue);
-      let cssValue = tokens[key][tokenKey];
-
-      if (key === 'colors') {
-        cssVarsKey = removeRgbPrefix(cssVarsKey);
-        const { r, g, b } = getRgb(cssValue);
-        cssValue = `${r} ${g} ${b}`;
-      }
+      const [cssVarsKey, cssValue] = getCssVarKeyValue(key, tokenKey, tokenValue, tokens);
 
       styles.push(`${cssVarsKey}: ${cssValue}`);
     }
   }
 
-  const styleStr = styles.join(';');
-
-  return styleStr;
+  return styles.join(';');
 }
 
 /**

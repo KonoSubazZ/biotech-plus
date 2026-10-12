@@ -25,7 +25,9 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
   const settings: Ref<App.Theme.ThemeSetting> = ref(initThemeSettings());
 
   /** Optional NaiveUI theme overrides from preset */
-  const naiveThemeOverrides: Ref<App.Theme.NaiveUIThemeOverride | undefined> = ref(undefined);
+  const naiveThemeOverrides: Ref<App.Theme.NaiveUIThemeOverride | undefined> = ref(
+    localStg.get('naiveThemeOverrides') ?? undefined
+  );
 
   /** Watermark time instance with controls */
   const { now: watermarkTime, pause: pauseWatermarkTime, resume: resumeWatermarkTime } = useNow({ controls: true });
@@ -90,9 +92,15 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
 
   /** Reset store */
   function resetStore() {
-    const themeStore = useThemeStore();
+    // pinia 的 setup store 不支持 $reset，这里显式清缓存 + 回到默认设置（就地赋值，保住 toRefs 的响应性）
+    localStg.remove('themeSettings');
+    localStg.remove('naiveThemeOverrides');
+    localStg.remove('overrideThemeFlag');
+    localStg.remove('themeColor');
+    localStg.remove('darkMode');
 
-    themeStore.$reset();
+    Object.assign(settings.value, initThemeSettings());
+    naiveThemeOverrides.value = undefined;
   }
 
   /**
@@ -209,6 +217,12 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
    */
   function setNaiveThemeOverrides(overrides?: App.Theme.NaiveUIThemeOverride) {
     naiveThemeOverrides.value = overrides;
+
+    if (overrides) {
+      localStg.set('naiveThemeOverrides', overrides);
+    } else {
+      localStg.remove('naiveThemeOverrides');
+    }
   }
 
   /** Only run timer when watermark is visible and time display is enabled */
@@ -225,10 +239,6 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
 
   /** Cache theme settings */
   function cacheThemeSettings() {
-    const isProd = import.meta.env.PROD;
-
-    if (!isProd) return;
-
     localStg.set('themeSettings', settings.value);
   }
 
@@ -265,6 +275,15 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
         localStg.set('themeColor', val.primary);
       },
       { immediate: true }
+    );
+
+    // 设置一改动就落缓存：刷新/重开页面按缓存恢复（dev 也生效）
+    watch(
+      settings,
+      () => {
+        cacheThemeSettings();
+      },
+      { deep: true }
     );
 
     // watch watermark settings to control timer

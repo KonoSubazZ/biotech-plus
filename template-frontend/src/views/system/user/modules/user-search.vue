@@ -50,9 +50,7 @@ async function search() {
 </script>
 
 <template>
-  <NCard :bordered="false" size="small" class="table-search card-wrapper">
-    <NCollapse>
-      <NCollapseItem :title="$t('common.search')" name="user-search">
+  <SearchCollapse name="user-search" class="table-search">
         <NForm ref="formRef" :model="model" label-placement="left" :label-width="80">
           <NGrid responsive="screen" item-responsive>
             <NFormItemGi span="24 s:12 m:6" :label="$t('page.system.user.userName')" path="userName" class="pr-24px">
@@ -113,9 +111,7 @@ async function search() {
             </NFormItemGi>
           </NGrid>
         </NForm>
-      </NCollapseItem>
-    </NCollapse>
-  </NCard>
+  </SearchCollapse>
 </template>
 
 <style scoped></style>

@@ -242,6 +242,10 @@ const local: App.I18n.Schema = {
       globalSearch: {
         title: 'Global Search Settings',
         visible: 'Display GlobalSearch button'
+      },
+      search: {
+        title: 'Search Panel Settings',
+        expanded: 'Expand search panel by default'
       }
     },
     configOperation: {

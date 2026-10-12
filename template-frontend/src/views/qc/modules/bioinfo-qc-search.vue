@@ -47,9 +47,7 @@ async function search() {
 </script>
 
 <template>
-  <NCard :bordered="false" size="small" class="card-wrapper">
-    <NCollapse>
-      <NCollapseItem :title="$t('common.search')" name="bioinfo-qc-search">
+  <SearchCollapse name="bioinfo-qc-search">
         <NForm ref="formRef" :model="model" label-placement="left" :label-width="90">
           <!-- 搜索项用 flex-wrap + 每项定宽；按钮组 ml-auto 自动贴行尾，换行后仍贴右（搜索栏布局契约） -->
           <div class="flex flex-wrap items-start">
@@ -80,9 +78,7 @@ async function search() {
             </NFormItem>
           </div>
         </NForm>
-      </NCollapseItem>
-    </NCollapse>
-  </NCard>
+  </SearchCollapse>
 </template>
 
 <style scoped></style>

@@ -238,6 +238,10 @@ const local: App.I18n.Schema = {
       globalSearch: {
         title: '全局搜索设置',
         visible: '显示全局搜索按钮'
+      },
+      search: {
+        title: '搜索栏设置',
+        expanded: '搜索栏默认展开'
       }
     },
     configOperation: {

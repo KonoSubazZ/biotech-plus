@@ -19,6 +19,10 @@ const themeStore = useThemeStore();
   <SettingItem :label="$t('theme.general.globalSearch.visible')">
     <NSwitch v-model:value="themeStore.header.globalSearch.visible" />
   </SettingItem>
+
+  <SettingItem :label="$t('theme.general.search.expanded')">
+    <NSwitch v-model:value="themeStore.search.expanded" />
+  </SettingItem>
 </template>
 
 <style scoped>

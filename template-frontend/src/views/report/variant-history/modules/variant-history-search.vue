@@ -49,9 +49,7 @@ async function search() {
 </script>
 
 <template>
-  <NCard :bordered="false" size="small" class="card-wrapper">
-    <NCollapse>
-      <NCollapseItem :title="$t('common.search')" name="variant-history-search">
+  <SearchCollapse name="variant-history-search">
         <NForm ref="formRef" :model="model" label-placement="left" :label-width="90">
           <!--
             搜索项排布用 flex-wrap（不用 NGrid）：按钮组 ml-auto 自动贴在本行最右边；
@@ -98,9 +96,7 @@ async function search() {
             </NFormItem>
           </div>
         </NForm>
-      </NCollapseItem>
-    </NCollapse>
-  </NCard>
+  </SearchCollapse>
 </template>
 
 <style scoped></style>
