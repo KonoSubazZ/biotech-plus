@@ -23,16 +23,12 @@ public interface InterpretationMapper {
     /**
      * 分页查询「报告解读」列表：analysis_data ⟕ 该批次最新一份 analysis_report。
      *
-     * @param page       分页参数（由 MyBatis-Plus 分页插件接管）
-     * @param query      查询条件（样本编号 / 产品 / 报告状态）
-     * @param beginTime  分析日期起（yyyyMMdd，可空）
-     * @param endTime    分析日期止（yyyyMMdd，可空）
+     * @param page   分页参数（由 MyBatis-Plus 分页插件接管）
+     * @param query  查询条件（分析日期 / 样本编号 / 产品 / 报告状态）
      * @return 分页结果
      */
     Page<InterpretationRowVo> selectInterpretationPage(@Param("page") Page<InterpretationRowVo> page,
-                                                      @Param("query") InterpretationQueryBo query,
-                                                      @Param("beginTime") String beginTime,
-                                                      @Param("endTime") String endTime);
+                                                      @Param("query") InterpretationQueryBo query);
 
     /**
      * 取一个分析批次的样本/产品快照，「进入解读」建报告记录时用。
@@ -251,6 +247,59 @@ public interface InterpretationMapper {
      * @return 指标行（列已别名成 JSON 字段名）；没有则 null
      */
     Map<String, Object> selectControlQc(@Param("analysisId") Long analysisId);
+
+    /**
+     * 解读人候选：启用中的系统用户（报告生成参数里「解读人」下拉用）。
+     *
+     * @return [{userId, userName(账号), nickName(姓名)}]，按 user_id 排序
+     */
+    List<Map<String, Object>> selectAnalyzerOptions();
+
+    /**
+     * 报告状态流转：只在来源状态允许时更新（返回影响行数，0 = 状态已被别处改过）。
+     *
+     * @param reportId     报告ID
+     * @param status       目标状态
+     * @param fromStatuses 允许的来源状态
+     * @return 影响行数
+     */
+    int updateReportStatusIfIn(@Param("reportId") Long reportId, @Param("status") String status,
+                              @Param("fromStatuses") List<String> fromStatuses);
+
+    /**
+     * 审核动作状态流转（通过 / 驳回共用）：置目标状态 + 审核人/审核时间；
+     * 驳回时同时写 comment（最新驳回原因）。
+     * <p>
+     * 带来源状态条件：影响行数 0 = 状态已被别处改过（重复点击/并发），调用方报错让用户刷新。
+     * comment 传 null 时不动原值（通过时不覆盖历史备注）。
+     *
+     * @param reportId     报告ID
+     * @param status       目标状态
+     * @param comment      驳回原因（通过时传 null）
+     * @param checkedBy    审核人（用户ID字符串，写 report_checked_by）
+     * @param operatorId   操作人ID（写 update_by）
+     * @param fromStatuses 允许的来源状态
+     * @return 影响行数
+     */
+    int updateReportReview(@Param("reportId") Long reportId,
+                           @Param("status") String status,
+                           @Param("comment") String comment,
+                           @Param("checkedBy") String checkedBy,
+                           @Param("operatorId") Long operatorId,
+                           @Param("fromStatuses") List<String> fromStatuses);
+
+    /**
+     * 回填报告业务字段：生成报告时把本次生效的「解读癌种」写回 analysis_report
+     * （cancer_type 是进入解读时带的录单癌种，这里只更新解读癌种）。
+     *
+     * @param reportId          报告ID
+     * @param analysisDisease   生效的解读癌种（预览页可覆盖，落库的就是它）
+     * @param analysisDiseaseId 解读癌种ID（NKB disease_id，可空）
+     * @return 影响行数
+     */
+    int updateReportDisease(@Param("reportId") Long reportId,
+                           @Param("analysisDisease") String analysisDisease,
+                           @Param("analysisDiseaseId") Long analysisDiseaseId);
 
     /**
      * 正式生成：登记本次 JSON/DOCX 制品路径、报告名与所用模板

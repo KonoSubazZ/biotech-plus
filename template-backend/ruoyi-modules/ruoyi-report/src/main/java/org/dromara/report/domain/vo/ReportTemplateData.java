@@ -124,6 +124,9 @@ public class ReportTemplateData implements Serializable {
 
         /** 报告名（report_template.report_name 渲染结果；供 DOCX 封面/页眉引用，与落盘文件名同源） */
         private String reportName;
+
+        /** 解读人（报告生成参数里可选，默认当前登录用户；供 DOCX 封面/签名引用） */
+        private String analyzer;
     }
 
     /** 样本信息（公共字段；字段名与设计书 §7.6 / 参考工程逐字一致） */

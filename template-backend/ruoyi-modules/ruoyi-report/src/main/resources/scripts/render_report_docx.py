@@ -51,6 +51,23 @@ class OutputWriteError(RendererError):
 
 _JINJA_MARKER = re.compile(r"(?:{{|{%|{#).*?(?:}}|%}|#})", re.DOTALL)
 
+# 表单类模板（不合格通知等）用 unicode 方框模拟 Word 复选框：
+# docxtpl 渲染不了真正的复选框控件（内容控件/表单域），所以模板里写 {{ box(flag) }}。
+# ⚠️ 这两个字符必须落进「同一个字体」，否则渲染器会对缺字形的那个做字体回退，
+#    生成文档里就出现「勾选框比空框大/发黑」——用户 2026-10-09 报过两次（先是 ☑ 回退成 ASCW3，
+#    换成实心 ■ 又被嫌「变黑了」）。做法：☐/☑ 用 **Segoe UI Symbol**（Windows 自带、同族同尺寸），
+#    模板里把 {{ box(...) }} 拆成独立 run 并显式指定该字体 —— 见
+#    ~/.hermes/scripts/split_checkbox_runs.py（拆 run + 设字体）。
+_CHECKED_BOX = "☑"
+_UNCHECKED_BOX = "☐"
+
+
+def box(checked: Any) -> str:
+    """布尔 → 勾选框字符（勾选 = ☑、未选 = □，与纸质模板的 □ 一致）。"""
+    if isinstance(checked, str):
+        checked = checked.strip().lower() in {"1", "true", "yes", "y"}
+    return _CHECKED_BOX if checked else _UNCHECKED_BOX
+
 
 def load_json_object(json_path: Path) -> dict[str, Any]:
     """Load UTF-8 JSON and require an object at the root."""
@@ -145,6 +162,8 @@ def render_to_bytes(template_path: Path, context: dict[str, Any]) -> tuple[bytes
     """Render to memory and return bytes plus referenced top-level variables."""
     template, template_bytes = _load_template(template_path)
     environment = Environment(undefined=StrictUndefined, autoescape=True)
+    # 表单类模板要用的辅助方法：{{ box(flag) }} → ☑ / □（见 box 的注释）
+    environment.globals["box"] = box
     try:
         referenced_variables = sorted(
             template.get_undeclared_template_variables(jinja_env=environment)

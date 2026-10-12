@@ -29,8 +29,8 @@ import java.util.Map;
 /**
  * 样本信息 业务层处理
  * <p>
- * 样本编号（barcode，源表列 BARCODE）是业务键：新增要查重、导入按它 upsert、
- * 删除时要挡住在质控记录里被引用过的样本（qc_record.subbarcode 指向它）。
+ * 样本编号（subbarcode，源表列 BARCODE）是业务键：新增要查重、导入按它 upsert、
+ * 删除时要挡住在质控记录里被引用过的样本（wet_lab_qc.subbarcode 指向它）。
  * <p>
  * 风格要点（对齐 template-backend/docs/backend-code-standard.md）：
  * 查询条件集中在 buildQueryWrapper 里「声明 → 基础条件 → 分支条件 → 排序」展开，
@@ -63,7 +63,7 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean insertByBo(SampleInfoBo bo) {
-        assertBarcodeUsable(bo.getBarcode(), null);
+        assertSubbarcodeUsable(bo.getSubbarcode(), null);
         SampleInfo entity = MapstructUtils.convert(bo, SampleInfo.class);
         return baseMapper.insert(entity) > 0;
     }
@@ -76,7 +76,7 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
         }
         // 先确认记录存在，避免把「改不到」当成「改成功」
         queryById(bo.getId());
-        assertBarcodeUsable(bo.getBarcode(), bo.getId());
+        assertSubbarcodeUsable(bo.getSubbarcode(), bo.getId());
         SampleInfo entity = MapstructUtils.convert(bo, SampleInfo.class);
         return baseMapper.updateById(entity) > 0;
     }
@@ -134,19 +134,19 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
 
     /** 处理一行：单行出错只记原因，不中断整个导入 */
     private void importOneRow(SampleInfoExcelRow row, int excelRowNo, SampleInfoImportResultVo result) {
-        String barcode = StringUtils.trim(row.getBarcode());
-        if (StringUtils.isBlank(barcode)) {
+        String subbarcode = StringUtils.trim(row.getSubbarcode());
+        if (StringUtils.isBlank(subbarcode)) {
             result.addError("第 " + excelRowNo + " 行：样本编号（BARCODE 列）为空，已跳过");
             return;
         }
         try {
-            if (saveOrUpdateByBarcode(row, barcode)) {
+            if (saveOrUpdateBySubbarcode(row, subbarcode)) {
                 result.setInserted(result.getInserted() + 1);
             } else {
                 result.setUpdated(result.getUpdated() + 1);
             }
         } catch (Exception e) {
-            result.addError("第 " + excelRowNo + " 行（" + barcode + "）：" + e.getMessage());
+            result.addError("第 " + excelRowNo + " 行（" + subbarcode + "）：" + e.getMessage());
         }
     }
 
@@ -156,24 +156,24 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
      * 122 个字段由 mapstruct 一次性搬（SampleInfoExcelRow 标了 @AutoMapper(target = SampleInfo.class)），
      * 不手写 setter；只把业务键 trim 一下。
      * <p>
-     * 软删除的样本仍占着唯一键 uk_sample_file_barcode（唯一键不含 del_flag，见 04-db-schema §4.6），
+     * 软删除的样本仍占着唯一键 uk_sample_file_subbarcode（唯一键不含 del_flag，见 04-db-schema §4.6），
      * 所以「曾经删过又再导入」要把旧行恢复再更新，不能直接 insert（否则 Duplicate entry）。
      * MyBatis-Plus 的 {@code @TableLogic} 会给普通查询自动补 del_flag='0'，查不到已删行，
      * 因此「含已删行」的取 id 走手写 SQL。
      */
-    private boolean saveOrUpdateByBarcode(SampleInfoExcelRow row, String barcode) {
+    private boolean saveOrUpdateBySubbarcode(SampleInfoExcelRow row, String subbarcode) {
         SampleInfo entity = MapstructUtils.convert(row, SampleInfo.class);
-        entity.setBarcode(barcode);
+        entity.setSubbarcode(subbarcode);
 
         SampleInfo existing = baseMapper.selectOne(
-            Wrappers.<SampleInfo>lambdaQuery().eq(SampleInfo::getBarcode, barcode));
+            Wrappers.<SampleInfo>lambdaQuery().eq(SampleInfo::getSubbarcode, subbarcode));
         if (existing != null) {
             entity.setId(existing.getId());
             baseMapper.updateById(entity);
             return false;
         }
 
-        Long deletedId = baseMapper.selectIdByBarcodeIncludeDeleted(barcode);
+        Long deletedId = baseMapper.selectIdBySubbarcodeIncludeDeleted(subbarcode);
         if (deletedId != null) {
             baseMapper.restoreById(deletedId);
             entity.setId(deletedId);
@@ -188,7 +188,7 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
     /**
      * 组装查询条件：声明 Wrapper → 基础条件 → 客户（两列合一）→ 日期范围 → 排序。
      * <p>
-     * 搜索栏 6 项 → 列：样本编号→barcode、姓名→patient_name、客户→customer_name 或 custom_desc、
+     * 搜索栏 6 项 → 列：样本编号→subbarcode、姓名→patient_name、客户→customer_name 或 custom_desc、
      * 录单癌种→cancer_type、录单产品→erp_test_name、日期→enter_date（委托日期）。
      * <p>
      * 客户为什么查两列：源表里 CUSTOMERNAME 与 CUSTOMEDESC（客户名称）在不同数据里各写一半
@@ -200,7 +200,7 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
     private LambdaQueryWrapper<SampleInfo> buildQueryWrapper(SampleInfoBo bo) {
         LambdaQueryWrapper<SampleInfo> wrapper = Wrappers.lambdaQuery();
 
-        wrapper.like(StringUtils.isNotBlank(bo.getBarcode()), SampleInfo::getBarcode, bo.getBarcode());
+        wrapper.like(StringUtils.isNotBlank(bo.getSubbarcode()), SampleInfo::getSubbarcode, bo.getSubbarcode());
         wrapper.like(StringUtils.isNotBlank(bo.getPatientName()), SampleInfo::getPatientName, bo.getPatientName());
         wrapper.like(StringUtils.isNotBlank(bo.getCancerType()), SampleInfo::getCancerType, bo.getCancerType());
         wrapper.like(StringUtils.isNotBlank(bo.getErpTestName()), SampleInfo::getErpTestName, bo.getErpTestName());
@@ -224,32 +224,32 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
     }
 
     /**
-     * 样本编号查重（对应表上的 uk_sample_file_barcode，租户条件由拦截器自动加）。
+     * 样本编号查重（对应表上的 uk_sample_file_subbarcode，租户条件由拦截器自动加）。
      * <p>
      * 普通查询加了 del_flag='0'，所以「编号被已删样本占着」要单独查一次给出可读提示，
      * 否则会直接抛数据库的唯一键冲突。
      */
-    private void assertBarcodeUsable(String barcode, Long excludeId) {
+    private void assertSubbarcodeUsable(String subbarcode, Long excludeId) {
         LambdaQueryWrapper<SampleInfo> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SampleInfo::getBarcode, barcode);
+        wrapper.eq(SampleInfo::getSubbarcode, subbarcode);
         wrapper.ne(excludeId != null, SampleInfo::getId, excludeId);
         if (baseMapper.exists(wrapper)) {
-            throw new ServiceException("样本编号已存在：" + barcode);
+            throw new ServiceException("样本编号已存在：" + subbarcode);
         }
-        if (excludeId == null && baseMapper.selectIdByBarcodeIncludeDeleted(barcode) != null) {
-            throw new ServiceException("样本编号曾被删除（仍占用唯一键），导入同编号会自动恢复，请换一个编号：" + barcode);
+        if (excludeId == null && baseMapper.selectIdBySubbarcodeIncludeDeleted(subbarcode) != null) {
+            throw new ServiceException("样本编号曾被删除（仍占用唯一键），导入同编号会自动恢复，请换一个编号：" + subbarcode);
         }
     }
 
     /**
-     * 删除前的引用校验：样本编号被质控记录引用时禁止删除 ——
-     * 质控记录（qc_record.subbarcode）与质控自动判定都挂在这个编号上，删了会留下悬空引用。
+     * 删除前的引用校验：样本编号被湿实验质控记录引用时禁止删除 ——
+     * 质控记录（wet_lab_qc.subbarcode）挂在这个编号上，删了会留下悬空引用。
      */
     private void assertNotReferenced(Long id) {
         SampleInfoVo sample = queryById(id);
-        Long usedByQcRecord = baseMapper.countQcRecordBySubbarcode(sample.getBarcode());
-        if (usedByQcRecord != null && usedByQcRecord > 0) {
-            throw new ServiceException("该样本已被 " + usedByQcRecord + " 条质控记录引用，禁止删除", 409);
+        Long usedByQc = baseMapper.countWetLabQcBySubbarcode(sample.getSubbarcode());
+        if (usedByQc != null && usedByQc > 0) {
+            throw new ServiceException("该样本已被 " + usedByQc + " 条质控记录引用，禁止删除", 409);
         }
     }
 }

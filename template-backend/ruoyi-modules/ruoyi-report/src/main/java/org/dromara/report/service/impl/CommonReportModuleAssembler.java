@@ -77,7 +77,7 @@ public class CommonReportModuleAssembler {
         info.setGender(genderLabel(valueOf(context.getLims(), l -> l.getGender())));
         info.setBirthYear(birthYear(valueOf(context.getLims(), l -> l.getBirthday())));
         info.setDisease(context.getDisease());
-        info.setSampleCode(valueOf(context.getLims(), l -> l.getBarcode()));
+        info.setSampleCode(valueOf(context.getLims(), l -> l.getSubbarcode()));
         info.setSampleType(sampleTypeLabel(context));
         info.setTissueCollectionDate(valueOf(context.getLims(), l -> l.getSampleCollectedAt()));
         info.setReceivedDate(valueOf(context.getLims(), l -> l.getSampleReceivedAt()));

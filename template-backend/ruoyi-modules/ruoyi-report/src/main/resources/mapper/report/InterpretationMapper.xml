@@ -26,7 +26,8 @@
             r.template_id         AS templateId,
             r.template            AS template,
             r.report_generated_by AS reportGeneratedBy,
-            r.report_generated_at AS reportGeneratedAt
+            r.report_generated_at AS reportGeneratedAt,
+            r.create_time         AS interpretedAt
         FROM analysis_data d
         LEFT JOIN analysis_report r
                ON r.report_id = (
@@ -44,8 +45,8 @@
         <if test="query != null and query.reportStatus != null and query.reportStatus != ''">
             AND r.status = #{query.reportStatus}
         </if>
-        <if test="beginTime != null and endTime != null">
-            AND d.analysis_date BETWEEN #{beginTime} AND #{endTime}
+        <if test="query != null and query.analysisDate != null and query.analysisDate != ''">
+            AND d.analysis_date = #{query.analysisDate}
         </if>
         ORDER BY d.analysis_id DESC
     </select>
@@ -332,6 +333,9 @@
                r.analysis_date    AS analysisDate,
                r.report_type      AS reportType,
                r.report_json_path AS reportJsonPath,
+               r.report_file_raw_path AS reportFileRawPath,
+               r.report_file_path  AS reportFilePath,
+               r.report_generated_by AS reportGeneratedBy,
                r.report_generated_at AS reportGeneratedAt,
                r.status           AS status,
                t.template_code    AS templateCode,
@@ -389,6 +393,41 @@
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         ORDER BY sourceId
     </select>
+
+    <!-- 解读人候选：启用中的系统用户（报告生成参数的下拉用；不按角色过滤，本机暂无「解读人」角色种子） -->
+    <select id="selectAnalyzerOptions" resultType="java.util.LinkedHashMap">
+        SELECT user_id   AS userId,
+               user_name AS userName,
+               nick_name AS nickName
+        FROM sys_user
+        WHERE status = '0' AND del_flag = '0'
+        ORDER BY user_id
+    </select>
+
+    <!-- 审核动作（通过/驳回）：置状态 + 审核人/时间；驳回时同时写 comment（通过不改备注） -->
+    <update id="updateReportReview">
+        UPDATE analysis_report
+        SET status            = #{status},
+            report_checked_by = #{checkedBy},
+            report_checked_at = NOW(),
+            update_by         = #{operatorId},
+            update_time       = NOW()
+        <if test="comment != null">
+            , comment = #{comment}
+        </if>
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND status IN
+        <foreach collection="fromStatuses" item="item" open="(" separator="," close=")">#{item}</foreach>
+    </update>
+
+    <!-- 报告状态流转：只在允许的来源状态下更新（0 行 = 状态已变，调用方报错让用户刷新） -->
+    <update id="updateReportStatusIfIn">
+        UPDATE analysis_report
+        SET status = #{status}, update_time = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND status IN
+        <foreach collection="fromStatuses" item="item" open="(" separator="," close=")">#{item}</foreach>
+    </update>
 
     <!-- 复用登记：每次命中历史都刷新「最近复用时间 + 计数」（不动已冻结的 match_result / 用药 / 位点等级） -->
     <update id="touchHistoryReuse">
@@ -605,6 +644,15 @@
         ORDER BY q.id DESC
         LIMIT 1
     </select>
+
+    <!-- 正式生成：回填解读癌种（cancer_type 是进入解读时带的录单癌种，这里只写解读癌种） -->
+    <update id="updateReportDisease">
+        UPDATE analysis_report
+        SET analysis_disease    = #{analysisDisease},
+            analysis_disease_id = #{analysisDiseaseId},
+            update_time         = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+    </update>
 
     <!-- 正式生成：登记 JSON/DOCX 制品路径、报告名与所用模板 -->
     <update id="updateReportArtifact">

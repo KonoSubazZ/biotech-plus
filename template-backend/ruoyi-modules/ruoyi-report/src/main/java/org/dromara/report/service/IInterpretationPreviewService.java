@@ -35,6 +35,28 @@ public interface IInterpretationPreviewService {
     InterpretationPreviewVo preview(InterpretationPreviewBo bo);
 
     /**
+     * 冻结匹配历史：报告提交审核时调用，把该报告「报出」的位点匹配结果写进 history_*
+     * （预览与生成都是只读，只有提交审核才落库）。
+     *
+     * @param bo 入参（analysisId / reportId / templateId）
+     */
+    void freezeHistory(InterpretationPreviewBo bo);
+
+    /**
+     * 报告生成参数 · 解读癌种候选（NKB 疾病分类）。
+     *
+     * @return [{diseaseId, diseaseName}]
+     */
+    List<Map<String, Object>> diseaseOptions();
+
+    /**
+     * 报告生成参数 · 解读人候选（启用中的系统用户）。
+     *
+     * @return [{userId, userName, nickName}]
+     */
+    List<Map<String, Object>> analyzerOptions();
+
+    /**
      * 人工选模板用：报告产品对应的候选模板列表（默认模板排最前）。
      *
      * @param analysisId 分析数据ID

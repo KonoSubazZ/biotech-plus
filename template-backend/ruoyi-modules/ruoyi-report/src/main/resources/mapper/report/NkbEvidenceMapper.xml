@@ -3,6 +3,20 @@
 <mapper namespace="org.dromara.report.mapper.NkbEvidenceMapper">
 
     <!-- 癌种解析：先用中文名精确匹配 -->
+    <!--
+      解读癌种候选：nkb.disease（380 个癌种名）。
+      en7 报告生成页的「原发癌种」取的是 disease_class（122 个分类），但本仓匹配走的是 disease.do_id +
+      disease_hierarchy，按分类名解析不到 do_id —— 所以候选取同一张表，保证选出来的癌种一定能解析成范围。
+    -->
+    <select id="selectDiseaseOptions" resultType="java.util.LinkedHashMap">
+        SELECT do_id                AS diseaseId,
+               disease_name_chinese AS diseaseName
+        FROM nkb.disease
+        WHERE disease_name_chinese IS NOT NULL AND disease_name_chinese != ''
+        GROUP BY do_id, disease_name_chinese
+        ORDER BY disease_name_chinese
+    </select>
+
     <select id="selectDiseaseByName" resultType="java.util.LinkedHashMap">
         SELECT do_id AS diseaseId, disease_name_chinese AS diseaseName
         FROM nkb.disease

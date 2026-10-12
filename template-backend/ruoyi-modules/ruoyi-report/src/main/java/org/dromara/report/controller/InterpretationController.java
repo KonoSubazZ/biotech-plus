@@ -13,6 +13,8 @@ import org.dromara.report.domain.bo.InterpretationEnterBo;
 import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
+import org.dromara.report.domain.bo.InterpretationReviewBo;
+import org.dromara.report.domain.bo.InterpretationSendBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
@@ -22,13 +24,20 @@ import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
+import org.dromara.report.domain.vo.InterpretationMailPreviewVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.ReportTemplateData;
 
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IInterpretationService;
+import org.dromara.report.service.impl.InterpretationReviewService;
+import org.dromara.report.service.impl.ReportFileService;
 import org.dromara.report.service.impl.ReportGenerationService;
+import org.dromara.report.service.impl.ReportMailPreviewService;
+import org.dromara.report.service.impl.ReportMailSendService;
+import org.dromara.common.core.utils.file.FileUtils;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,8 +46,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
-
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -64,6 +77,14 @@ public class InterpretationController extends BaseController {
     private final IInterpretationPreviewService previewService;
 
     private final ReportGenerationService reportGenerationService;
+
+    private final InterpretationReviewService reviewService;
+
+    private final ReportFileService reportFileService;
+
+    private final ReportMailPreviewService mailPreviewService;
+
+    private final ReportMailSendService mailSendService;
 
     /**
      * 分页查询报告解读列表
@@ -181,6 +202,62 @@ public class InterpretationController extends BaseController {
     }
 
     /**
+     * 报告审核通过：置 APPROVED 并把该报告的位点匹配结果冻结进 history_*
+     * （匹配历史只在审核通过时落库，预览与生成都是只读）。
+     * <p>
+     * 只允许 PENDING_REVIEW 流转过来；产出人不能审核自己的报告；重复审核会直接报错。
+     *
+     * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
+     */
+    @SaCheckPermission("report:interpretation:review")
+    @Log(title = "报告解读-审核通过", businessType = BusinessType.UPDATE)
+    @RepeatSubmit()
+    @PostMapping("/approve")
+    public R<Void> approve(@RequestBody @Validated InterpretationPreviewBo bo) {
+        reviewService.approve(bo);
+        return R.ok();
+    }
+
+    /**
+     * 报告驳回：PENDING_REVIEW → REJECTED，驳回原因必填并写入 analysis_report.comment。
+     * <p>
+     * 只有待审核能驳回；产出人不能驳回自己的报告；状态更新带来源状态条件防重复驳回。
+     *
+     * @param bo 入参（analysisId / reportId / reason）
+     * @return 操作结果
+     */
+    @SaCheckPermission("report:interpretation:review")
+    @Log(title = "报告解读-驳回", businessType = BusinessType.UPDATE)
+    @RepeatSubmit()
+    @PostMapping("/reject")
+    public R<Void> reject(@RequestBody @Validated InterpretationReviewBo bo) {
+        reviewService.reject(bo);
+        return R.ok();
+    }
+
+    /**
+     * 报告生成参数 · 解读癌种候选（NKB 疾病分类，对齐 en7 报告生成页「原发癌种」的下拉）。
+     *
+     * @return [{diseaseId, diseaseName}]
+     */
+    @SaCheckPermission("report:interpretation:preview")
+    @GetMapping("/disease-options")
+    public R<List<Map<String, Object>>> diseaseOptions() {
+        return R.ok(previewService.diseaseOptions());
+    }
+
+    /**
+     * 报告生成参数 · 解读人候选（启用中的系统用户）。
+     *
+     * @return [{userId, userName, nickName}]
+     */
+    @SaCheckPermission("report:interpretation:preview")
+    @GetMapping("/analyzer-options")
+    public R<List<Map<String, Object>>> analyzerOptions() {
+        return R.ok(previewService.analyzerOptions());
+    }
+
+    /**
      * 人工选模板：报告产品对应的候选模板列表（默认模板排最前）。
      * <p>
      * 一个产品可能配多个模板，前端用它在「报告预览/生成」处给下拉，选中后把 templateId 传回预览/生成接口。
@@ -208,6 +285,85 @@ public class InterpretationController extends BaseController {
     @PostMapping("/generate")
     public R<Map<String, Object>> generate(@RequestBody @Validated InterpretationPreviewBo bo) {
         return R.ok(reportGenerationService.generate(bo));
+    }
+
+    /**
+     * 提交审核：冻结本次解读的位点匹配历史（history_*），再把报告状态置为 PENDING_REVIEW。
+     * <p>
+     * 入参与生成接口同一套（模板 / 解读癌种 / 报告日期 / 解读人）：冻结结果依赖癌种范围等参数，
+     * 必须与生成时一致，否则冻出来的历史跟报告内容对不上。只有已生成报告才能提交。
+     *
+     * @param bo 入参（analysisId / reportId / 生成参数）
+     * @return 操作结果
+     */
+    @SaCheckPermission("report:interpretation:review")
+    @RepeatSubmit()
+    @Log(title = "报告解读-提交审核", businessType = BusinessType.UPDATE)
+    @PostMapping("/submit")
+    public R<Void> submit(@RequestBody @Validated InterpretationPreviewBo bo) {
+        reviewService.submit(bo);
+        return R.ok();
+    }
+
+    /**
+     * 报告文件下载：把已生成的成品文件（当前是 DOCX，PDF 就绪后优先返回 PDF）写回响应。
+     * <p>
+     * 只读报告行里登记的路径，且必须落在固定输出目录内；直接写响应流（与合规模块的附件下载同一写法），
+     * 避免走 JSON 消息转换器多出一个 {@code application/json} 头把前端下载 hooks 带偏。
+     * 前端不能直接 {@code <a href>}（要带令牌），用带 Authorization 的请求取 blob；
+     * 文件名从 {@code download-filename} / {@code Content-Disposition} 头取。
+     *
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID
+     * @param response   响应
+     */
+    @SaCheckPermission("report:interpretation:query")
+    @GetMapping("/report-file")
+    public void reportFile(@RequestParam Long reportId, @RequestParam Long analysisId,
+                           HttpServletResponse response) throws IOException {
+        File file = reportFileService.loadReportFile(reportId, analysisId);
+        FileUtils.setAttachmentResponseHeader(response, file.getName());
+        response.setContentType(reportFileMediaType(file.getName()).toString());
+        Files.copy(file.toPath(), response.getOutputStream());
+    }
+
+    /** 按扩展名给媒体类型：PDF 就绪后同一个端点直接返回 PDF */
+    private MediaType reportFileMediaType(String fileName) {
+        if (fileName.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+            return MediaType.APPLICATION_PDF;
+        }
+        return MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    }
+
+    /**
+     * Tab⑥ 报告发送：发送页参数（收件/抄送候选 + 渲染后的标题正文 + 附件名 + 可否发送）。
+     * <p>
+     * 收件候选取该报告 LIMS 的邮箱字段；标题正文用「邮件配置」的模板按本报告变量渲染成默认值，页面可改。
+     *
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID
+     * @return 发送页参数
+     */
+    @SaCheckPermission("report:interpretation:send")
+    @GetMapping("/mail-preview")
+    public R<InterpretationMailPreviewVo> mailPreview(@RequestParam Long reportId, @RequestParam Long analysisId) {
+        return R.ok(mailPreviewService.preview(reportId, analysisId));
+    }
+
+    /**
+     * Tab⑥ 报告发送：把已审核的报告作为附件发出，成功把报告置 SENT。
+     * <p>
+     * 失败也留痕（analysis_report_email_log 写 FAILED + 原因），并向上抛业务异常给页面提示。
+     *
+     * @param bo 入参（analysisId / reportId / to / cc / subject / content / attachReport）
+     * @return {traceId, messageId, recipientCount}
+     */
+    @SaCheckPermission("report:interpretation:send")
+    @RepeatSubmit()
+    @Log(title = "报告发送", businessType = BusinessType.OTHER)
+    @PostMapping("/send")
+    public R<Map<String, Object>> send(@RequestBody @Validated InterpretationSendBo bo) {
+        return R.ok(mailSendService.send(bo));
     }
 
     /**

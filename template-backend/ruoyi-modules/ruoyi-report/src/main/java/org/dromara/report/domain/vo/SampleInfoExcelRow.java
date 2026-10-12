@@ -26,7 +26,7 @@ public class SampleInfoExcelRow {
     private String age;
     /** 样本编号 */
     @ExcelProperty(value = "BARCODE", index = 1)
-    private String barcode;
+    private String subbarcode;
     /** 床位 */
     @ExcelProperty(value = "BED", index = 2)
     private String bed;

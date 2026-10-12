@@ -67,4 +67,7 @@ public class InterpretationRowVo implements Serializable {
 
     /** 报告生成时间 */
     private Date reportGeneratedAt;
+
+    /** 解读时间（该批次报告的创建时间 = 点「解读」进入解读的时间） */
+    private Date interpretedAt;
 }

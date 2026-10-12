@@ -34,7 +34,7 @@ public class SampleInfo extends BaseEntity {
     private String age;
 
     /** 样本编号（源表列 BARCODE） */
-    private String barcode;
+    private String subbarcode;
 
     /** 床位（源表列 BED） */
     private String bed;

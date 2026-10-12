@@ -17,6 +17,13 @@ import java.util.Map;
 public interface NkbEvidenceMapper {
 
     /**
+     * 解读癌种候选：nkb.disease（与 {@link #selectDiseaseByName} 同一张表，保证选出来能解析成 do_id）。
+     *
+     * @return [{diseaseId: do_id, diseaseName: disease_name_chinese}]，按名字排序
+     */
+    List<Map<String, Object>> selectDiseaseOptions();
+
+    /**
      * 按癌种中文名解析 NKB 疾病
      *
      * @param diseaseName 癌种（如 结直肠癌）

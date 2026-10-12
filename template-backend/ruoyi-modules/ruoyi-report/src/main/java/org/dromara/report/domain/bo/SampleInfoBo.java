@@ -12,7 +12,7 @@ import lombok.EqualsAndHashCode;
  * 样本信息业务对象 sample_file
  * <p>
  * 122 个业务字段与实体一一对应（列名见 SampleInfo 的字段注释）；text 列不校验长度，
- * varchar 列按源表长度加 @Size。样本编号（barcode，源表列 BARCODE）是业务键，见 Service 的查重 / upsert。
+ * varchar 列按源表长度加 @Size。样本编号（subbarcode，源表列 BARCODE）是业务键，见 Service 的查重 / upsert。
  *
  * @author <你的名字>
  */
@@ -32,7 +32,7 @@ public class SampleInfoBo extends BaseEntity {
 
     @NotBlank(message = "样本编号不能为空")
     @Size(max = 100, message = "样本编号长度不能超过 100")
-    private String barcode;
+    private String subbarcode;
 
     @Size(max = 100, message = "床位长度不能超过 100")
     private String bed;

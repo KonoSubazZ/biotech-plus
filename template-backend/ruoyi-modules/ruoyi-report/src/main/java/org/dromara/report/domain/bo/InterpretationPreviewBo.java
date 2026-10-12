@@ -33,4 +33,13 @@ public class InterpretationPreviewBo implements Serializable {
      * 不传用该产品的默认模板（见 ReportTemplateDataService.requireTemplateByProduct）。
      */
     private Long templateId;
+
+    /** 报告生成参数 · 解读癌种（可空）：不传用报告自带的解读癌种；传了就按它重算癌种范围并写进预览 JSON */
+    private String disease;
+
+    /** 报告生成参数 · 报告日期（可空，yyyy-MM-dd）：不传用分析日期（见 CommonReportModuleAssembler#reportDate） */
+    private String reportDate;
+
+    /** 报告生成参数 · 解读人（可空）：不传用当前登录用户昵称 */
+    private String analyzer;
 }

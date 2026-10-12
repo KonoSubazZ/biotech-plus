@@ -81,20 +81,22 @@ public class PreviewContextBuilder {
     /**
      * 组装上下文：癌种/癌种范围、性别、客户、产品项目、产品启用基因、标本类型。
      *
-     * @param analysisId 分析批次ID
-     * @param reportId   报告ID
-     * @param report     报告行（{@link #loadReport}）
-     * @param context    LIMS 等上下文（{@code IInterpretationService#loadContext}）
+     * @param analysisId     分析批次ID
+     * @param reportId       报告ID
+     * @param report         报告行（{@link #loadReport}）
+     * @param context        LIMS 等上下文（{@code IInterpretationService#loadContext}）
+     * @param diseaseOverride 报告生成参数里的解读癌种（可空；传了就按它重算癌种范围，对齐 en7「原发癌种」）
      * @return 预览上下文
      */
-    public PreviewContext build(Long analysisId, Long reportId,
-                                Map<String, Object> report, InterpretationContextVo context) {
+    public PreviewContext build(Long analysisId, Long reportId, Map<String, Object> report,
+                                InterpretationContextVo context, String diseaseOverride) {
         InterpretationLimsVo lims = context.getLims();
-        String disease = firstNonBlank(asString(report.get("disease")), asString(report.get("cancerType")),
-            lims.getCancerType(), "未知癌种");
+        String disease = firstNonBlank(diseaseOverride, asString(report.get("disease")),
+            asString(report.get("cancerType")), lims.getCancerType(), "未知癌种");
         Long productId = asLong(report.get("productId"));
         String gender = normalizeGender(lims.getGender());
         Map<String, Long> diseaseIdByName = new LinkedHashMap<>();
+        // 癌种 ID 一律按名字解析（disease_class.class_id 与 NKB disease_id 不是同一套 id，不能混用）
         Long diseaseId = resolveDiseaseId(disease, diseaseIdByName);
         // 癌种范围：本癌种 + 祖先 + 子孙，并按性别/实体瘤·血液瘤剔除
         NkbDiseaseScopeResolver.DiseaseScope diseaseScope = diseaseScopeResolver.resolve(diseaseId, gender);
@@ -122,6 +124,21 @@ public class PreviewContextBuilder {
             ? List.of() : interpretationMapper.selectProductGeneSymbols(resolvedProductId));
         pc.setSpecimenType(lims.getSpecimenType());
         return pc;
+    }
+
+    /**
+     * 组装上下文（不带报告生成参数覆盖）：人工改靶/临床意义等编辑路径用，
+     * 一律按报告自带的解读癌种算范围，不能被页面上的选择影响。
+     *
+     * @param analysisId 分析批次ID
+     * @param reportId   报告ID
+     * @param report     报告行
+     * @param context    LIMS 等上下文
+     * @return 预览上下文
+     */
+    public PreviewContext build(Long analysisId, Long reportId,
+                                Map<String, Object> report, InterpretationContextVo context) {
+        return build(analysisId, reportId, report, context, null);
     }
 
     /**

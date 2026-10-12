@@ -28,7 +28,9 @@ public final class ReportNameResolver {
         "client", "templateCode", "templateName", "templateVersion", "reportType",
         "reportId", "analysisId", "subbarcode", "sampleCode", "product", "disease",
         "gender", "birthYear", "researchCenterName", "participantNumber",
-        "specimenType", "reportDate", "analysisDate");
+        "specimenType", "reportDate", "analysisDate",
+        // 报告邮件（标题/正文）用：LIMS 患者姓名 / 送检医院 / 送检医生
+        "patientName", "hospitalName", "doctorName");
 
     /** report_template.report_name 为空时的默认拼接规则（业务口径，改这里等于改默认命名） */
     public static final String DEFAULT_PATTERN =

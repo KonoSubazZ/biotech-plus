@@ -140,7 +140,7 @@ public class ReportGenerationService {
         }
     }
 
-    /** 登记到 analysis_report（只更新路径/模板/报告名，不改报告状态） */
+    /** 登记到 analysis_report（路径/模板/报告名 + 回填解读癌种；不改报告状态） */
     private void updateArtifact(InterpretationPreviewBo bo, ReportTemplateData data,
                                 Path jsonPath, Path docxPath, String reportName) {
         String actor = LoginHelper.getUserId() == null ? null : String.valueOf(LoginHelper.getUserId());
@@ -149,8 +149,20 @@ public class ReportGenerationService {
         if (affected == 0) {
             throw new ServiceException("报告不存在或已删除，无法登记制品：reportId=" + bo.getReportId());
         }
-        log.info("报告已生成：reportId={} templateCode={} reportName={} json={} docx={}",
-            bo.getReportId(), data.getTemplateCode(), reportName, jsonPath, docxPath);
+        // 回填解读癌种：预览页可覆盖癌种，落库的是本次生效的那个（与报告 JSON 的 sampleInfo.disease 同源）
+        interpretationMapper.updateReportDisease(bo.getReportId(), effectiveDisease(data), effectiveDiseaseId(data));
+        log.info("报告已生成：reportId={} templateCode={} reportName={} disease={} json={} docx={}",
+            bo.getReportId(), data.getTemplateCode(), reportName, effectiveDisease(data), jsonPath, docxPath);
+    }
+
+    /** 本次生效的解读癌种（报告 JSON 的 sampleInfo.disease） */
+    private String effectiveDisease(ReportTemplateData data) {
+        return data.getSampleInfo() == null ? null : data.getSampleInfo().getDisease();
+    }
+
+    /** 本次生效的解读癌种ID（报告 JSON 位点分节的 diseaseId，NKB disease_id；无分节时为空） */
+    private Long effectiveDiseaseId(ReportTemplateData data) {
+        return data.getSomaticVariants() == null ? null : data.getSomaticVariants().getDiseaseId();
     }
 
     /** 返回给前端：保留既有键（fileName/jsonPath 指 JSON），新增 DOCX 与渲染信息 */
@@ -168,10 +180,15 @@ public class ReportGenerationService {
         return result;
     }
 
-    /** 制品路径：&lt;root&gt;/&lt;reportId&gt;/&lt;报告名或默认前缀&gt;-&lt;时间&gt;-&lt;随机串&gt;.json */
+    /**
+     * 制品路径：固定目录 &lt;root&gt;/&lt;报告名或默认前缀&gt;-&lt;时间&gt;-&lt;随机串&gt;.json
+     * <p>
+     * 所有报告文件都平铺在同一个固定目录（root = report.artifact.root）下，方便按目录取件；
+     * 同一报告多次生成靠文件名里的「报告名 + 时间 + 随机串」区分，不建 reportId 子目录。
+     */
     private Path jsonTarget(Long reportId, String templateCode, String reportName) {
         String reportPart = reportId == null ? "unknown" : String.valueOf(reportId);
-        return Paths.get(artifactRoot, reportPart, fileBase(reportName, reportPart, templateCode) + ".json");
+        return Paths.get(artifactRoot, fileBase(reportName, reportPart, templateCode) + ".json");
     }
 
     /** 文件名前缀：配了报告名就用安全化后的报告名，否则用默认的 report-&lt;id&gt;-&lt;模板编码&gt; */

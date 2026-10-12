@@ -41,7 +41,7 @@ import java.util.List;
  * <p>
  * 路由前缀沿用 RuoYi 的 /{模块}/{实体} 约定。
  * 字段按生产库录单样本表的 122 列全量建（见 SampleInfo 的字段注释）；
- * 样本编号（barcode，源表列 BARCODE）是业务键，质控模块的 qc_record.subbarcode 指向它，
+ * 样本编号（subbarcode，源表列 BARCODE）是业务键，质控模块的 wet_lab_qc.subbarcode 指向它，
  * 所以新增要查重、导入按它 upsert、删除要检查是否被质控记录引用。
  *
  * @author <你的名字>

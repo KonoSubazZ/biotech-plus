@@ -26,7 +26,7 @@ public class SampleInfoVo {
     private String age;
 
     /** 样本编号 */
-    private String barcode;
+    private String subbarcode;
 
     /** 床位 */
     private String bed;

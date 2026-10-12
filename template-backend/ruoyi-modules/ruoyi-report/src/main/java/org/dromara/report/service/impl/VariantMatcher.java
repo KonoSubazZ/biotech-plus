@@ -29,6 +29,9 @@ import static org.dromara.report.service.impl.PreviewSupport.toJson;
  * 与设计书对齐的关键口径：
  * <ul>
  *   <li>只处理「报出（is_reported=1）」的位点；体细胞 = SNP/Indel + CNV + Fusion，胚系 = CR_ALL。</li>
+ *   <li><b>落库时机</b>：只有报告审核通过才把结果冻结进 history_*（{@code persistHistory=true}）；
+ *       页面预览与生成都是只读模式 —— 命中历史照常复用，但不写新行、不登记复用次数。
+ *       所以「未审核的报告不占用匹配历史」，审核那一刻才冻结。</li>
  *   <li>匹配历史：先按 match_key（v2 = 产品项目 + 癌种 + 性别 + 位点 + 人工改靶父级 的 SHA-256）
  *       查 history_somatic / history_germline。<b>命中即严格只读复用</b>冻结的 match_result
  *       （NKB 更新不刷新），并登记一次复用（last_reused_at / reuse_count + history_reuse_log 留痕）；
@@ -62,10 +65,11 @@ public class VariantMatcher {
     /**
      * 匹配体细胞位点（CNV / Fusion / 小变异，按 en7 口径分级）。
      *
-     * @param pc 预览上下文
+     * @param pc             预览上下文
+     * @param persistHistory 是否把本次匹配结果冻结进 history_somatic（只有提交审核才落库；预览/生成传 false）
      * @return 位点列表（已按展示顺序排序）
      */
-    public List<PreviewVariantVo> matchSomatic(PreviewContext pc) {
+    public List<PreviewVariantVo> matchSomatic(PreviewContext pc, boolean persistHistory) {
         List<PreviewVariantVo> items = new ArrayList<>();
         for (Map<String, Object> row : interpretationMapper.selectReportedSomaticVariants(pc.getAnalysisId())) {
             PreviewVariantVo item = baseItem(row);
@@ -73,7 +77,7 @@ public class VariantMatcher {
             item.setFrequency(asString(row.get("frequency")));
             item.setDepth(asString(row.get("depth")));
             item.setParentMutationIds(ParentMutationIds.parse(row.get("parentMutationId")));
-            matchWithHistory(pc, item, null);
+            matchWithHistory(pc, item, null, persistHistory);
             PreviewSupport.decorate(row, item, false);
             descriptionEnricher.enrich(item, row.get("freqRaw"));
             items.add(item);
@@ -84,10 +88,11 @@ public class VariantMatcher {
     /**
      * 匹配胚系位点（CR_ALL），带五级临床意义。
      *
-     * @param pc 预览上下文
+     * @param pc             预览上下文
+     * @param persistHistory 是否把本次匹配结果冻结进 history_germline（只有提交审核才落库）
      * @return 位点列表（已按展示顺序排序）
      */
-    public List<PreviewVariantVo> matchGermline(PreviewContext pc) {
+    public List<PreviewVariantVo> matchGermline(PreviewContext pc, boolean persistHistory) {
         List<PreviewVariantVo> items = new ArrayList<>();
         for (Map<String, Object> row : interpretationMapper.selectReportedGermlineVariants(pc.getAnalysisId())) {
             PreviewVariantVo item = baseItem(row);
@@ -100,7 +105,7 @@ public class VariantMatcher {
             Integer significance = resolveSignificance(pc, item);
             item.setClinicalSignificance(significance);
             item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(significance));
-            matchWithHistory(pc, item, significance);
+            matchWithHistory(pc, item, significance, persistHistory);
             PreviewSupport.decorate(row, item, true);
             descriptionEnricher.enrich(item, row.get("freqRaw"));
             items.add(item);
@@ -114,10 +119,12 @@ public class VariantMatcher {
      * 命中历史 → <b>严格只读复用</b>（知识库更新不刷新），并登记一次复用（时间 + 计数 + 留痕）。
      * 未命中 → 按 en7 口径查最新知识库，{@code INSERT IGNORE} 冻结首条；此后不再被任何路径覆盖。
      *
-     * @param item         位点（已填好 gene/variant/oriVariant/mutationType）
-     * @param significance 胚系临床意义（体细胞传 null）
+     * @param item           位点（已填好 gene/variant/oriVariant/mutationType）
+     * @param significance   胚系临床意义（体细胞传 null）
+     * @param persistHistory 是否落库：false = 只读（命中历史照常复用，但不写新行、不登记复用）
      */
-    private void matchWithHistory(PreviewContext pc, PreviewVariantVo item, Integer significance) {
+    private void matchWithHistory(PreviewContext pc, PreviewVariantVo item, Integer significance,
+                                  boolean persistHistory) {
         String matchKey = matchKey(pc, item);
         boolean germline = "CR_ALL".equals(item.getSourceType());
         Map<String, Object> history = germline
@@ -126,17 +133,7 @@ public class VariantMatcher {
         NkbDrugMatcher.MatchResult frozen = history == null ? null
             : parseMatchResult(asString(history.get("match_result")));
         if (history != null && frozen != null) {
-            // 命中历史：复用冻结结果（知识库更新不刷新历史）
-            item.setFromHistory(true);
-            applyMatchResult(item, frozen);
-            item.setMatchStatus(asString(history.get("match_status")));
-            item.setVariationClass(asString(history.get("variation_class")));
-            if (germline && history.get("clinical_significance") != null) {
-                Integer clinical = asInt(history.get("clinical_significance"));
-                item.setClinicalSignificance(clinical);
-                item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(clinical));
-            }
-            registerHistoryReuse(history, pc, item, germline, matchKey);
+            reuseFrozenHistory(history, frozen, pc, item, persistHistory);
             return;
         }
         if (history != null) {
@@ -149,7 +146,37 @@ public class VariantMatcher {
         NkbDrugMatcher.MatchResult matched = drugMatcher.match(item.getGene(), item.getVariant(), item.getOriVariant(),
             germline, pc.getDiseaseScope(), item.getParentMutationIds());
         applyMatchResult(item, matched);
-        insertHistory(pc, item, matchKey, significance);
+        if (persistHistory) {
+            // 只有提交审核时才冻结首条历史（预览/生成都不写，避免未送审的报告占用匹配历史）
+            insertHistory(pc, item, matchKey, significance);
+        }
+    }
+
+    /**
+     * 命中历史：把冻结结果套到位点行（知识库更新不刷新历史），并按模式决定要不要登记复用。
+     *
+     * @param history        命中的历史行（含 match_status / variation_class / 胚系临床意义）
+     * @param frozen         解析出来的冻结匹配结果
+     * @param persistHistory 是否登记复用：false = 只读模式（预览/生成），复用次数与留痕都不写
+     */
+    private void reuseFrozenHistory(Map<String, Object> history, NkbDrugMatcher.MatchResult frozen,
+                                    PreviewContext pc, PreviewVariantVo item, boolean persistHistory) {
+        boolean germline = "CR_ALL".equals(item.getSourceType());
+        item.setFromHistory(true);
+        applyMatchResult(item, frozen);
+        item.setMatchStatus(asString(history.get("match_status")));
+        item.setVariationClass(asString(history.get("variation_class")));
+        if (germline && history.get("clinical_significance") != null) {
+            Integer clinical = asInt(history.get("clinical_significance"));
+            item.setClinicalSignificance(clinical);
+            item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(clinical));
+        }
+        if (!persistHistory) {
+            // 只读模式（预览/生成）：结果照常复用，但不登记复用次数与留痕 —— 统计口径只认审核后的使用
+            return;
+        }
+        // 匹配键由「上下文 + 位点」确定性推出，与调用方算出来的同值，这里重算以免多传一个参数
+        registerHistoryReuse(history, pc, item, germline, matchKey(pc, item));
     }
 
     /**

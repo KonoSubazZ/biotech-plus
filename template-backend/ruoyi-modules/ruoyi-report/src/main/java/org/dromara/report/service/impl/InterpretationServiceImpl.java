@@ -24,6 +24,7 @@ import org.dromara.report.domain.vo.InterpretationLimsVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
+import org.dromara.report.mapper.ReportTemplateMapper;
 import org.dromara.report.mapper.SampleInfoMapper;
 import org.dromara.report.service.IInterpretationService;
 import org.springframework.stereotype.Service;
@@ -43,7 +44,7 @@ import java.util.stream.Stream;
  * <ul>
  *   <li>列表 = analysis_data ⟕ 该批次最新一份 analysis_report（一个批次可有多份报告，列表只显示最新那份的状态）。</li>
  *   <li>进入解读 = 复用该批次仍在 INTERPRETING 的报告；没有才新建，样本/产品信息从 analysis_data 复制。</li>
- *   <li>上下文 = 报告头 + LIMS 信息（读 sample_file，按 barcode = subbarcode）+ 生成前校验结论。</li>
+ *   <li>上下文 = 报告头 + LIMS 信息（读 sample_file，按 subbarcode = subbarcode）+ 生成前校验结论。</li>
  * </ul>
  * 位点筛选、预览、审核、发送属于后续页面的能力，不在这里实现。
  *
@@ -65,13 +66,11 @@ public class InterpretationServiceImpl implements IInterpretationService {
     private final InterpretationMapper interpretationMapper;
     private final AnalysisReportMapper analysisReportMapper;
     private final SampleInfoMapper sampleInfoMapper;
+    private final ReportTemplateMapper reportTemplateMapper;
 
     @Override
     public TableDataInfo<InterpretationRowVo> selectPageList(InterpretationQueryBo bo, PageQuery pageQuery) {
-        String beginTime = paramAsString(bo, "beginTime");
-        String endTime = paramAsString(bo, "endTime");
-        Page<InterpretationRowVo> page =
-            interpretationMapper.selectInterpretationPage(pageQuery.build(), bo, beginTime, endTime);
+        Page<InterpretationRowVo> page = interpretationMapper.selectInterpretationPage(pageQuery.build(), bo);
         return TableDataInfo.build(page);
     }
 
@@ -89,6 +88,8 @@ public class InterpretationServiceImpl implements IInterpretationService {
         // 同一个批次已有「解读中」的报告就复用它，避免点一次多出一条草稿
         AnalysisReport existing = selectInterpretingReport(analysisId);
         if (existing != null) {
+            // 老报告（本功能上线前建的）癌种/产品ID 可能为空：点「解读」时补齐，不覆盖已有值
+            ensureReportSnapshot(existing);
             return analysisReportMapper.selectVoById(existing.getReportId());
         }
 
@@ -97,7 +98,10 @@ public class InterpretationServiceImpl implements IInterpretationService {
         report.setAnalysisDate(snapshot.getAnalysisDate());
         report.setSubbarcode(snapshot.getSubbarcode());
         report.setProduct(snapshot.getProduct());
-        report.setProductId(snapshot.getProductId());
+        report.setProductId(resolveProductId(snapshot.getProductId(), snapshot.getProduct()));
+        // 录单癌种：进入解读时就带上（LIMS sample_file，按样本编号取），后续生成报告只更新「解读癌种」
+        SampleInfo lims = selectSample(snapshot.getSubbarcode());
+        report.setCancerType(lims == null ? null : lims.getCancerType());
         report.setStatus(STATUS_INTERPRETING);
         analysisReportMapper.insert(report);
 
@@ -197,7 +201,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
     }
 
     /**
-     * LIMS 信息：按 barcode = analysis_data.subbarcode 读 sample_file（本仓已把生产库录单样本表
+     * LIMS 信息：按 subbarcode = analysis_data.subbarcode 读 sample_file（本仓已把生产库录单样本表
      * myapp_webcrmsample 的 122 列全量落成这张表），再按设计书 5.2 的字段映射挑出报告需要的列。
      * <p>
      * 校验口径（设计书 5.2「关键校验」）：
@@ -209,7 +213,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
      */
     private InterpretationLimsVo loadLims(String subbarcode, List<String> errors, List<String> warnings) {
         InterpretationLimsVo lims = new InterpretationLimsVo();
-        lims.setBarcode(subbarcode);
+        lims.setSubbarcode(subbarcode);
         if (StringUtils.isBlank(subbarcode)) {
             lims.setFound(false);
             errors.add("报告缺少样本编号（subbarcode），无法定位 LIMS 信息");
@@ -219,7 +223,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
         SampleInfo sample = selectSample(subbarcode);
         lims.setFound(sample != null);
         if (sample == null) {
-            errors.add("未找到该样本编号的样本信息（sample_file.barcode）：" + subbarcode);
+            errors.add("未找到该样本编号的样本信息（sample_file.subbarcode）：" + subbarcode);
             return lims;
         }
 
@@ -280,10 +284,46 @@ public class InterpretationServiceImpl implements IInterpretationService {
     /** 按样本编号取一条样本信息；同编号多条时取最新一条（编号在租户内唯一，这里只是防御） */
     private SampleInfo selectSample(String subbarcode) {
         LambdaQueryWrapper<SampleInfo> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SampleInfo::getBarcode, subbarcode);
+        wrapper.eq(SampleInfo::getSubbarcode, subbarcode);
         wrapper.orderByDesc(SampleInfo::getId);
         wrapper.last("LIMIT 1");
         return sampleInfoMapper.selectOne(wrapper);
+    }
+
+    /** 报告产品ID：批次快照里为空时按产品名/编码解析 product_config（scanner 只写产品名，product_id 常为空） */
+    private Long resolveProductId(Long productId, String productName) {
+        if (productId != null) {
+            return productId;
+        }
+        return StringUtils.isNotBlank(productName) ? reportTemplateMapper.selectProductIdByName(productName) : null;
+    }
+
+    /**
+     * 补齐报告业务表的快照字段（cancer_type 录单癌种 / product_id 产品ID）。
+     * <p>
+     * 为空才填、不覆盖已有值：老报告（本功能上线前建的）点一次「解读」即可补齐，
+     * 保证 analysis_report 作为报告业务表字段自洽。
+     */
+    private void ensureReportSnapshot(AnalysisReport existing) {
+        boolean cancerBlank = StringUtils.isBlank(existing.getCancerType());
+        boolean productBlank = existing.getProductId() == null;
+        if (!cancerBlank && !productBlank) {
+            return;
+        }
+        AnalysisReport patch = new AnalysisReport();
+        patch.setReportId(existing.getReportId());
+        if (cancerBlank) {
+            SampleInfo lims = selectSample(existing.getSubbarcode());
+            if (lims != null) {
+                patch.setCancerType(lims.getCancerType());
+            }
+        }
+        if (productBlank) {
+            patch.setProductId(reportTemplateMapper.selectProductIdByName(existing.getProduct()));
+        }
+        if (patch.getCancerType() != null || patch.getProductId() != null) {
+            analysisReportMapper.updateById(patch);
+        }
     }
 
     private void require(String value, String label, List<String> errors) {
@@ -322,18 +362,5 @@ public class InterpretationServiceImpl implements IInterpretationService {
         wrapper.orderByDesc(AnalysisReport::getReportId);
         wrapper.last("LIMIT 1");
         return analysisReportMapper.selectOne(wrapper);
-    }
-
-    /**
-     * 取 params 里的字符串型查询参数（日期范围走 params.beginTime / params.endTime）。
-     * <p>
-     * analysis_date 是 varchar(8) 的 YYYYMMDD：前端 NDatePicker 的 yyyy-MM-dd 已在搜索组件里
-     * 转成 yyyyMMdd，这里只做「空值当没传」的清洗，避免 like/between 用空串误匹配。
-     */
-    private String paramAsString(InterpretationQueryBo bo, String key) {
-        Map<String, Object> params = bo.getParams();
-        Object value = params == null ? null : params.get(key);
-        String text = value == null ? null : String.valueOf(value);
-        return StringUtils.isBlank(text) ? null : text;
     }
 }
