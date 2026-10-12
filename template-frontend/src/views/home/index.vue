@@ -1,56 +1,48 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useAppStore } from '@/store/modules/app';
-import HeaderBanner from './modules/header-banner.vue';
-import CardData from './modules/card-data.vue';
-import LineChart from './modules/line-chart.vue';
-import PieChart from './modules/pie-chart.vue';
-import ProjectNews from './modules/project-news.vue';
-import CreativityBanner from './modules/creativity-banner.vue';
+import AnalysisStatCard from './modules/analysis-stat-card.vue';
+import SalesOverview from './modules/sales-overview.vue';
+import SalesProportion from './modules/sales-proportion.vue';
+import TopSearch from './modules/top-search.vue';
+import { REPORT_DONE_PERCENT, STAT_CARDS } from './modules/home-static-data';
+
+defineOptions({
+  name: 'Home'
+});
 
 const appStore = useAppStore();
 
-const gap = computed(() => (appStore.isMobile ? 0 : 16));
+const gap = computed(() => (appStore.isMobile ? 16 : 24));
 </script>
 
 <template>
-  <NSpace vertical :size="16">
-    <NAlert title="如遇问题请先看这里" type="warning">
-      <div class="text-18px">
-        <div>
-          开发前请先查看 ReadMe.md 文件中的
-          <NA
-            href="https://gitee.com/xlsea/ruoyi-plus-soybean#%E5%BC%80%E5%8F%91%E5%89%8D%E5%BF%85%E7%9C%8B"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            开发前必看
-          </NA>
-        </div>
-        <div>如遇菜单无法点击，请检查是否已替换菜单 SQL</div>
-        <div>如遇代码无法生成，请检查是否已替换代码生成模板</div>
-      </div>
-    </NAlert>
-    <HeaderBanner />
-    <CardData />
-    <NGrid :x-gap="gap" :y-gap="16" responsive="screen" item-responsive>
-      <NGi span="24 s:24 m:14">
-        <NCard :bordered="false" class="card-wrapper">
-          <LineChart />
-        </NCard>
-      </NGi>
-      <NGi span="24 s:24 m:10">
-        <NCard :bordered="false" class="card-wrapper">
-          <PieChart />
-        </NCard>
+  <NSpace vertical :size="gap">
+    <!-- ① 顶部 4 张统计卡：主数字 + 迷你图 / 进度条 + 底部两栏 -->
+    <NGrid :x-gap="gap" :y-gap="gap" cols="1 s:2 l:4" responsive="screen">
+      <NGi v-for="card in STAT_CARDS" :key="card.title">
+        <AnalysisStatCard
+          :title="card.title"
+          :total="card.total"
+          :footer-label="card.footerLabel"
+          :footer-value="card.footerValue"
+          :variant="card.variant"
+          :data="card.data ?? []"
+          :percentage="REPORT_DONE_PERCENT"
+        />
       </NGi>
     </NGrid>
-    <NGrid :x-gap="gap" :y-gap="16" responsive="screen" item-responsive>
-      <NGi span="24 s:24 m:14">
-        <ProjectNews />
+
+    <!-- ② 报告 / 样本维度：12 个月柱状图 + 类型排行 -->
+    <SalesOverview />
+
+    <!-- ③ 左：报告检索排行（两个指标 + 排行表）；右：报告 / 样本类型占比 -->
+    <NGrid :x-gap="gap" :y-gap="gap" cols="1 l:2" responsive="screen">
+      <NGi>
+        <TopSearch />
       </NGi>
-      <NGi span="24 s:24 m:10">
-        <CreativityBanner />
+      <NGi>
+        <SalesProportion />
       </NGi>
     </NGrid>
   </NSpace>
