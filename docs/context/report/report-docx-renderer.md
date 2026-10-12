@@ -18,7 +18,9 @@ template-backend/script/tests/test_render_report_docx.py    # 单测（含真实
 ```text
 /home/liushangzhi/project/templates/                          # 固定目录（容器内挂 /app/templates）
 ├── 同源重组修复（HRR）通路基因检测报告-圣域.docx                # 模板实体
-└── 同源重组修复（HRR）通路基因检测报告-圣域.example.json        # 渲染入参样例（试渲染/联调用）
+├── 同源重组修复（HRR）通路基因检测报告-圣域.example.json        # 渲染入参样例（试渲染/联调用）
+└── notify/                                                    # 通知管理模板（人工维护）
+    └── 样本质控不合格通知-v1.docx
 ```
 
 查找口径只有一条路：**报告的产品 → product_template → report_template → 固定目录/模板名.docx**。
@@ -38,6 +40,23 @@ Java 调用方：`org.dromara.report.service.ReportDocxRenderer`（ProcessBuilde
 > 提示：运行 JVM 的机器/容器必须装 `python3` + docxtpl。本机部署用
 > `~/docker/biotech-plus/Dockerfile.backend`（`./deploy.sh build-image`），
 > 参考工程的生产镜像同样是「temurin JRE + python3-pip + pip install」。
+
+## 制品目录（生成产物放哪）
+
+根目录由 `report.artifact.root` 给定；本机容器固定挂 `/app/reports`（宿主
+`/home/liushangzhi/project/reports`），deploy.sh 里由 `REPORTS_DIR` 指定。报告与通知**完全同构**，一条规则：
+
+```text
+<root>/<report|notify>/docx/<yyyyMMdd>/     ① 原始 DOCX（docxtpl 渲染）
+<root>/<report|notify>/pdf/<yyyyMMdd>/      ② 转化 PDF（OnlyOffice）
+<root>/<report|notify>/signed/<yyyyMMdd>/   ③ 签名后 PDF（上上签回传，最终交付；预留）
+<root>/<report|notify>/json/                报告/通知 JSON（平铺）
+```
+
+同类内三个阶段共用同一文件名前缀，靠目录区分阶段；交付优先级 **signed → pdf → docx**。
+路径登记进库（`analysis_report.report_json_path / report_file_raw_path / report_file_path /
+report_signed_file_path`、`qc_failed_notify.json_path / raw_docx_path / pdf_path`），
+下载与预览都校验路径必须落在 `<root>` 内。
 
 ## 安装
 

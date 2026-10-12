@@ -82,6 +82,19 @@ public class OnlyOfficePdfConverter {
      * @return 生成的 PDF 路径
      */
     public Path convert(Path docxPath) {
+        Path parent = docxPath.toAbsolutePath().getParent();
+        return convert(docxPath, parent == null ? docxPath.toAbsolutePath() : parent);
+    }
+
+    /**
+     * 落盘到指定目录：产物 = pdfDir/&lt;源文件名去扩展名&gt;.pdf
+     * 报告侧传 &lt;root&gt;/report/pdf/&lt;yyyyMMdd&gt;，通知侧传 &lt;root&gt;/notify/pdf/&lt;yyyyMMdd&gt;。
+     *
+     * @param docxPath 已渲染好的 DOCX 路径
+     * @param pdfDir   产物目录（不存在则创建）
+     * @return 生成的 PDF 路径
+     */
+    public Path convert(Path docxPath, Path pdfDir) {
         if (!properties.isEnabled()) {
             throw new ServiceException("OnlyOffice 转换未启用（onlyoffice.enabled=false）");
         }
@@ -102,7 +115,7 @@ public class OnlyOfficePdfConverter {
         if (properties.isVerifyPdf() && !isPdf(pdf)) {
             throw new ServiceException("转换结果不是 PDF（缺少 %PDF- 文件头）：" + fileUrl);
         }
-        Path pdfPath = writePdfBeside(source, pdf);
+        Path pdfPath = writePdf(pdfDir, source, pdf);
         log.info("DOCX 转 PDF 完成：{} -> {}，{} 字节，耗时 {} 毫秒",
             source.getFileName(), pdfPath.getFileName(), pdf.length, System.currentTimeMillis() - startedAt);
         return pdfPath;
@@ -216,10 +229,11 @@ public class OnlyOfficePdfConverter {
         }
     }
 
-    /** 产物写盘：同目录临时文件 + 原子替换，避免读到写了一半的 PDF */
-    private Path writePdfBeside(Path source, byte[] pdf) {
-        Path target = source.resolveSibling(fileBase(source) + ".pdf");
+    /** 产物写盘：目标目录不存在则建；同目录临时文件 + 原子替换，避免读到写了一半的 PDF */
+    private Path writePdf(Path pdfDir, Path source, byte[] pdf) {
+        Path target = pdfDir.resolve(fileBase(source) + ".pdf");
         try {
+            Files.createDirectories(pdfDir);
             Path temp = Files.createTempFile(target.getParent(), "." + target.getFileName(), ".tmp");
             Files.write(temp, pdf);
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);

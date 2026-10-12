@@ -79,6 +79,10 @@ CREATE TABLE IF NOT EXISTS `analysis_report` (
     `template_id` bigint DEFAULT NULL COMMENT '逻辑关联report_template.template_id',
     `report_json_path` VARCHAR(1000) DEFAULT NULL COMMENT '正式生成JSON文件路径',
     `report_name` VARCHAR(500) DEFAULT NULL COMMENT '最近一次生成的报告名（命名模板渲染结果，不含唯一后缀）',
+    `report_signed_file_path` VARCHAR(1000) DEFAULT NULL COMMENT '签名后PDF报告路径（上上签回传，最终交付）',
+    `sign_status`  VARCHAR(20) DEFAULT NULL COMMENT '签名状态（NOT_SUBMITTED/SIGNING/SIGNED/FAILED）',
+    `sign_flow_no` VARCHAR(80) DEFAULT NULL COMMENT '上上签签名流程号',
+    `sign_time`    DATETIME DEFAULT NULL COMMENT '签名完成时间',
     `tenant_id`  varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
 
     PRIMARY KEY (`report_id`),
@@ -551,7 +555,7 @@ CREATE TABLE IF NOT EXISTS `report_template` (
     `report_name` VARCHAR(500) DEFAULT NULL COMMENT '报告命名模板：静态文本 + {{路径}} 动态取值；空=用默认命名',
     `template_path` VARCHAR(1000) NOT NULL COMMENT '项目内或受控模板路径',
     `template_sha256` CHAR(64) DEFAULT NULL COMMENT '模板文件SHA-256',
-    `status` VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT 'ENABLED/DISABLED',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT '状态（active 启用 / inactive 停用）',
     `create_by` bigint COMMENT '创建者',
     `create_time` datetime COMMENT '创建时间',
     `update_by` bigint COMMENT '更新者',
@@ -659,7 +663,7 @@ INSERT INTO report_template (template_code, template_name, template_version, cus
     module_code, template_path, template_sha256, status, create_by, create_time, tenant_id)
 SELECT 'pharma-shengyu', '同源重组修复（HRR）通路基因检测报告-圣域', 'v1', '圣域', 'HRR',
     NULL, '同源重组修复（HRR）通路基因检测报告-圣域.docx',
-    '2518E0A35427833FB9A26570129C215BAEAFF57A5644A2909A4065F45B5E396D', 'ENABLED', 1, NOW(), '000000'
+    '2518E0A35427833FB9A26570129C215BAEAFF57A5644A2909A4065F45B5E396D', 'active', 1, NOW(), '000000'
 FROM (SELECT 1) AS dummy
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT template_id FROM report_template
     WHERE template_code = 'pharma-shengyu') AS c1);

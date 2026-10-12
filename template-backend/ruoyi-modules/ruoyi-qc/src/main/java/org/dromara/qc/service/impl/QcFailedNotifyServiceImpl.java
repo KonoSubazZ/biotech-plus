@@ -26,6 +26,8 @@ import org.dromara.qc.service.IWetLabQcService;
 import org.dromara.report.config.ReportRendererProperties;
 import org.dromara.report.service.impl.OnlyOfficePdfConverter;
 import org.dromara.report.service.impl.ReportDocxRenderer;
+import org.dromara.report.utils.ArtifactPermissions;
+import org.dromara.report.utils.ReportArtifactPaths;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,9 +37,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.PosixFilePermissions;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -81,8 +82,8 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
     private final ReportRendererProperties rendererProperties;
     private final ObjectMapper objectMapper;
 
-    /** 制品根目录（与报告模块同一个目录，宿主已挂载） */
-    @Value("${report.artifact.root:/tmp/report-artifacts}")
+    /** 制品根目录（与报告模块同一个目录，容器里固定挂 /app/reports） */
+    @Value("${report.artifact.root:/app/reports}")
     private String artifactRoot;
 
     /**
@@ -160,14 +161,16 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
         LocalDateTime now = LocalDateTime.now();
         String subbarcode = sample.getSubbarcode();
         String fileBase = "qc-failed-notify-" + subbarcode + "-" + TIMESTAMP.format(now);
-        Path jsonPath = Paths.get(artifactRoot, fileBase + ".json");
-        Path docxPath = jsonPath.resolveSibling(fileBase(jsonPath) + ".docx");
+        Path jsonPath = ReportArtifactPaths.jsonDir(artifactRoot, ReportArtifactPaths.NOTIFY)
+            .resolve(fileBase + ".json");
+        Path docxPath = ReportArtifactPaths.docxDir(artifactRoot, ReportArtifactPaths.NOTIFY, LocalDate.now())
+            .resolve(fileBase + ".docx");
         Map<String, Object> context = QcNotifyDocxContext.build(bo, sample);
         writeJson(jsonPath, context);
         try {
             Map<String, Object> rendered = reportDocxRenderer.render(resolveTemplate(), jsonPath, docxPath);
-            relaxPermissions(jsonPath);
-            relaxPermissions(docxPath);
+            ArtifactPermissions.relax(jsonPath);
+            ArtifactPermissions.relax(docxPath);
             Path pdfPath = convertToPdfQuietly(docxPath);
             QcFailedNotify record = toRecord(bo, sample, jsonPath, docxPath, pdfPath, now);
             notifyMapper.insert(record);
@@ -191,8 +194,9 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
      */
     private Path convertToPdfQuietly(Path docxPath) {
         try {
-            Path pdfPath = pdfConverter.convert(docxPath);
-            relaxPermissions(pdfPath);
+            Path pdfPath = pdfConverter.convert(docxPath,
+                ReportArtifactPaths.pdfDir(artifactRoot, ReportArtifactPaths.NOTIFY, LocalDate.now()));
+            ArtifactPermissions.relax(pdfPath);
             return pdfPath;
         } catch (RuntimeException e) {
             log.warn("通知单转 PDF 失败（不影响 DOCX 生成）：{}，{}", docxPath, e.getMessage());
@@ -451,17 +455,6 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
         }
     }
 
-    /**
-     * 产物放开为 0644：渲染器用临时文件原子替换写盘（默认 0600、属主 root），
-     * 宿主上直接打开/拷贝会 Permission denied —— 通知单是要给人看的，这里显式放开读权限
-     */
-    private void relaxPermissions(Path path) {
-        try {
-            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-r--r--"));
-        } catch (IOException | UnsupportedOperationException e) {
-            log.warn("产物权限放开失败（不影响生成）：{}，{}", path, e.getMessage());
-        }
-    }
 
     private void deleteQuietly(Path path) {
         try {
@@ -471,10 +464,6 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
         }
     }
 
-    private String fileBase(Path jsonPath) {
-        String name = jsonPath.getFileName().toString();
-        return name.substring(0, name.lastIndexOf('.'));
-    }
 
     private String text(String value) {
         return StringUtils.blankToDefault(value, "");

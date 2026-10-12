@@ -302,7 +302,7 @@ public interface InterpretationMapper {
                            @Param("analysisDiseaseId") Long analysisDiseaseId);
 
     /**
-     * 正式生成：登记本次 JSON/DOCX 制品路径、报告名与所用模板
+     * 正式生成：登记本次 JSON/DOCX/PDF 制品路径、报告名与所用模板
      * （不覆盖旧文件，只把库里的路径指向最新制品）。
      *
      * @param reportId     报告ID
@@ -310,6 +310,7 @@ public interface InterpretationMapper {
      * @param templateCode 模板编码
      * @param jsonPath     JSON 制品路径
      * @param docxPath     DOCX 制品路径
+     * @param pdfPath      转化 PDF 制品路径（OnlyOffice；未转出时为 null）
      * @param reportName   报告名（report_template.report_name 渲染结果，不含唯一后缀；未配置时为 null）
      * @param generatedBy  产出人
      * @return 影响行数
@@ -319,6 +320,7 @@ public interface InterpretationMapper {
                              @Param("templateCode") String templateCode,
                              @Param("jsonPath") String jsonPath,
                              @Param("docxPath") String docxPath,
+                             @Param("pdfPath") String pdfPath,
                              @Param("reportName") String reportName,
                              @Param("generatedBy") String generatedBy);
 }

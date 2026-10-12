@@ -11,6 +11,8 @@ import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.impl.ReportDocxRenderer;
+import org.dromara.report.utils.ArtifactPermissions;
+import org.dromara.report.utils.ReportArtifactPaths;
 import org.dromara.report.utils.ReportNameResolver;
 import org.dromara.report.service.impl.ReportNameVariables;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,8 +22,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
@@ -37,9 +39,11 @@ import org.dromara.report.service.template.ReportTemplateDataService;
  * <ul>
  *   <li>不信前端回传的预览结果，每次都用 {@code buildPreview} 重新查库组装；</li>
  *   <li>每次生成写新文件（文件名带时间 + 随机串），旧制品不原地覆盖，库里只指向最新一次；</li>
- *   <li>失败时删掉本次刚写的 JSON/DOCX，不留半成品；</li>
+ *   <li>失败时删掉本次刚写的 JSON/DOCX/PDF，不留半成品；</li>
  *   <li>报告名（report_template.report_name 渲染结果）同时进 JSON（reportInfo.reportName）与库
- *       （analysis_report.report_name），DOCX 文件名与 JSON 同前缀，三处同源。</li>
+ *       （analysis_report.report_name），DOCX/PDF 文件名与 JSON 同前缀，三处同源；</li>
+ *   <li>制品按阶段分目录（{@link ReportArtifactPaths}）：JSON 平铺 json/，DOCX 落 docx/&lt;日期&gt;/，
+ *       转出的 PDF 落 pdf/&lt;日期&gt;/，签名后 PDF 预留 signed/&lt;日期&gt;/。</li>
  * </ul>
  *
  * @author <你的名字>
@@ -62,14 +66,16 @@ public class ReportGenerationService {
 
     private final ReportDocxRenderer reportDocxRenderer;
 
+    private final OnlyOfficePdfConverter pdfConverter;
+
     private final ObjectMapper objectMapper;
 
-    /** JSON/DOCX 制品根目录（可在 application.yml 里用 report.artifact.root 覆盖） */
-    @Value("${report.artifact.root:/tmp/report-artifacts}")
+    /** 制品根目录（容器里固定挂 /app/reports；可在 application.yml 里用 report.artifact.root 覆盖） */
+    @Value("${report.artifact.root:/app/reports}")
     private String artifactRoot;
 
     /**
-     * 生成报告：JSON 与 DOCX 各一份，并登记到 analysis_report。
+     * 生成报告：JSON 一份、DOCX 一份，并尽力转出 PDF，登记到 analysis_report。
      *
      * @param bo 入参（analysisId / reportId / templateCode）
      * @return 含报告名、JSON/DOCX 路径、渲染结果的结果集
@@ -82,16 +88,21 @@ public class ReportGenerationService {
         applyReportName(data, reportName);
 
         Path jsonPath = jsonTarget(bo.getReportId(), data.getTemplateCode(), reportName);
-        Path docxPath = jsonPath.resolveSibling(fileBase(jsonPath) + ".docx");
+        Path docxPath = docxTarget(jsonPath);
+        Path pdfPath = null;
         try {
             writeJson(jsonPath, data);
+            ArtifactPermissions.relax(jsonPath);
             Path templateFile = reportDocxRenderer.locateTemplate(template);
             Map<String, Object> rendered = reportDocxRenderer.render(templateFile, jsonPath, docxPath);
-            updateArtifact(bo, data, jsonPath, docxPath, reportName);
+            ArtifactPermissions.relax(docxPath);
+            pdfPath = convertPdfQuietly(docxPath);
+            updateArtifact(bo, data, jsonPath, docxPath, pdfPath, reportName);
             return buildResult(data, reportName, jsonPath, docxPath, rendered);
         } catch (RuntimeException e) {
             deleteQuietly(jsonPath);
             deleteQuietly(docxPath);
+            deleteQuietly(pdfPath);
             throw e;
         }
     }
@@ -143,17 +154,18 @@ public class ReportGenerationService {
 
     /** 登记到 analysis_report（路径/模板/报告名 + 回填解读癌种；不改报告状态） */
     private void updateArtifact(InterpretationPreviewBo bo, ReportTemplateData data,
-                                Path jsonPath, Path docxPath, String reportName) {
+                                Path jsonPath, Path docxPath, Path pdfPath, String reportName) {
         String actor = LoginHelper.getUserId() == null ? null : String.valueOf(LoginHelper.getUserId());
         int affected = interpretationMapper.updateReportArtifact(bo.getReportId(), data.getTemplateId(),
-            data.getTemplateCode(), jsonPath.toString(), docxPath.toString(), reportName, actor);
+            data.getTemplateCode(), jsonPath.toString(), docxPath.toString(),
+            pdfPath == null ? null : pdfPath.toString(), reportName, actor);
         if (affected == 0) {
             throw new ServiceException("报告不存在或已删除，无法登记制品：reportId=" + bo.getReportId());
         }
         // 回填解读癌种：预览页可覆盖癌种，落库的是本次生效的那个（与报告 JSON 的 sampleInfo.disease 同源）
         interpretationMapper.updateReportDisease(bo.getReportId(), effectiveDisease(data), effectiveDiseaseId(data));
-        log.info("报告已生成：reportId={} templateCode={} reportName={} disease={} json={} docx={}",
-            bo.getReportId(), data.getTemplateCode(), reportName, effectiveDisease(data), jsonPath, docxPath);
+        log.info("报告已生成：reportId={} templateCode={} reportName={} disease={} json={} docx={} pdf={}",
+            bo.getReportId(), data.getTemplateCode(), reportName, effectiveDisease(data), jsonPath, docxPath, pdfPath);
     }
 
     /** 本次生效的解读癌种（报告 JSON 的 sampleInfo.disease） */
@@ -182,14 +194,35 @@ public class ReportGenerationService {
     }
 
     /**
-     * 制品路径：固定目录 &lt;root&gt;/&lt;报告名或默认前缀&gt;-&lt;时间&gt;-&lt;随机串&gt;.json
-     * <p>
-     * 所有报告文件都平铺在同一个固定目录（root = report.artifact.root）下，方便按目录取件；
+     * 报告 JSON：&lt;root&gt;/report/json/&lt;报告名或默认前缀&gt;-&lt;时间&gt;-&lt;随机串&gt;.json（平铺，不按日期）。
      * 同一报告多次生成靠文件名里的「报告名 + 时间 + 随机串」区分，不建 reportId 子目录。
      */
     private Path jsonTarget(Long reportId, String templateCode, String reportName) {
         String reportPart = reportId == null ? "unknown" : String.valueOf(reportId);
-        return Paths.get(artifactRoot, fileBase(reportName, reportPart, templateCode) + ".json");
+        String fileName = fileBase(reportName, reportPart, templateCode) + ".json";
+        return ReportArtifactPaths.jsonDir(artifactRoot, ReportArtifactPaths.REPORT).resolve(fileName);
+    }
+
+    /** 原始 DOCX：&lt;root&gt;/report/docx/&lt;yyyyMMdd&gt;/，与 JSON 同前缀 */
+    private Path docxTarget(Path jsonPath) {
+        return ReportArtifactPaths.docxDir(artifactRoot, ReportArtifactPaths.REPORT, LocalDate.now())
+            .resolve(fileBase(jsonPath) + ".docx");
+    }
+
+    /**
+     * 静默转 PDF：产物落 &lt;root&gt;/report/pdf/&lt;yyyyMMdd&gt;/。失败只记日志
+     * （report_file_path 留空，交付回退 DOCX）；PDF 是签名链路的输入，转换器抖动不该回滚已渲染的 DOCX。
+     */
+    private Path convertPdfQuietly(Path docxPath) {
+        try {
+            Path pdfPath = pdfConverter.convert(docxPath,
+                ReportArtifactPaths.pdfDir(artifactRoot, ReportArtifactPaths.REPORT, LocalDate.now()));
+            ArtifactPermissions.relax(pdfPath);
+            return pdfPath;
+        } catch (RuntimeException e) {
+            log.warn("报告转 PDF 失败（不影响 DOCX；交付回退 DOCX）：{}，{}", docxPath, e.getMessage());
+            return null;
+        }
     }
 
     /** 文件名前缀：配了报告名就用安全化后的报告名，否则用默认的 report-&lt;id&gt;-&lt;模板编码&gt; */
@@ -200,7 +233,7 @@ public class ReportGenerationService {
         return "report-" + reportPart + "-" + safeFilePart(templateCode) + "-" + uniqueSuffix();
     }
 
-    /** 去掉扩展名取文件前缀（DOCX 与 JSON 同前缀，设计书 §9.1） */
+    /** 去掉扩展名取文件前缀（DOCX/PDF 与 JSON 同前缀，设计书 §9.1） */
     private String fileBase(Path jsonPath) {
         String fileName = jsonPath.getFileName().toString();
         return fileName.endsWith(".json") ? fileName.substring(0, fileName.length() - ".json".length()) : fileName;
@@ -219,8 +252,11 @@ public class ReportGenerationService {
         return value.trim().replaceAll("[^A-Za-z0-9._-]", "_");
     }
 
-    /** 失败清理：删不掉只记日志，不掩盖原始异常 */
+    /** 失败清理：删不掉只记日志，不掩盖原始异常（pdfPath 可能为 null，直接跳过） */
     private void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
         try {
             Files.deleteIfExists(path);
         } catch (IOException e) {

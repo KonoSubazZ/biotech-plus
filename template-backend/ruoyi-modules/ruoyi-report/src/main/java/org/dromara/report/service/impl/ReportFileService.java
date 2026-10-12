@@ -25,8 +25,8 @@ import static org.dromara.report.service.impl.PreviewSupport.asString;
  *       防止库里路径被改成任意文件而被读走；</li>
  *   <li>文件不存在/越界都抛业务异常（不返回 404 裸体，前端好提示）。</li>
  * </ul>
- * 取文件优先级：PDF（{@code report_file_path}）→ DOCX（{@code report_file_raw_path}）；
- * 当前生成只出 DOCX（PDF 列为空），所以现在拿到的是 DOCX。
+ * 取文件优先级：签名后 PDF（{@code report_signed_file_path}）→ 转化 PDF（{@code report_file_path}）
+ * → 原始 DOCX（{@code report_file_raw_path}）：上了签名用签名件，PDF 没转出就回退 DOCX。
  *
  * @author <你的名字>
  */
@@ -37,8 +37,8 @@ public class ReportFileService {
 
     private final InterpretationMapper interpretationMapper;
 
-    /** 报告输出固定目录（与 ReportGenerationService 同一配置项） */
-    @Value("${report.artifact.root:/tmp/report-artifacts}")
+    /** 制品根目录（容器里固定挂 /app/reports） */
+    @Value("${report.artifact.root:/app/reports}")
     private String artifactRoot;
 
     /**
@@ -56,7 +56,9 @@ public class ReportFileService {
         if (!String.valueOf(analysisId).equals(asString(report.get("analysisId")))) {
             throw new ServiceException("报告与分析批次不匹配：reportId=" + reportId + "，analysisId=" + analysisId);
         }
-        String rawPath = firstNotBlank(asString(report.get("reportFilePath")),
+        String rawPath = firstNotBlank(
+            asString(report.get("reportSignedFilePath")),
+            asString(report.get("reportFilePath")),
             asString(report.get("reportFileRawPath")));
         if (rawPath == null) {
             throw new ServiceException("报告文件尚未生成，请先「生成报告」：reportId=" + reportId);
@@ -73,11 +75,10 @@ public class ReportFileService {
         return file.toFile();
     }
 
-    /** 取第一个非空白值 */
-    private String firstNotBlank(String first, String second) {
-        if (first != null && !first.isBlank()) {
-            return first;
-        }
-        return second == null || second.isBlank() ? null : second;
+    /** 取第一个非空白值；全空返回 null */
+    private String firstNotBlank(String... values) {
+        return java.util.Arrays.stream(values)
+            .filter(value -> value != null && !value.isBlank())
+            .findFirst().orElse(null);
     }
 }

@@ -79,7 +79,9 @@ public class ReportMailPreviewService {
 
         // 附件名取报告行登记的制品路径文件名：只用于页面展示，发送时仍由 ReportFileService 做目录越界与存在性校验
         String attachmentName = fileName(firstNotBlank(
-            asString(report.get("reportFilePath")), asString(report.get("reportFileRawPath"))));
+            asString(report.get("reportSignedFilePath")),
+            asString(report.get("reportFilePath")),
+            asString(report.get("reportFileRawPath"))));
         vo.setAttachmentName(attachmentName);
 
         String status = asString(report.get("status"));
@@ -187,12 +189,11 @@ public class ReportMailPreviewService {
         return StringUtils.isBlank(name) ? null : name;
     }
 
-    /** 取第一个非空白值；两个都为空时返回 null（调用方按「没有附件」处理） */
-    private String firstNotBlank(String first, String second) {
-        if (StringUtils.isNotBlank(first)) {
-            return first;
-        }
-        return StringUtils.isBlank(second) ? null : second;
+    /** 取第一个非空白值；全空返回 null（调用方按「没有附件」处理） */
+    private String firstNotBlank(String... values) {
+        return java.util.Arrays.stream(values)
+            .filter(StringUtils::isNotBlank)
+            .findFirst().orElse(null);
     }
 
     private String asString(Object value) {

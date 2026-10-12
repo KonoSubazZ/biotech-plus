@@ -94,8 +94,8 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
 
     private final ObjectMapper objectMapper;
 
-    /** JSON/DOCX 制品根目录（与 ReportGenerationService 同一配置项） */
-    @Value("${report.artifact.root:/tmp/report-artifacts}")
+    /** 制品根目录（与 ReportGenerationService 同一配置项；容器里固定挂 /app/reports） */
+    @Value("${report.artifact.root:/app/reports}")
     private String artifactRoot;
 
     /**

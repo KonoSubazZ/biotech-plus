@@ -46,7 +46,7 @@ SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1
 
 - 预览 JSON 只存在于 Java 对象和 HTTP 响应，不写数据库，也不创建预览文件。
 - 正式生成时服务端重新查询最新 LIMS、报出位点、改靶、临床意义、产品基因和模板配置，不接受前端回传的预览 JSON。
-- 当前实现把最终 JSON 写入报告制品目录：`<artifact-root>/<reportId>/report-<reportId>-<templateCode>-<时间>-<随机串>.json`。
+- 当前实现把最终 JSON 写入 `<artifact-root>/report/json/`、原始 DOCX 写入 `<artifact-root>/report/docx/<yyyyMMdd>/`（均不再建 reportId 子目录）；转化 PDF 与签名后 PDF 分别落 `<artifact-root>/report/pdf|signed/<yyyyMMdd>/`（见 report-docx-renderer.md 的「制品目录」）。
 - DOCX 与 JSON 使用相同文件名前缀；`analysis_report.report_json_path` 保存 JSON 路径，`report_file_raw_path` 保存 DOCX 路径，`template_id/template/report_generated_by/report_generated_at` 同时更新。
 - 再次生成会重新组装数据并创建新的唯一 JSON/DOCX 文件，因此内容可能随最新业务数据变化；数据库路径会指向最新制品，旧 JSON 文件不会被原地修改。
 - 当前运行代码不把 JSON 内容写入 `analysis_report.report_detail`，也未使用 `report_json_hash`。本文后续出现的 `report_detail`/哈希方案属于旧目标草案，重写时不得当作已实现行为。
