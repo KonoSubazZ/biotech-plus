@@ -10,7 +10,7 @@ import org.dromara.report.domain.vo.ReportMailSenderOptionVo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationService;
 import org.dromara.report.service.IReportMailConfigService;
-import org.dromara.report.service.ReportMailDefaults;
+import org.dromara.report.utils.ReportMailDefaults;
 import org.dromara.report.service.ReportMailVariables;
 import org.springframework.stereotype.Service;
 

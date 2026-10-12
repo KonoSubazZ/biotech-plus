@@ -8,6 +8,8 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.dromara.report.utils.ReportNameResolver;
+import org.dromara.report.utils.ReportMailDefaults;
 
 /**
  * 报告邮件的字段变量：名字 → 取值来源（一处定义，保存期校验、前端提示、发送渲染都用它）。

@@ -1,4 +1,4 @@
-package org.dromara.report.service;
+package org.dromara.report.utils;
 
 import org.dromara.common.core.exception.ServiceException;
 import org.springframework.util.PropertyPlaceholderHelper;

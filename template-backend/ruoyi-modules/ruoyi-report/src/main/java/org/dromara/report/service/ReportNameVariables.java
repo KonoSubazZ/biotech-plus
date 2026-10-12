@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.dromara.report.utils.ReportNameResolver;
 
 /**
  * 报告命名的字段变量：名字 → 取值来源（一处定义，校验、生成、前端提示都用它）。

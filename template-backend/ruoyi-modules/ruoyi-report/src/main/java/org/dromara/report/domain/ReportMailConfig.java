@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.dromara.common.mybatis.core.domain.BaseEntity;
+import org.dromara.report.utils.ReportMailDefaults;
 
 /**
  * 报告邮件发送配置对象 report_mail_config

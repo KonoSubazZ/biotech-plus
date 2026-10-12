@@ -1,4 +1,4 @@
-package org.dromara.report.service;
+package org.dromara.report.utils;
 
 /**
  * 报告邮件发送的**代码默认值**（「报告管理 › 邮件配置」未配置时按这些值展示与使用）。

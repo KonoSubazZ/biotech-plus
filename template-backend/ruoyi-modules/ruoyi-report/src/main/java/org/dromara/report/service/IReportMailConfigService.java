@@ -9,6 +9,7 @@ import org.dromara.report.domain.vo.ReportMailConfigVo;
 import org.dromara.report.domain.vo.ReportMailSenderOptionVo;
 
 import java.util.List;
+import org.dromara.report.utils.ReportMailDefaults;
 
 /**
  * 报告邮件配置 服务层

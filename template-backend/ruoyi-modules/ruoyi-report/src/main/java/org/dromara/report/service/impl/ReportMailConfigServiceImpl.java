@@ -15,8 +15,8 @@ import org.dromara.report.domain.vo.ReportMailConfigVo;
 import org.dromara.report.domain.vo.ReportMailSenderOptionVo;
 import org.dromara.report.mapper.ReportMailConfigMapper;
 import org.dromara.report.service.IReportMailConfigService;
-import org.dromara.report.service.ReportMailDefaults;
-import org.dromara.report.service.ReportNameResolver;
+import org.dromara.report.utils.ReportMailDefaults;
+import org.dromara.report.utils.ReportNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

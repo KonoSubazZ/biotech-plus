@@ -1,7 +1,7 @@
 package org.dromara.test.report;
 
 import org.dromara.common.core.exception.ServiceException;
-import org.dromara.report.service.ReportNameResolver;
+import org.dromara.report.utils.ReportNameResolver;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import org.dromara.report.utils.ReportMailDefaults;
 
 /**
  * 报告邮件配置 请求对象（「报告管理 › 邮件配置」保存用）

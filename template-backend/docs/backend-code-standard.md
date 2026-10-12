@@ -16,6 +16,23 @@
 - 沿用 `XxxController`、`IXxxService`、`XxxServiceImpl`、`XxxMapper`、`XxxBo`、`XxxVo` 等模块既有命名；不要为套用命名规则重命名无关历史代码。
 - 优先构造器注入；已有 Lombok 场景使用 `@RequiredArgsConstructor` 与 `private final` 依赖。
 
+### service 层包结构与 utils（模块内协作类）
+
+CRUD 骨架之外，模块内的协作类按下面三条落位：
+
+1. `service/` 及其子包只放接口：`IXxxService` 放 `service/`；不得出现 `@Service` / `@Component`。
+2. `service/impl/` 根放**入口服务**（被 Controller 注入、名字以 `Service` / `ServiceImpl` 结尾）与**能力组件**
+   （`*Sender` / `*Variables` / `*Renderer` / `*Converter`，即使被 Controller 注入也留在根，不叫 Service）；
+   只被其他服务注入的协作类放 `service/impl/<域>/`，且**域内 ≥4 个类才建子包**（不足 4 个留在根，不建小包、不建空包）。
+3. 非 Bean 不放 service 层：数据载体进 `domain/dto`；纯静态工具/常量进 `utils/`。
+   `utils/` 准入：① 无 Spring 注解或仅有无状态依赖、无实例状态；② 被 ≥2 个不同层/域的类使用（尤其被 domain、controller、接口引用）；
+   ③ 不含业务判定口径。不满足则跟随它服务的域包。
+
+例外：`ruoyi-report` 的 `service/template/` 是「报告模板扩展点包」，接口与其实现同包 ——
+它承载按 `report_template.module_code` 插拔的 Handler 流水线，维护时只进这一个包。
+
+不因为「只有一个实现」而抽 `IXxxService` 接口（见 `ai-rules/01-readability.md`、`ai-rules/README.md`）。
+
 ## 可读性优先
 
 允许适度啰嗦，以读者能顺着代码理解业务为目标，不以行数少作为优化标准。
