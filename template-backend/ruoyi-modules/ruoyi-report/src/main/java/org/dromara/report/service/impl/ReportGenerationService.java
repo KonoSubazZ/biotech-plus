@@ -10,9 +10,9 @@ import org.dromara.report.domain.vo.ReportTemplateData;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationPreviewService;
-import org.dromara.report.service.ReportDocxRenderer;
+import org.dromara.report.service.impl.ReportDocxRenderer;
 import org.dromara.report.utils.ReportNameResolver;
-import org.dromara.report.service.ReportNameVariables;
+import org.dromara.report.service.impl.ReportNameVariables;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

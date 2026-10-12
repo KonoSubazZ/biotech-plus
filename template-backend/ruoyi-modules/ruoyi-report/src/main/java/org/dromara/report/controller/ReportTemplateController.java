@@ -17,7 +17,7 @@ import org.dromara.report.domain.bo.ReportTemplateBo;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.service.IReportTemplateService;
 import org.dromara.report.utils.ReportNameResolver;
-import org.dromara.report.service.ReportNameVariables;
+import org.dromara.report.service.impl.ReportNameVariables;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

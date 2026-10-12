@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.dromara.report.service.impl.ReportNameVariables;
 
 /**
  * 报告命名解析：{@code {{变量}}} 用同名变量直接替换，其余全是静态文本、原样保留。

@@ -14,7 +14,7 @@ import org.dromara.report.mapper.AnalysisReportEmailLogMapper;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IReportMailConfigService;
-import org.dromara.report.service.ReportMailSender;
+import org.dromara.report.service.impl.ReportMailSender;
 import org.dromara.report.service.impl.ReportFileService;
 import org.dromara.report.service.impl.ReportMailSendService;
 import org.junit.jupiter.api.Assertions;

@@ -1,4 +1,4 @@
-package org.dromara.report.service;
+package org.dromara.report.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

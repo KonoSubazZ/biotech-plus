@@ -1,4 +1,4 @@
-package org.dromara.report.service;
+package org.dromara.report.service.impl;
 
 import cn.hutool.extra.mail.JakartaMail;
 import cn.hutool.extra.mail.MailAccount;

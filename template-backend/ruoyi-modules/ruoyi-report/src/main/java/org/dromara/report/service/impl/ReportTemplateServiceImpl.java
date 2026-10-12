@@ -13,7 +13,7 @@ import org.dromara.report.domain.ReportTemplate;
 import org.dromara.report.domain.bo.ReportTemplateBo;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.mapper.ReportTemplateMapper;
-import org.dromara.report.service.ReportNameVariables;
+import org.dromara.report.service.impl.ReportNameVariables;
 import org.dromara.report.service.IReportTemplateService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

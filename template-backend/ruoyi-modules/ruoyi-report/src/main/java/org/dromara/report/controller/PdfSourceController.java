@@ -2,7 +2,7 @@ package org.dromara.report.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.dromara.report.service.OnlyOfficePdfConverter;
+import org.dromara.report.service.impl.OnlyOfficePdfConverter;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;

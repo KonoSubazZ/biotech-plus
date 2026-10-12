@@ -14,7 +14,7 @@ import org.dromara.report.mapper.AnalysisReportEmailLogMapper;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IReportMailConfigService;
-import org.dromara.report.service.ReportMailSender;
+import org.dromara.report.service.impl.ReportMailSender;
 import org.springframework.stereotype.Service;
 
 import java.io.File;

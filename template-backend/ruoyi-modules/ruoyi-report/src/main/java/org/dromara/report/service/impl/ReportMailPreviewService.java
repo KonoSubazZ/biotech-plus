@@ -11,7 +11,7 @@ import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationService;
 import org.dromara.report.service.IReportMailConfigService;
 import org.dromara.report.utils.ReportMailDefaults;
-import org.dromara.report.service.ReportMailVariables;
+import org.dromara.report.service.impl.ReportMailVariables;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;

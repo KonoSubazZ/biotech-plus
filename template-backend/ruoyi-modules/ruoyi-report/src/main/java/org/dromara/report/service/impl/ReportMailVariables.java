@@ -1,4 +1,4 @@
-package org.dromara.report.service;
+package org.dromara.report.service.impl;
 
 import lombok.Getter;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
