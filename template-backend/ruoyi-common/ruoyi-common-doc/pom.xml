@@ -26,6 +26,18 @@
             <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
         </dependency>
 
+        <!-- 接口文档界面：Swagger UI（与上面的 api 模块同版本） -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+
+        <!-- knife4j 中文界面（/doc.html）：纯静态 UI 包，不含 Java 代码，与 springdoc 版本无关 -->
+        <dependency>
+            <groupId>com.github.xiaoymin</groupId>
+            <artifactId>knife4j-openapi3-ui</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.github.therapi</groupId>
             <artifactId>therapi-runtime-javadoc</artifactId>

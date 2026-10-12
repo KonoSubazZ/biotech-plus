@@ -285,6 +285,7 @@ const local: App.I18n.Schema = {
     'report_interpretation': 'Report Interpretation',
     'report_template': 'Template Config',
     'report_variant-history': 'Variant History',
+    'report_mail-config': 'Mail Config',
     compliance: 'Compliance Management',
     'compliance_dev-log': 'Development Log',
     'compliance_validation-records': '3Q Validation Records',

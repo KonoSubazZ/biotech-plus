@@ -145,6 +145,24 @@ def replace_fields(text, block):
     return pat.sub(lambda m: m.group(1) + block + "\n" + m.group(3), text), True
 
 
+def ensure_type_imports(text, fields):
+    """补上字段类型需要的 import —— 模板里只带了最基础的那几个。
+
+    踩过：字段用 decimal / date 时，生成的类缺 java.math.BigDecimal / java.util.Date，
+    编译直接报 cannot find symbol（BioinfoQc 生成时踩的）。
+    """
+    types = {f["type"] for f in fields}
+    needed = []
+    if "BigDecimal" in types:
+        needed.append("import java.math.BigDecimal;")
+    if "Date" in types:
+        needed.append("import java.util.Date;")
+    missing = [i for i in needed if i not in text]
+    if not missing:
+        return text
+    return re.sub(r"(package [^\n]+\n)", r"\1\n" + "\n".join(missing) + "\n", text, count=1)
+
+
 # ------------------------------------------------------------------ 主流程
 def main():
     ap = argparse.ArgumentParser(description="按 ai-templates 生成 CRUD 模块")
@@ -288,6 +306,7 @@ def main():
                 text, _ = replace_fields(text, gen_bo_block(fields))
             elif src_name == f"{EX_ENTITY}Vo.java":
                 text, _ = replace_fields(text, gen_vo_block(fields))
+            text = ensure_type_imports(text, fields)
         if not args.dry_run:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             with open(dst, "w", encoding="utf-8") as f:

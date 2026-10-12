@@ -281,6 +281,7 @@ const local: App.I18n.Schema = {
     'report_interpretation': '报告解读',
     'report_template': '模板配置',
     'report_variant-history': '历史检出',
+    'report_mail-config': '邮件配置',
     compliance: '合规管理',
     'compliance_dev-log': '开发记录',
     'compliance_validation-records': '3Q 验证记录',

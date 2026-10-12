@@ -20,6 +20,8 @@
         <java.version>17</java.version>
         <mybatis.version>3.5.19</mybatis.version>
         <springdoc.version>2.8.17</springdoc.version>
+        <!-- knife4j 只取「纯 UI 包」：它没有任何 Java 依赖（不碰 springdoc），避免 4.5.0 starter 与 springdoc 2.8 的类名冲突 -->
+        <knife4j.version>4.5.0</knife4j.version>
         <therapi-javadoc.version>0.15.0</therapi-javadoc.version>
         <fastexcel.version>1.3.0</fastexcel.version>
         <velocity.version>2.3</velocity.version>
@@ -143,6 +145,20 @@
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
                 <version>${springdoc.version}</version>
+            </dependency>
+
+            <!-- 接口文档界面：Swagger UI（与 api 模块同版本，提供 /swagger-ui/index.html 与分组发现端点） -->
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+
+            <!-- knife4j 中文界面（纯静态资源，/doc.html）：不引 starter —— 4.5.0 的 starter 与 springdoc 2.8 类名冲突会起不来 -->
+            <dependency>
+                <groupId>com.github.xiaoymin</groupId>
+                <artifactId>knife4j-openapi3-ui</artifactId>
+                <version>${knife4j.version}</version>
             </dependency>
 
             <dependency>

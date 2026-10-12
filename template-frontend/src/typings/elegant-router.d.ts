@@ -45,8 +45,10 @@ declare module "@elegant-router/types" {
     "qc_wet-lab": "/qc/wet-lab";
     "report": "/report";
     "report_interpretation": "/report/interpretation";
+    "report_mail-config": "/report/mail-config";
     "report_sample-info": "/report/sample-info";
     "report_template": "/report/template";
+    "report_variant-history": "/report/variant-history";
     "social-callback": "/social-callback";
     "system": "/system";
     "system_client": "/system/client";
@@ -151,8 +153,10 @@ declare module "@elegant-router/types" {
     | "qc_bioinfo"
     | "qc_wet-lab"
     | "report_interpretation"
+    | "report_mail-config"
     | "report_sample-info"
     | "report_template"
+    | "report_variant-history"
     | "system_client"
     | "system_config"
     | "system_dict"

@@ -248,6 +248,15 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'report_mail-config',
+        path: '/report/mail-config',
+        component: 'view.report_mail-config',
+        meta: {
+          title: 'report_mail-config',
+          i18nKey: 'route.report_mail-config'
+        }
+      },
+      {
         name: 'report_sample-info',
         path: '/report/sample-info',
         component: 'view.report_sample-info',
@@ -263,6 +272,15 @@ export const generatedRoutes: GeneratedRoute[] = [
         meta: {
           title: 'report_template',
           i18nKey: 'route.report_template'
+        }
+      },
+      {
+        name: 'report_variant-history',
+        path: '/report/variant-history',
+        component: 'view.report_variant-history',
+        meta: {
+          title: 'report_variant-history',
+          i18nKey: 'route.report_variant-history'
         }
       }
     ]

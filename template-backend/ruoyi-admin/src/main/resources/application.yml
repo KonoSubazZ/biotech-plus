@@ -113,8 +113,15 @@ security:
     - /**/*.js
     - /favicon.ico
     - /error
+    # Document Server 回读待转换源文件的出口（按短时 token 放行，见 PdfSourceController）
+    - /report/pdf-source/**
     - /*/api-docs
     - /*/api-docs/**
+    # 接口文档界面（knife4j）：doc.html 与它的静态资源（js/css/字体/图片）都要放行，否则页面白屏
+    - /doc.html
+    - /webjars/**
+    - /swagger-ui/**
+    - /swagger-ui.html
 
 # MyBatisPlus配置
 # https://baomidou.com/config/
@@ -186,7 +193,20 @@ springdoc:
       packages-to-scan: org.dromara.system
     - group: 3.代码生成模块
       packages-to-scan: org.dromara.generator
+    # 业务模块（原来没分组，接口全落在「默认分组」里、界面上看不到 —— 实测补上后才选得到）
+    - group: 4.质控模块
+      packages-to-scan: org.dromara.qc
+    - group: 5.报告模块
+      packages-to-scan: org.dromara.report
+    - group: 6.项目管理
+      packages-to-scan: org.dromara.project
+    - group: 7.合规管理
+      packages-to-scan: org.dromara.compliance
 
+# 接口文档界面说明（不需要额外配置，只列在这里备查）
+#   /swagger-ui/index.html  springdoc 自带 UI（与生成器同版本）
+#   /doc.html               knife4j 中文界面（knife4j-openapi3-ui 纯静态包，文档内容仍由 springdoc 生成）
+#   两者都要求 security.excludes 里放行它们的静态资源（见上）
 # 防止XSS攻击
 xss:
   # 过滤开关
@@ -242,4 +262,37 @@ compliance:
   compliance-doc:
     # 3Q 文档管理的「文档」附件存放目录（规则同上）
     upload-dir: /ruoyi/server/upload/compliance/compliance-doc
+
+--- # OnlyOffice 文档转换（DOCX -> PDF）
+# 只影响「转换」这一附加能力：Document Server 抖动时通知单照常生成，只是 pdf_path 留空。
+onlyoffice:
+  # 关闭后完全不调 Document Server
+  enabled: true
+  # Document Server 地址（后端直连它的地址）
+  ds-url: http://127.0.0.1:18098
+  # Document Server 回读源文件的基址，必须是「Document Server 能访问到的后端地址」。
+  # 留空 = 不转换（只记一条 warn）。部署时用环境变量覆盖：ONLYOFFICE_PUBLIC_BASE
+  public-base:
+  # 单次转换超时（秒）
+  timeout-seconds: 180
+  # 源文件临时凭证有效期（秒）
+  source-ttl-seconds: 600
+
+--- # 固定 token 的接口调用：外部系统（生信流程 / 脚本）推数据时不用登录换 access_token
+# 调用方在请求头带 X-Api-Token: <value>，且路径命中 paths 时，服务端按 account 的身份执行本次请求：
+# @SaCheckPermission 走该账号的角色、create_by 记该账号、租户由业务代码按数据归属解析。
+# 不命中就原样放行，由 Sa-Token 按未登录处理（不会因为配了这个机制而放开别的接口）。
+api:
+  token:
+    enabled: true
+    # 固定 token：换密钥改这里（或部署时用环境变量 API_TOKEN 覆盖，避免把生产密钥写进仓库）
+    value: ${API_TOKEN:ff7176eff4faa47d993d79fb63f974f2}
+    # 以哪个账号的身份执行；账号需自行创建并授权（建议给足权限，接口点位见 BioinfoQcController）
+    account: tumor
+    # 生效路径（Ant 风格）；别的模块接入往下加一条即可，不用改代码
+    paths:
+      - /qc/bioinfo/receive
+      - /qc/wetLabQc/receive
+    # 调用方没带 clientid 请求头时使用的客户端编号（sys_client.client_key）
+    clientId: e5cd7e4891bf95d1d19206ce24a7b32e
 
