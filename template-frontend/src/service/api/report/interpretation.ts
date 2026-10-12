@@ -67,6 +67,22 @@ export function fetchUpdateVariantReportStatus(data: {
   });
 }
 
+/** 报告生成参数 · 解读癌种候选（NKB 疾病分类） */
+export function fetchGetDiseaseOptions() {
+  return request<Api.Report.DiseaseOption[]>({
+    url: '/report/interpretation/disease-options',
+    method: 'get'
+  });
+}
+
+/** 报告生成参数 · 解读人候选（启用中的系统用户） */
+export function fetchGetAnalyzerOptions() {
+  return request<Api.Report.AnalyzerOption[]>({
+    url: '/report/interpretation/analyzer-options',
+    method: 'get'
+  });
+}
+
 /** 人工选模板：报告产品对应的候选模板列表（默认模板排最前） */
 export function fetchGetInterpretationTemplateOptions(params: { analysisId: number; reportId: number }) {
   return request<Api.Report.InterpretationTemplateOption[]>({
@@ -83,7 +99,11 @@ export function fetchGetInterpretationTemplateOptions(params: { analysisId: numb
 export function fetchBuildInterpretationPreview(data: {
   analysisId: number;
   reportId: number;
+  /** 报告生成参数：模板 / 解读癌种 / 报告日期 / 解读人（都不传就用默认值） */
   templateId?: number;
+  disease?: string;
+  reportDate?: string;
+  analyzer?: string;
 }) {
   return request<Api.Report.InterpretationPreviewResult>({
     url: '/report/interpretation/preview',
@@ -134,6 +154,115 @@ export function fetchParentCandidates(keyword: string) {
 export function fetchEnterInterpretation(data: { analysisId: number }) {
   return request<Api.Report.InterpretationReport>({
     url: '/report/interpretation/enter',
+    method: 'post',
+    data
+  });
+}
+
+/**
+ * 正式生成报告：后端按「报告生成参数」重新组装 → 写 JSON/DOCX 到固定输出目录 → 登记 analysis_report。
+ * 返回体含 reportName / docxFileName / docxPath（下载按钮用它做文件名兜底）。
+ */
+export function fetchGenerateReport(data: {
+  analysisId: number;
+  reportId: number;
+  /** 报告生成参数：模板 / 解读癌种 / 报告日期 / 解读人（都不传就用默认值） */
+  templateId?: number;
+  disease?: string;
+  reportDate?: string;
+  analyzer?: string;
+}) {
+  return request<Record<string, unknown>>({
+    url: '/report/interpretation/generate',
+    method: 'post',
+    data
+  });
+}
+
+/**
+ * 已生成报告文件的下载地址（走鉴权，不能直接 <a href>）：
+ * 交给 useDownload 的 zip() 或带 Authorization 的 fetch 取 blob 再用。
+ */
+export function fetchGetReportFileUrl(reportId: number, analysisId: number) {
+  return `/report/interpretation/report-file?reportId=${reportId}&analysisId=${analysisId}`;
+}
+
+/**
+ * 提交审核：冻结本次解读的位点匹配历史（history_*）并把报告置为 PENDING_REVIEW。
+ * 参数与生成接口同一套（冻结结果依赖癌种范围，必须与生成时一致）。
+ */
+export function fetchSubmitReview(data: {
+  analysisId: number;
+  reportId: number;
+  /** 报告生成参数：模板 / 解读癌种 / 报告日期 / 解读人（都不传就用默认值） */
+  templateId?: number;
+  disease?: string;
+  reportDate?: string;
+  analyzer?: string;
+}) {
+  return request<null>({
+    url: '/report/interpretation/submit',
+    method: 'post',
+    data
+  });
+}
+
+/**
+ * 审核通过：PENDING_REVIEW → APPROVED。
+ * 服务端校验：只有待审核能通过、产出人不能审核自己的报告。
+ */
+export function fetchApproveReview(data: { analysisId: number; reportId: number }) {
+  return request<null>({
+    url: '/report/interpretation/approve',
+    method: 'post',
+    data
+  });
+}
+
+/**
+ * 驳回：PENDING_REVIEW → REJECTED。
+ * reason 必填（服务端会校验并写进 analysis_report.comment）。
+ */
+export function fetchRejectReview(data: { analysisId: number; reportId: number; reason: string }) {
+  return request<null>({
+    url: '/report/interpretation/reject',
+    method: 'post',
+    data
+  });
+}
+
+/**
+ * Tab⑥ 报告发送：发送页参数（收件/抄送候选 + 渲染后的标题正文 + 附件名 + 可否发送）。
+ * 收件候选来自该报告 LIMS 的邮箱字段；标题正文是「邮件配置」模板渲染出的默认值，页面可改。
+ */
+export function fetchGetMailPreview(params: { reportId: number; analysisId: number }) {
+  return request<Api.Report.InterpretationMailPreview>({
+    url: '/report/interpretation/mail-preview',
+    method: 'get',
+    params
+  });
+}
+
+/**
+ * Tab⑥ 报告发送：把已审核的报告作为附件发出。
+ * 服务端校验：只有 APPROVED 能发；成功后把报告置 SENT 并写发送人/时间。
+ */
+export function fetchSendReport(data: {
+  analysisId: number;
+  reportId: number;
+  /** 用哪个发件邮箱（邮件配置ID）；不传 = 用「默认邮箱」 */
+  configId?: number;
+  /** 收件人（逗号 / 分号分隔） */
+  to: string;
+  /** 抄送（可空） */
+  cc?: string;
+  subject: string;
+  content: string;
+  /** 是否附带报告文件（默认 true） */
+  attachReport?: boolean;
+}) {
+  return request<{ traceId: string; messageId: string; recipientCount: number }>({
+    url: '/report/interpretation/send',
     method: 'post',
     data
   });

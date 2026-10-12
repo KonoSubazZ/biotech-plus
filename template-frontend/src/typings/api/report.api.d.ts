@@ -14,7 +14,7 @@ declare namespace Api {
       /** 年龄 */
       age: string | null;
       /** 样本编号 */
-      barcode: string | null;
+      subbarcode: string | null;
       /** 床位 */
       bed: string | null;
       /** 出生日期 */
@@ -263,11 +263,11 @@ declare namespace Api {
     /**
      * 搜索参数
      * <p>
-     * 搜索栏 6 项 → 字段：样本编号 barcode、姓名 patientName、客户 customerName、
+     * 搜索栏 6 项 → 字段：样本编号 subbarcode、姓名 patientName、客户 customerName、
      * 录单癌种 cancerType、录单产品 erpTestName、委托日期走 params.beginTime / params.endTime。
      */
     type SampleInfoSearchParams = CommonType.RecordNullable<
-      Pick<SampleInfo, 'barcode' | 'patientName' | 'customerName' | 'cancerType' | 'erpTestName'> &
+      Pick<SampleInfo, 'subbarcode' | 'patientName' | 'customerName' | 'cancerType' | 'erpTestName'> &
         Common.CommonSearchParams
     >;
 
@@ -275,7 +275,7 @@ declare namespace Api {
     interface SampleInfoForm {
       id?: number | null;
       age?: string | null;
-      barcode?: string | null;
+      subbarcode?: string | null;
       bed?: string | null;
       birthDay?: string | null;
       birthplace?: string | null;

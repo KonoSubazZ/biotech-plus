@@ -43,7 +43,7 @@ const title = computed(() => (props.operateType === 'add' ? '新增样本信息'
 const model = ref<Api.Report.SampleInfoForm>(jsonClone(EMPTY_SAMPLE_INFO_FORM));
 
 const rules = {
-  barcode: createRequiredRule('样本编号不能为空')
+  subbarcode: createRequiredRule('样本编号不能为空')
 };
 
 function handleUpdateModelWhenEdit() {
@@ -94,7 +94,7 @@ watch(visible, () => {
 <template>
   <NDrawer v-model:show="visible" :trap-focus="false" display-directive="show" :width="920" class="max-w-90%">
     <NDrawerContent :title="title" :native-scrollbar="false" closable>
-      <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="120">
+      <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="130">
         <SampleInfoFormPatient v-model:model="model" />
         <SampleInfoFormSample v-model:model="model" />
         <SampleInfoFormOrder v-model:model="model" />

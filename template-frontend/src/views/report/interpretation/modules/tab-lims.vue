@@ -22,8 +22,8 @@ function show(value: string | null | undefined) {
   <div class="flex-col-stretch gap-16px">
     <NAlert v-if="props.lims.found === false" type="error" :bordered="false" title="未找到样本信息">
       按样本编号
-      <b>{{ props.lims.barcode }}</b>
-      在样本信息（sample_file.barcode）里没有查到记录 —— LIMS 信息缺失，无法继续解读。
+      <b>{{ props.lims.subbarcode }}</b>
+      在样本信息（sample_file.subbarcode）里没有查到记录 —— LIMS 信息缺失，无法继续解读。
     </NAlert>
 
     <template v-else>
@@ -46,7 +46,7 @@ function show(value: string | null | undefined) {
         <NDescriptions bordered :column="3" label-placement="left" size="small">
           <NDescriptionsItem label="医院/送检单位" :span="2">{{ show(props.lims.hospitalName) }}</NDescriptionsItem>
           <NDescriptionsItem label="实验室">{{ show(props.lims.laboratoryName) }}</NDescriptionsItem>
-          <NDescriptionsItem label="样本编号">{{ show(props.lims.barcode) }}</NDescriptionsItem>
+          <NDescriptionsItem label="样本编号">{{ show(props.lims.subbarcode) }}</NDescriptionsItem>
           <NDescriptionsItem label="样本类型">{{ show(props.lims.specimenType) }}</NDescriptionsItem>
           <NDescriptionsItem label="样本量">{{ show(props.lims.specimenQuantity) }}</NDescriptionsItem>
           <NDescriptionsItem label="样本来源">{{ show(props.lims.sampleSource) }}</NDescriptionsItem>

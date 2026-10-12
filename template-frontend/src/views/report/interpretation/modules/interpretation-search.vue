@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRaw } from 'vue';
+import { toRaw } from 'vue';
 import { jsonClone } from '@sa/utils';
 import { useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
@@ -29,19 +29,11 @@ const REPORT_STATUS_OPTIONS = [
   { label: '已发送', value: 'SENT' }
 ];
 
-/** 分析日期范围（analysis_date 是 varchar(8) 的 YYYYMMDD，选完转成 yyyyMMdd 再传） */
-const dateRangeAnalysis = ref<[string, string] | null>(null);
-
-function onDateRangeAnalysisUpdate(value: [string, string] | null) {
-  model.value.params = {
-    ...model.value.params,
-    beginTime: value?.[0]?.replace(/-/g, '').slice(0, 8),
-    endTime: value?.[1]?.replace(/-/g, '').slice(0, 8)
-  };
-}
-
+/**
+ * 分析日期是**单个日期**：NDatePicker type="date"，value-format=yyyyMMdd，
+ * 直接写回 model.analysisDate（默认当天由父组件初始化，reset 时回到该默认值）。
+ */
 function resetModel() {
-  dateRangeAnalysis.value = null;
   Object.assign(model.value, defaultModel);
 }
 
@@ -66,11 +58,11 @@ async function search() {
           <div class="flex flex-wrap items-start">
             <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="分析日期" path="analysisDate">
               <NDatePicker
-                v-model:formatted-value="dateRangeAnalysis"
-                type="daterange"
-                value-format="yyyy-MM-dd"
+                v-model:formatted-value="model.analysisDate"
+                class="w-full"
+                type="date"
+                value-format="yyyyMMdd"
                 clearable
-                @update:formatted-value="onDateRangeAnalysisUpdate"
               />
             </NFormItem>
             <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="样本编号" path="subbarcode">

@@ -158,7 +158,7 @@ watch(
 
 <template>
   <div class="flex-col-stretch gap-12px">
-    <NForm ref="formRef" :model="searchParams" label-placement="left" :label-width="80">
+    <NForm ref="formRef" :model="searchParams" label-placement="left" :label-width="90">
       <div class="flex flex-wrap items-start">
         <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="文件类型" path="fileType">
           <NInput v-model:value="searchParams.fileType" placeholder="如 SNP / Indel / CNV / Fusion" clearable />

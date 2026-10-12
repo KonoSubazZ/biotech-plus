@@ -23,7 +23,7 @@ const importModalVisible = ref(false);
 const searchParams = ref<Api.Report.SampleInfoSearchParams>({
   pageNum: 1,
   pageSize: 10,
-  barcode: null,
+  subbarcode: null,
   patientName: null,
   customerName: null,
   cancerType: null,
@@ -43,7 +43,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     columns: () => [
       { type: 'selection', align: 'center', width: 48 },
       { key: 'age', title: '年龄', align: 'center', minWidth: 140 },
-      { key: 'barcode', title: '样本编号', align: 'center', minWidth: 140 },
+      { key: 'subbarcode', title: '样本编号', align: 'center', minWidth: 140 },
       { key: 'bed', title: '床位', align: 'center', minWidth: 140 },
       { key: 'birthDay', title: '出生日期', align: 'center', minWidth: 140 },
       { key: 'birthplace', title: 'BIRTHPLACE', align: 'center', minWidth: 140 },

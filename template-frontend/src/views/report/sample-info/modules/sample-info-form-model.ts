@@ -8,7 +8,7 @@
  */
 export const EMPTY_SAMPLE_INFO_FORM: Api.Report.SampleInfoForm = {
     age: null,
-    barcode: '',
+    subbarcode: '',
     bed: null,
     birthDay: null,
     birthplace: null,

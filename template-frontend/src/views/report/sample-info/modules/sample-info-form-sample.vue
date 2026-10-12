@@ -10,8 +10,8 @@ const model = defineModel<Api.Report.SampleInfoForm>('model', { required: true }
 <template>
   <div class="mb-4px w-full text-14px font-500">样本与收样</div>
   <div class="grid grid-cols-1 gap-16px md:grid-cols-2">
-      <NFormItem label="样本编号" path="barcode">
-        <NInput v-model:value="model.barcode" placeholder="请输入样本编号" />
+      <NFormItem label="样本编号" path="subbarcode">
+        <NInput v-model:value="model.subbarcode" placeholder="请输入样本编号" />
       </NFormItem>
       <NFormItem label="收样日期" path="collectDate">
         <NInput v-model:value="model.collectDate" placeholder="请输入收样日期" />

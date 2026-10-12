@@ -6,6 +6,8 @@ import { REPORT_STATUS_META, statusMeta } from './interpretation-status';
 import InterpretationTabFiles from './tab-files.vue';
 import InterpretationTabLims from './tab-lims.vue';
 import InterpretationTabPreview from './tab-preview.vue';
+import InterpretationTabReview from './tab-review.vue';
+import InterpretationTabSend from './tab-send.vue';
 import InterpretationTabVariants from './tab-variants.vue';
 
 defineOptions({
@@ -121,7 +123,27 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
             <InterpretationTabVariants :analysis-id="props.analysisId" />
           </template>
           <template v-else-if="tab.name === 'preview'">
-            <InterpretationTabPreview :analysis-id="props.analysisId" :report-id="props.reportId" />
+            <InterpretationTabPreview
+              :analysis-id="props.analysisId"
+              :report-id="props.reportId"
+              :report-status="context?.report.status ?? null"
+              @changed="loadContext"
+            />
+          </template>
+          <template v-else-if="tab.name === 'review'">
+            <InterpretationTabReview
+              :analysis-id="props.analysisId"
+              :report-id="props.reportId"
+              @changed="loadContext"
+            />
+          </template>
+          <template v-else-if="tab.name === 'send'">
+            <InterpretationTabSend
+              :analysis-id="props.analysisId"
+              :report-id="props.reportId"
+              :report-status="context?.report.status ?? null"
+              @changed="loadContext"
+            />
           </template>
           <template v-else>
             <NEmpty :description="`${tab.label}：建设中（后续页面按 Tab 逐个交付）`" />

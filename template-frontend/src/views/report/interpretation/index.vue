@@ -1,5 +1,6 @@
 <script setup lang="tsx">
 import { computed, ref } from 'vue';
+import dayjs from 'dayjs';
 import { NButton, NTag } from 'naive-ui';
 import { useRoute } from 'vue-router';
 import { fetchEnterInterpretation, fetchGetInterpretationList } from '@/service/api/report/interpretation';
@@ -9,7 +10,7 @@ import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
 import InterpretationDetail from './modules/interpretation-detail.vue';
 import InterpretationSearch from './modules/interpretation-search.vue';
-import { DRIVE_STATUS_META, REPORT_STATUS_META, statusMeta } from './modules/interpretation-status';
+import { REPORT_STATUS_META, statusMeta } from './modules/interpretation-status';
 
 defineOptions({
   name: 'ReportInterpretation'
@@ -35,6 +36,8 @@ function queryNumber(key: string) {
 const searchParams = ref<Api.Report.InterpretationSearchParams>({
   pageNum: 1,
   pageSize: 10,
+  // 分析日期默认当天（yyyyMMdd，与后端 analysis_date 口径一致）
+  analysisDate: dayjs().format('YYYYMMDD'),
   subbarcode: null,
   product: null,
   reportStatus: null,
@@ -50,20 +53,12 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       searchParams.value.pageSize = params.pageSize;
     },
     columns: () => [
+      { key: 'reportId', title: '报告ID', align: 'center', minWidth: 100, render: row => row.reportId ?? '-' },
       { key: 'subbarcode', title: '样本编号', align: 'center', minWidth: 150 },
       { key: 'barcode', title: '患者编号', align: 'center', minWidth: 140 },
       { key: 'product', title: '产品', align: 'center', minWidth: 160 },
       { key: 'analysisDate', title: '分析日期', align: 'center', minWidth: 110 },
-      {
-        key: 'driveStatus',
-        title: '驱动状态',
-        align: 'center',
-        minWidth: 110,
-        render: row => {
-          const meta = statusMeta(DRIVE_STATUS_META, row.driveStatus);
-          return <NTag type={meta.type}>{meta.label}</NTag>;
-        }
-      },
+      { key: 'analysisDisease', title: '解读癌种', align: 'center', minWidth: 140 },
       {
         key: 'reportStatus',
         title: '报告状态',
@@ -74,11 +69,17 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
           return <NTag type={meta.type}>{meta.label}</NTag>;
         }
       },
-      { key: 'analysisDisease', title: '解读癌种', align: 'center', minWidth: 140 },
-      { key: 'template', title: '报告模板', align: 'center', minWidth: 150 },
+      { key: 'analyzer', title: '解读人', align: 'center', minWidth: 110, render: row => row.analyzer ?? '-' },
+      {
+        key: 'interpretedAt',
+        title: '解读时间',
+        align: 'center',
+        minWidth: 170,
+        render: row => row.interpretedAt ?? '-'
+      },
       {
         key: 'generated',
-        title: '报告产出',
+        title: '报告',
         align: 'center',
         minWidth: 170,
         render: row => {
@@ -137,7 +138,10 @@ async function backToList() {
 </script>
 
 <template>
-  <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
+  <div
+    class="min-h-500px flex-col-stretch gap-16px"
+    :class="currentReportId ? 'overflow-y-auto' : 'overflow-hidden lt-sm:overflow-auto'"
+  >
     <InterpretationDetail
       v-if="currentReportId"
       :report-id="currentReportId"

@@ -3,13 +3,17 @@ import { computed, ref, watch } from 'vue';
 import { NButton, NSelect, NTag } from 'naive-ui';
 import {
   fetchBuildInterpretationPreview,
-  fetchGetInterpretationTemplateOptions,
+  fetchGenerateReport,
+  fetchGetReportFileUrl,
   fetchParentCandidates,
+  fetchSubmitReview,
   fetchUpdateGermlineSignificance,
   fetchUpdateVariantTarget
 } from '@/service/api/report/interpretation';
+import ReportGenerateParams from './report-generate-params.vue';
+import { gradeCountTags } from './grade-count';
 import { useAuth } from '@/hooks/business/auth';
-import { $t } from '@/locales';
+import { useDownload } from '@/hooks/business/download';
 
 defineOptions({
   name: 'InterpretationTabPreview'
@@ -18,9 +22,18 @@ defineOptions({
 interface Props {
   analysisId: number;
   reportId: number;
+  /** 报告当前状态（详情页 context 给的，用来判断能不能提交审核；可空 = 还没加载出来） */
+  reportStatus?: string | null;
 }
 
 const props = defineProps<Props>();
+
+interface Emits {
+  /** 状态被本页改过（如提交审核），通知详情页刷新报告头 */
+  (e: 'changed'): void;
+}
+
+const emit = defineEmits<Emits>();
 
 const { hasAuth } = useAuth();
 
@@ -88,29 +101,8 @@ const previewJson = computed(() => JSON.stringify(preview.value ?? {}, null, 2))
 const previewSource = ref<'artifact' | 'realtime' | ''>('');
 const previewArtifactTime = ref<string | null>(null);
 
-/** 人工选模板：一个产品可能配多个模板，默认选中产品默认模板（接口里 defaultTemplate=true 那条） */
-const templateId = ref<number | null>(null);
-const templateOptions = ref<{ label: string; value: number }[]>([]);
-
-async function loadTemplateOptions() {
-  if (!props.analysisId || !props.reportId) {
-    return;
-  }
-  const { data, error } = await fetchGetInterpretationTemplateOptions({
-    analysisId: props.analysisId,
-    reportId: props.reportId
-  });
-  if (error) {
-    return;
-  }
-  const rows = data ?? [];
-  templateOptions.value = rows.map(row => ({
-    label: row.defaultTemplate ? `${row.templateName}（默认）` : row.templateName,
-    value: row.templateId
-  }));
-  const preset = rows.find(row => row.defaultTemplate) ?? rows[0];
-  templateId.value = preset ? preset.templateId : null;
-}
+/** 报告生成参数小组件（模板 / 解读癌种 / 报告日期 / 解读人，各自带默认值） */
+const generateParamsRef = ref<InstanceType<typeof ReportGenerateParams> | null>(null);
 
 async function loadPreview() {
   if (!props.analysisId || !props.reportId) {
@@ -121,7 +113,7 @@ async function loadPreview() {
     const { data, error } = await fetchBuildInterpretationPreview({
       analysisId: props.analysisId,
       reportId: props.reportId,
-      templateId: templateId.value ?? undefined
+      ...(generateParamsRef.value?.params ?? {})
     });
     if (!error) {
       preview.value = data?.data ?? null;
@@ -133,10 +125,76 @@ async function loadPreview() {
   }
 }
 
-/** 先取候选模板（定默认值），再出预览 */
+/** 出预览（生成参数由小组件提供，组件自己在挂载时加载候选并定默认值） */
 async function initPreview() {
-  await loadTemplateOptions();
   await loadPreview();
+}
+
+const { zip } = useDownload();
+
+/** 正在生成（按钮 loading） */
+const generating = ref(false);
+
+/** 报告文件是否已有：预览来源是已生成制品时说明成品文件在（下载按钮据此出现） */
+const hasReportFile = computed(() => previewSource.value === 'artifact');
+
+/**
+ * 正式生成报告：把「报告生成参数」一起带给后端，后端写 JSON/DOCX 到固定输出目录并登记报告。
+ * 成功后重新预览 —— 来源变成「已生成报告」，参数随之锁定，并出现下载入口。
+ */
+async function handleGenerate() {
+  generating.value = true;
+  try {
+    const { data, error } = await fetchGenerateReport({
+      analysisId: props.analysisId,
+      reportId: props.reportId,
+      ...(generateParamsRef.value?.params ?? {})
+    });
+    if (!error) {
+      const fileName = data?.docxFileName as string | undefined;
+      window.$message?.success(fileName ? `报告已生成：${fileName}` : '报告已生成');
+      await loadPreview();
+    }
+  } finally {
+    generating.value = false;
+  }
+}
+
+/**
+ * 下载已生成的报告文件：接口要带令牌，走通用下载 hooks。
+ * 文件名不在这里拼（后端 download-filename 头给的真实文件名），传空串让 hooks 用响应头兜底。
+ */
+function handleDownload() {
+  zip(fetchGetReportFileUrl(props.reportId, props.analysisId), '');
+}
+
+/** 允许提交审核的报告状态（与后端 InterpretationReviewService.SUBMITTABLE_STATUS 保持一致） */
+const SUBMITTABLE_STATUS = ['INTERPRETING', 'REJECTED'];
+
+/** 提交审核按钮：已生成报告（有成品文件）+ 状态允许提交时才出现 */
+const canSubmitReview = computed(() => hasReportFile.value && SUBMITTABLE_STATUS.includes(props.reportStatus ?? ''));
+
+const submitting = ref(false);
+
+/**
+ * 提交审核：后端在同一事务里冻结本次解读的位点匹配历史（history_*）并把报告置为待审核。
+ * 参数与生成时同一套（预览页在已生成状态下是锁定回填的），否则冻出的历史与报告内容对不上。
+ */
+async function handleSubmitReview() {
+  submitting.value = true;
+  try {
+    const { error } = await fetchSubmitReview({
+      analysisId: props.analysisId,
+      reportId: props.reportId,
+      ...(generateParamsRef.value?.params ?? {})
+    });
+    if (!error) {
+      window.$message?.success('已提交审核，请到「审核报告」处理');
+      emit('changed');
+    }
+  } finally {
+    submitting.value = false;
+  }
 }
 
 /** 保存临床意义后立即重新预览（设计书：改报出/临床意义/改靶后重新调用即可拿到新 JSON） */
@@ -492,16 +550,59 @@ const sectionMeta = computed(() => [
     title: '体细胞变异解析',
     hint: '报出的体细胞位点（SNP/Indel + CNV + Fusion），按癌种匹配 NKB 用药证据',
     section: preview.value?.somaticVariants,
-    columns: buildSomaticColumns()
+    columns: buildSomaticColumns(),
+    gradeTags: gradeCountTags(preview.value?.somaticVariants, 'somatic')
   },
   {
     key: 'germline',
     title: '肿瘤遗传风险',
     hint: '报出的胚系位点（CR_ALL），临床意义人工确认后按致病性分级匹配证据',
     section: preview.value?.germlineVariants,
-    columns: buildGermlineColumns()
+    columns: buildGermlineColumns(),
+    gradeTags: gradeCountTags(preview.value?.germlineVariants, 'germline')
   }
 ]);
+
+/** 质控指标中文表头（模板专属字段；未知键原样显示） */
+const QC_LABELS: Record<string, string> = {
+  tumorCellContent: '肿瘤细胞含量',
+  dnaTotal: 'DNA总量(ng)',
+  dnaDegradation: 'DNA降解',
+  preLibraryTotal: '建库前总量(ng)',
+  sequencingDataVolume: '测序数据量',
+  meanDepth: '平均深度',
+  coverageUniformity: '覆盖均一性',
+  targetRegionCoverage: '目标区域覆盖度',
+  genomeAlignmentRate: '基因组比对率',
+  baseQualityQ30Rate: 'Q30比例'
+};
+
+/** 取值兜底：空显示 '/' */
+function qcText(value: unknown): string {
+  return value == null || value === '' ? '/' : String(value);
+}
+
+/** 质控：样本 / 对照 两列并排（报告 JSON 的 qualityControl；圣域等模板才有） */
+const qcRows = computed(() => {
+  const qc = preview.value?.qualityControl ?? {};
+  const sampleQc = (qc.sampleQc ?? {}) as Record<string, unknown>;
+  const controlQc = (qc.controlQc ?? {}) as Record<string, unknown>;
+  const keys = Object.keys(sampleQc).length ? Object.keys(sampleQc) : Object.keys(controlQc);
+  return keys.map(key => ({
+    key,
+    label: QC_LABELS[key] ?? key,
+    sample: qcText(sampleQc[key]),
+    control: qcText(controlQc[key])
+  }));
+});
+
+const qcColumns = [
+  { title: '指标', key: 'label', width: 180 },
+  { title: '样本', key: 'sample', minWidth: 140 },
+  { title: '对照', key: 'control', minWidth: 140 }
+];
+
+const qcSpecimenType = computed(() => qcText(preview.value?.qualityControl?.specimenType));
 
 watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate: true });
 </script>
@@ -517,22 +618,37 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
             已生成报告{{ previewArtifactTime ? `（${previewArtifactTime}）` : '' }}
           </NTag>
           <NTag v-else-if="previewSource === 'realtime'" size="small" type="warning">实时组装</NTag>
-          <NSelect
-            v-model:value="templateId"
-            class="w-300px"
-            size="small"
-            :options="templateOptions"
-            :consistent-menu-width="false"
-            placeholder="模板（默认用产品默认模板）"
-            @update:value="() => loadPreview()"
-          />
           <span class="text-13px op-60">{{ contextLine }}</span>
         </NSpace>
         <NSpace :size="8">
           <NButton size="small" @click="jsonVisible = true">查看 JSON</NButton>
           <NButton size="small" type="primary" ghost :loading="editing" @click="() => loadPreview()">重新预览</NButton>
+          <NButton size="small" type="primary" :loading="generating" @click="handleGenerate">生成报告</NButton>
+          <NButton v-if="hasReportFile" size="small" type="success" ghost @click="handleDownload">下载报告</NButton>
+          <NButton
+            v-if="canSubmitReview"
+            size="small"
+            type="info"
+            ghost
+            :loading="submitting"
+            @click="handleSubmitReview"
+          >
+            提交审核
+          </NButton>
         </NSpace>
       </NSpace>
+      <NDivider class="my-12px!" />
+      <!-- 报告生成参数（模板 / 解读癌种 / 报告日期 / 解读人）：label + input，与预览同卡片 -->
+      <ReportGenerateParams
+        ref="generateParamsRef"
+        :analysis-id="props.analysisId"
+        :report-id="props.reportId"
+        :preset-disease="(preview?.sampleInfo?.disease as string | null) ?? null"
+        :preset-report-date="(preview?.reportInfo?.reportDate as string | null) ?? null"
+        :preset-analyzer="(preview?.reportInfo?.analyzer as string | null) ?? null"
+        :locked="previewSource === 'artifact'"
+        @change="() => loadPreview()"
+      />
       <NAlert v-if="preview?.warnings?.length" type="warning" :bordered="false" class="mt-12px">
         <div v-for="item in preview.warnings" :key="item">{{ item }}</div>
       </NAlert>
@@ -548,9 +664,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
       <template #header>
         <div class="flex items-center gap-8px">
           <span>{{ meta.title }}</span>
-          <NTag size="small">报出 {{ meta.section?.summary?.reportedCount ?? 0 }}</NTag>
-          <NTag size="small" type="success">已匹配 {{ meta.section?.summary?.matchedCount ?? 0 }}</NTag>
-          <NTag size="small">无证据 {{ meta.section?.summary?.unmatchedCount ?? 0 }}</NTag>
+          <NTag v-for="tag in meta.gradeTags" :key="tag.key" size="small">{{ tag.label }}</NTag>
         </div>
       </template>
       <template #header-extra>
@@ -565,6 +679,17 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         :scroll-x="1200"
         size="small"
       />
+    </NCard>
+
+    <!-- 质控：报告 JSON 的 qualityControl（模板专属，圣域等模板才有） -->
+    <NCard v-if="qcRows.length" :bordered="false" size="small" class="card-wrapper">
+      <template #header>
+        <div class="flex items-center gap-8px">
+          <span>质控</span>
+          <NTag size="small">{{ qcSpecimenType }}</NTag>
+        </div>
+      </template>
+      <NDataTable :columns="qcColumns" :data="qcRows" :row-key="row => row.key" size="small" />
     </NCard>
 
     <!-- 详情：标签行（关联突变 / 药物信息 / 位点分级·临床意义 / 证据条数）+ 说明 + 证据明细全量 -->

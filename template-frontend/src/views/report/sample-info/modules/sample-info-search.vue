@@ -62,14 +62,15 @@ async function search() {
             <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="委托日期" path="enterDate">
               <NDatePicker
                 v-model:formatted-value="dateRangeEnter"
+                class="w-full"
                 type="daterange"
                 value-format="yyyy-MM-dd"
                 clearable
                 @update:formatted-value="onDateRangeEnterUpdate"
               />
             </NFormItem>
-            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="样本编号" path="barcode">
-              <NInput v-model:value="model.barcode" placeholder="请输入样本编号（BARCODE）" clearable />
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="样本编号" path="subbarcode">
+              <NInput v-model:value="model.subbarcode" placeholder="请输入样本编号（BARCODE）" clearable />
             </NFormItem>
             <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="姓名" path="patientName">
               <NInput v-model:value="model.patientName" placeholder="请输入患者姓名（PATIENTNAME）" clearable />

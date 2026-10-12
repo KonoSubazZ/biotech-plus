@@ -20,7 +20,7 @@ declare namespace Api {
       /** 样本编号 */
       subbarcode: string | null;
       /** 患者编号 */
-      barcode: string | null;
+      subbarcode: string | null;
       /** 产品名称 */
       product: string | null;
       /** 产品ID（product_config.id） */
@@ -45,6 +45,8 @@ declare namespace Api {
       reportGeneratedBy: string | null;
       /** 报告生成时间 */
       reportGeneratedAt: string | null;
+      /** 解读时间（报告创建时间 = 点「解读」进入解读的时间） */
+      interpretedAt: string | null;
     }
 
     /** 报告解读分页列表（后端 TableDataInfo 的 rows/total 在顶层） */
@@ -53,12 +55,12 @@ declare namespace Api {
     /**
      * 报告解读搜索参数
      * <p>
-     * 搜索栏 4 项 → 字段：样本编号 subbarcode、产品 product、报告状态 reportStatus、
-     * 分析日期走 params.beginTime / params.endTime（analysis_date 是 varchar(8) 的 YYYYMMDD，
-     * 组件里已把 yyyy-MM-dd 转成 yyyyMMdd）。
+     * 搜索栏 4 项 → 字段：分析日期 analysisDate（**单个日期**，yyyyMMdd，默认当天，精确匹配）、
+     * 样本编号 subbarcode、产品 product、报告状态 reportStatus。
      */
     type InterpretationSearchParams = CommonType.RecordNullable<
-      Pick<InterpretationRow, 'subbarcode' | 'product' | 'reportStatus'> & Common.CommonSearchParams
+      Pick<InterpretationRow, 'analysisDate' | 'subbarcode' | 'product' | 'reportStatus'> &
+        Common.CommonSearchParams
     >;
 
     /** 报告头信息（= 后端 AnalysisReportVo，进详情页要用 reportId） */
@@ -75,6 +77,18 @@ declare namespace Api {
       status: string;
       comment: string | null;
       createTime: string | null;
+      /** 报告产出人（用户ID字符串） */
+      reportGeneratedBy: string | null;
+      /** 报告生成时间 */
+      reportGeneratedAt: string | null;
+      /** 报告审核人（用户ID字符串） */
+      reportCheckedBy: string | null;
+      /** 报告审核时间 */
+      reportCheckedAt: string | null;
+      /** 报告发放人 */
+      reportSentBy: string | null;
+      /** 报告发放时间 */
+      reportSentAt: string | null;
     }
 
     /** 解读页 Tab① LIMS 信息（= 后端 InterpretationLimsVo；数据源 sample_file） */
@@ -82,7 +96,7 @@ declare namespace Api {
       /** 是否找到该样本编号的样本信息；false = 没有 LIMS 数据（会阻止生成） */
       found: boolean | null;
       /** 命中的样本编号 */
-      barcode: string | null;
+      subbarcode: string | null;
       /** 患者编号 */
       patientId: string | null;
       /** 患者姓名 */
@@ -421,6 +435,19 @@ declare namespace Api {
       data: InterpretationPreview;
     }
 
+    /** 报告生成参数 · 解读癌种候选（NKB 疾病分类，对齐 en7 报告生成页「原发癌种」） */
+    interface DiseaseOption {
+      diseaseId: number;
+      diseaseName: string;
+    }
+
+    /** 报告生成参数 · 解读人候选（启用中的系统用户） */
+    interface AnalyzerOption {
+      userId: number;
+      userName: string;
+      nickName: string;
+    }
+
     /** 报告预览/生成用的候选模板（一个产品可能配多个，人工选择；defaultTemplate=true 是产品默认模板） */
     interface InterpretationTemplateOption {
       templateId: number;
@@ -457,6 +484,35 @@ declare namespace Api {
       errors: string[];
       /** 不阻断流程的告警 */
       warnings: string[];
+    }
+
+    /**
+     * 报告发送页参数（= 后端 InterpretationMailPreviewVo）
+     * <p>
+     * 收件/抄送候选 + 渲染好的标题正文默认值 + 附件名 + 能不能发。
+     * 标题正文只是默认值，页面可改，改完以页面传的为准。
+     */
+    interface InterpretationMailPreview {
+      /** 收件人候选（LIMS 邮箱，去重） */
+      toCandidates: string[];
+      /** 抄送候选（本期为空） */
+      ccCandidates: string[];
+      /** 渲染后的默认标题 */
+      subject: string | null;
+      /** 渲染后的默认正文（HTML） */
+      content: string | null;
+      /** 附件文件名（报告已生成时才有） */
+      attachmentName: string | null;
+      /** 邮件配置是否启用 */
+      configEnabled: boolean | null;
+      /** 是否允许发送 */
+      canSend: boolean | null;
+      /** 不允许发送的原因（可发时为空） */
+      blockedReason: string | null;
+      /** 可选发件邮箱（邮件配置列表，默认那条排最前） */
+      senderOptions: ReportMailSenderOption[];
+      /** 默认选中的发件邮箱（邮件配置里「是否默认」那条） */
+      defaultConfigId: number | null;
     }
   }
 }
