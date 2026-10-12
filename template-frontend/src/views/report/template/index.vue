@@ -20,7 +20,6 @@ const { hasAuth } = useAuth();
 const searchParams = ref<Api.Report.ReportTemplateSearchParams>({
   pageNum: 1,
   pageSize: 10,
-  templateCode: null,
   templateName: null,
   reportType: null,
   status: null,
@@ -30,10 +29,11 @@ const searchParams = ref<Api.Report.ReportTemplateSearchParams>({
 /**
  * 状态标签配色契约：绿=正常/启用，黄=警告，红=非正常（含停用）；
  * 未知值兜底成灰并原样显示，别静默按正常渲染。
+ * 取值固定为 active 启用 / inactive 停用（建表规范 ai-rules/04-db-schema.md §2.1）。
  */
 const STATUS_META: Record<string, { label: string; type: 'success' | 'error' }> = {
-  ENABLED: { label: '启用', type: 'success' },
-  DISABLED: { label: '停用', type: 'error' }
+  active: { label: '启用', type: 'success' },
+  inactive: { label: '停用', type: 'error' }
 };
 
 const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagination, scrollX } =
@@ -46,7 +46,6 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     },
     columns: () => [
       { type: 'selection', align: 'center', width: 48 },
-      { key: 'templateCode', title: '模板编码', align: 'center', minWidth: 160 },
       { key: 'templateName', title: '模板名称', align: 'left', minWidth: 160 },
       { key: 'templateVersion', title: '版本', align: 'center', width: 80, render: row => row.templateVersion ?? '-' },
       { key: 'reportType', title: '报告类型', align: 'center', minWidth: 120, render: row => row.reportType ?? '-' },

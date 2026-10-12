@@ -11,7 +11,8 @@ import java.util.Map;
 /**
  * 报告模板 业务层
  * <p>
- * 模板编码（template_code）是业务键：新增要查重、软删过的编码要能恢复；
+ * 模板编码（template_code）是**后端生成**的内部业务键（新增时按自增主键回填 tpl-000123），
+ * 页面不再让用户输入 —— 只有调用方显式传了编码才走查重，删过的编码仍可恢复；
  * 「模板 ↔ 产品」多对多关系由本服务统一维护（product_template）；
  * 删除时要挡住被 analysis_report 引用过的模板。
  *
@@ -22,7 +23,7 @@ public interface IReportTemplateService {
     /**
      * 分页查询报告模板列表（附带关联产品名称）。
      *
-     * @param bo        查询条件（模板编码 / 名称 / 报告类型 / 状态）
+     * @param bo        查询条件（模板名称 / 报告类型 / 状态）
      * @param pageQuery 分页参数
      * @return 分页列表
      */
@@ -38,6 +39,8 @@ public interface IReportTemplateService {
 
     /**
      * 新增模板，并同步产品关联。
+     * <p>
+     * 编码不用传：由后端按自增主键回填 {@code tpl-000123}。
      *
      * @param bo 业务对象
      * @return 是否成功

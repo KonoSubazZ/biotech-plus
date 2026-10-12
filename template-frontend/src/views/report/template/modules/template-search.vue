@@ -20,9 +20,10 @@ const model = defineModel<Api.Report.ReportTemplateSearchParams>('model', { requ
 
 const defaultModel = jsonClone(toRaw(model.value));
 
+/** 状态取值固定为 active 启用 / inactive 停用 */
 const statusOptions = [
-  { label: '启用', value: 'ENABLED' },
-  { label: '停用', value: 'DISABLED' }
+  { label: '启用', value: 'active' },
+  { label: '停用', value: 'inactive' }
 ];
 
 const reportTypeOptions = [
@@ -55,9 +56,6 @@ async function search() {
             一行放不下时整组换到下一行，ml-auto 仍让它贴最右。
           -->
           <div class="flex flex-wrap items-start">
-            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="模板编码" path="templateCode">
-              <NInput v-model:value="model.templateCode" placeholder="请输入模板编码" clearable />
-            </NFormItem>
             <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="模板名称" path="templateName">
               <NInput v-model:value="model.templateName" placeholder="请输入模板名称" clearable />
             </NFormItem>

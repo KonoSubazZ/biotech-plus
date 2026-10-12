@@ -11,7 +11,7 @@ declare namespace Api {
     interface ReportTemplate {
       /** 主键 */
       templateId: number;
-      /** 稳定模板编码 */
+      /** 内部模板编码（后端生成 tpl-<主键>，页面不展示、不用前端传） */
       templateCode: string;
       /** 模板名称 */
       templateName: string;
@@ -29,7 +29,7 @@ declare namespace Api {
       templatePath: string;
       /** 模板文件 SHA-256 */
       templateSha256: string | null;
-      /** 状态：ENABLED / DISABLED */
+      /** 状态：active 启用 / inactive 停用 */
       status: string;
       /** 创建时间 */
       createTime: string | null;
@@ -41,13 +41,12 @@ declare namespace Api {
 
     /** 搜索参数 */
     type ReportTemplateSearchParams = CommonType.RecordNullable<
-      Pick<ReportTemplate, 'templateCode' | 'templateName' | 'reportType' | 'status'> & Common.CommonSearchParams
+      Pick<ReportTemplate, 'templateName' | 'reportType' | 'status'> & Common.CommonSearchParams
     >;
 
-    /** 新增/编辑表单（= 后端 ReportTemplateBo） */
+    /** 新增/编辑表单（= 后端 ReportTemplateBo；templateCode 由后端生成，前端不传） */
     interface ReportTemplateForm {
       templateId: number | null;
-      templateCode: string;
       templateName: string;
       templateVersion: string;
       customerCode: string;

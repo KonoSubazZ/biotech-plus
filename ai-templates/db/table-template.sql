@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS `<模块>_<实体>` (
     -- name           varchar(120) NOT NULL                           COMMENT '名称',
     -- code           varchar(60)  NOT NULL                           COMMENT '编码',
     -- status         varchar(20)  NOT NULL DEFAULT 'active'          COMMENT '状态（active 启用 / inactive 停用）',
+    --                ↑ 开关状态列固定这么写：取值只有 active / inactive，见 04-db-schema §2.1
+    --                  （不要 0/1、不要 ENABLED/DISABLED；工作流状态另起列名如 qc_status）
     -- remark         varchar(500)                                    COMMENT '备注',
 
     -- ── 公共字段（每张业务表必备；注意不要加 create_dept —— sys_dept 已删，部门由租户替代）

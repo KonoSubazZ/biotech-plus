@@ -6,7 +6,8 @@ description: >
   章节落地成建表 SQL、"这张表要不要加 tenant_id"、"索引怎么建"、"表名前缀怎么起"、
   插入报 Unknown column 'tenant_id' 或 Field 'xxx' doesn't have a default value。
   给出：表命名前缀（= 所属菜单模块）、公共字段、主键自增策略、索引（idx_tenant_id / uk_* 带租户）、
-  字符集排序规则，以及设计文档(PG/Prisma) → MySQL 的类型映射；并附一条命令的体检闸门。
+  字符集排序规则、状态字段取值（启用/停用固定 active / inactive），以及设计文档(PG/Prisma) → MySQL 的
+  类型映射；并附一条命令的体检闸门。
 effort: high
 ---
 
@@ -23,7 +24,7 @@ effort: high
 
 改规则时三处一起改：**规则文件 + 模板 + 闸门**。
 
-## 五个必须先记住的硬约束
+## 六条必须先记住的硬约束
 
 1. **每张业务表都要 `tenant_id varchar(20) NOT NULL DEFAULT '000000'` + `KEY idx_tenant_id (tenant_id)`**。
    租户拦截器是无条件注册的（`TenantLineHandlerImpl`），漏列 → 该模块读写直接抛 `Unknown column 'tenant_id'`。
@@ -34,6 +35,9 @@ effort: high
 4. **业务唯一键让 tenant_id 打头**：`UNIQUE KEY uk_<表>_<语义> (tenant_id, <列>)`，否则第二个租户建同编码会失败。
 5. **公共字段四件套** `create_by / create_time / update_by / update_time`（**没有 create_dept** —— sys_dept 已删）。
    `del_flag` 只给「记录类」表；日志/审计类（audit_log、dev_log、validation_record、data_archive_record）不加。
+6. **「启用/停用」状态列固定 `status varchar(20) NOT NULL DEFAULT 'active'`，取值只有 `active` / `inactive`**。
+   不要 `0/1`、不要 `ENABLED/DISABLED`（存量表已统一成 active/inactive，见 `ai-rules/04-db-schema.md` §2.1）；
+   工作流状态（`pending/passed/failed`、`SENDING/SUCCESS/FAILED` …）不算这一类，另起具体列名。
 
 ## 步骤
 
@@ -68,5 +72,6 @@ effort: high
 - [ ] `tenant_id` 列定义正确 + `idx_tenant_id` 索引
 - [ ] 业务唯一键全部以 tenant_id 打头
 - [ ] 显式 `COLLATE=utf8mb4_general_ci`
+- [ ] 有「启用/停用」状态列时 = `status varchar(20) NOT NULL DEFAULT 'active'`（只有 active / inactive）
 - [ ] `python3 tools/check_db_schema.py` → error 0
 - [ ] 真机插入一次：主键自增、tenant_id 自动补

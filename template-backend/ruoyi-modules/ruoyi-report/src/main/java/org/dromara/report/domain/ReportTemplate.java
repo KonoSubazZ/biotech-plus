@@ -55,7 +55,7 @@ public class ReportTemplate extends BaseEntity {
     /** 模板文件 SHA-256（预留，用于校验模板是否被替换） */
     private String templateSha256;
 
-    /** 状态（ENABLED / DISABLED） */
+    /** 状态（active 启用 / inactive 停用） */
     private String status;
 
     /** 逻辑删除标志 */

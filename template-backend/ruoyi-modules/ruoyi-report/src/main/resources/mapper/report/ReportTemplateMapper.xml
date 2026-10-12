@@ -67,7 +67,7 @@
         FROM product_template pt
         JOIN report_template t ON t.template_id = pt.template_id AND t.del_flag = '0'
         WHERE pt.product_id = #{productId} AND pt.del_flag = '0' AND pt.enabled = 1
-          AND t.status = 'ENABLED'
+          AND t.status = 'active'
         ORDER BY pt.is_default DESC, pt.sort_order, t.template_id
     </select>
 

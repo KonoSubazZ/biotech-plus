@@ -64,6 +64,36 @@
 - 不加：日志/审计类 —— audit_log、dev_log、validation_record、data_archive_record
   （append-only，合规上要求不可删改；表只增不删，靠保留策略归档）
 
+### 2.1 状态字段：启用/停用固定 `active` / `inactive`
+
+只要这一列表达的是「启用 / 停用」这种开关语义，**固定**这么写，取值只有两个：
+
+```sql
+status varchar(20) NOT NULL DEFAULT 'active' COMMENT '状态（active 启用 / inactive 停用）',
+```
+
+- **不要**用 `0/1`、`ENABLED/DISABLED`、`Y/N`、中文「启用/停用」当取值 ——
+  存量表已经是 `active` / `inactive`（`product_config`、`qc_standard`），
+  混着来前端每个页面都得单独写一套映射（`report_template` 原来就是 `ENABLED/DISABLED`，
+  2026-10-12 由 `update_5.6.16-report-template-status.sql` 对齐成这套）。
+- 前端对照写法（照抄，别自创配色）：
+
+  ```ts
+  /** 状态标签配色契约：绿=正常/启用，红=非正常（含停用）；未知值兜底成灰并原样显示 */
+  const STATUS_META: Record<string, { label: string; type: 'success' | 'error' }> = {
+    active: { label: '启用', type: 'success' },
+    inactive: { label: '停用', type: 'error' }
+  };
+  ```
+
+  下拉/筛选项：`[{ label: '启用', value: 'active' }, { label: '停用', value: 'inactive' }]`。
+- **例外：工作流状态不是开关状态**。`status` 也常被拿来存流程状态（报告 `INTERPRETING/REVIEWING/...`、
+  质控 `pending/passed/failed`、邮件 `SENDING/SUCCESS/FAILED`）—— 那是另一码事，
+  取值按各自流程定义写进列注释，**不要硬套 active/inactive**；这类列优先起具体列名
+  （`qc_status` / `notify_status` / `report_status`），别笼统叫 `status`。
+- 闸门（`tools/check_db_schema.py`）**不校验这条** —— 它分不清「开关状态」和「工作流状态」，
+  硬校验会把 `pending/passed/failed` 这类全判成错。靠本规范 + 评审。
+
 ---
 
 ## 3. 主键：单列 bigint + AUTO_INCREMENT

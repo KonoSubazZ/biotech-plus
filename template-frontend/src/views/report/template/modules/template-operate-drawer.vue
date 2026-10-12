@@ -47,10 +47,9 @@ const productSelectOptions = computed(() =>
   }))
 );
 
-/** 空的表单模型：moduleCode 留空 = 只输出公共字段 */
+/** 空的表单模型：moduleCode 留空 = 只输出公共字段；templateCode 不由前端维护（后端生成） */
 const EMPTY_FORM: Api.Report.ReportTemplateForm = {
   templateId: null,
-  templateCode: '',
   templateName: '',
   templateVersion: 'v1',
   customerCode: '',
@@ -59,14 +58,13 @@ const EMPTY_FORM: Api.Report.ReportTemplateForm = {
   reportName: '',
   templatePath: '',
   templateSha256: '',
-  status: 'ENABLED',
+  status: 'active',
   productIds: []
 };
 
 const model = ref<Api.Report.ReportTemplateForm>(jsonClone(EMPTY_FORM));
 
 const rules = {
-  templateCode: createRequiredRule('模板编码不能为空'),
   templateName: createRequiredRule('模板名称不能为空'),
   reportType: createRequiredRule('报告类型不能为空'),
   templatePath: createRequiredRule('模板文件路径不能为空'),
@@ -85,7 +83,6 @@ function handleUpdateModelWhenEdit() {
     model.value = {
       ...jsonClone(EMPTY_FORM),
       templateId: row.templateId,
-      templateCode: row.templateCode ?? '',
       templateName: row.templateName ?? '',
       templateVersion: row.templateVersion ?? 'v1',
       customerCode: row.customerCode ?? '',
@@ -94,7 +91,7 @@ function handleUpdateModelWhenEdit() {
       reportName: row.reportName ?? '',
       templatePath: row.templatePath ?? '',
       templateSha256: row.templateSha256 ?? '',
-      status: row.status ?? 'ENABLED',
+      status: row.status ?? 'active',
       productIds: row.productIds ?? []
     };
   }
@@ -176,9 +173,6 @@ watch(visible, () => {
   <NDrawer v-model:show="visible" :trap-focus="false" display-directive="show" :width="720" class="max-w-90%">
     <NDrawerContent :title="title" :native-scrollbar="false" closable>
       <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="130">
-        <NFormItem label="模板编码" path="templateCode">
-          <NInput v-model:value="model.templateCode" placeholder="稳定编码，如 pharma-shengyu（同租户唯一）" clearable />
-        </NFormItem>
         <NFormItem label="模板名称" path="templateName">
           <NInput v-model:value="model.templateName" placeholder="如：圣域 1238 报告" clearable />
         </NFormItem>
@@ -243,8 +237,8 @@ watch(visible, () => {
           <NSelect
             v-model:value="model.status"
             :options="[
-              { label: '启用', value: 'ENABLED' },
-              { label: '停用', value: 'DISABLED' }
+              { label: '启用', value: 'active' },
+              { label: '停用', value: 'inactive' }
             ]"
           />
         </NFormItem>

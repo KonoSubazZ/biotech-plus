@@ -34,8 +34,7 @@ public class ReportTemplateBo extends BaseEntity {
     /** 主键；新增时为空，更新时必填 */
     private Long templateId;
 
-    /** 稳定模板编码（业务键，同租户内唯一） */
-    @NotBlank(message = "模板编码不能为空", groups = {AddGroup.class, EditGroup.class})
+    /** 内部模板编码：后端生成（tpl-<主键>），页面不展示、前端不用传 */
     @Size(max = 120, message = "模板编码长度不能超过 120", groups = {AddGroup.class, EditGroup.class})
     private String templateCode;
 
@@ -74,7 +73,7 @@ public class ReportTemplateBo extends BaseEntity {
     @Size(max = 64, message = "模板校验值长度不能超过 64", groups = {AddGroup.class, EditGroup.class})
     private String templateSha256;
 
-    /** 状态（ENABLED / DISABLED） */
+    /** 状态（active 启用 / inactive 停用） */
     @NotBlank(message = "状态不能为空", groups = {AddGroup.class, EditGroup.class})
     @Size(max = 20, message = "状态长度不能超过 20", groups = {AddGroup.class, EditGroup.class})
     private String status;

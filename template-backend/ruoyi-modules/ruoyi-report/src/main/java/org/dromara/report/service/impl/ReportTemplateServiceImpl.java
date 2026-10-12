@@ -23,13 +23,15 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 报告模板 业务层处理
  * <p>
  * 三条业务规则：
  * <ol>
- *   <li>模板编码同租户唯一；唯一键不含 del_flag，所以「删了再加同编码」走<b>恢复</b>而不是重插。</li>
+ *   <li>模板编码是<b>后端生成</b>的内部业务键（{@code tpl-<6位主键>}，报告文件命名与报告留痕用），
+ *       页面不再让用户输入；唯一键不含 del_flag，历史编码「删了再加」仍走<b>恢复</b>而不是重插。</li>
  *   <li>「模板 ↔ 产品」关系由本服务同步：先整体失效、再按传入集合逐条恢复或插入。</li>
  *   <li>已被 analysis_report 引用的模板禁止删除（否则报告会指向不存在的模板）。</li>
  * </ol>
@@ -39,6 +41,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Service
 public class ReportTemplateServiceImpl implements IReportTemplateService {
+
+    /** 后端生成编码的前缀：tpl-000123（自增主键回填，稳定且不重复） */
+    private static final String CODE_PREFIX = "tpl-";
 
     private final ReportTemplateMapper baseMapper;
 
@@ -65,10 +70,14 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean insertByBo(ReportTemplateBo bo) {
-        assertCodeUsable(bo.getTemplateCode(), null);
         reportNameVariables.validate(bo.getReportName());
         ReportTemplate entity = MapstructUtils.convert(bo, ReportTemplate.class);
+        // 编码列是 NOT NULL + 唯一键，而自增主键要 insert 之后才知道：先塞一个唯一临时值把行插进去，
+        // 再回填成 tpl-000123。同一事务内完成，外部只会看到最终值。
+        entity.setTemplateCode(CODE_PREFIX + UUID.randomUUID().toString().replace("-", ""));
         baseMapper.insert(entity);
+        entity.setTemplateCode(generatedCode(entity.getTemplateId()));
+        baseMapper.updateById(entity);
         syncProductTemplates(entity.getTemplateId(), bo.getProductIds());
         return Boolean.TRUE;
     }
@@ -81,12 +90,21 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
         }
         // 先确认记录存在，避免把「改不到」当成「改成功」
         queryById(bo.getTemplateId());
+        // 编码由后端维护：前端不传即保持原值（MP 忽略 null，但空串会把编码覆盖成空，先归一成 null）
+        if (StringUtils.isBlank(bo.getTemplateCode())) {
+            bo.setTemplateCode(null);
+        }
         assertCodeUsable(bo.getTemplateCode(), bo.getTemplateId());
         reportNameVariables.validate(bo.getReportName());
         ReportTemplate entity = MapstructUtils.convert(bo, ReportTemplate.class);
         baseMapper.updateById(entity);
         syncProductTemplates(bo.getTemplateId(), bo.getProductIds());
         return Boolean.TRUE;
+    }
+
+    /** 模板编码 = tpl- + 6 位自增主键（前端不感知这一列） */
+    private String generatedCode(Long templateId) {
+        return CODE_PREFIX + String.format("%06d", templateId);
     }
 
     @Override
@@ -126,8 +144,9 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
     /**
      * 模板编码查重（对应 uk_report_template_code）。
      * <p>
-     * 普通查询带 del_flag='0'，所以「编码被已删模板占着」要单独查一次给出可读提示，
-     * 否则会直接抛数据库的唯一键冲突。
+     * 正常路径（前端/页面新增）压根不传编码 → 直接放行（编码由 {@link #generatedCode} 回填）；
+     * 只有调用方显式传了编码时才真正校验。普通查询带 del_flag='0'，所以「编码被已删模板占着」
+     * 要单独查一次给出可读提示，否则会直接抛数据库的唯一键冲突。
      */
     private void assertCodeUsable(String templateCode, Long excludeId) {
         if (StringUtils.isBlank(templateCode)) {
