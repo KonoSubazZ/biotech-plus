@@ -310,6 +310,9 @@ git commit -m "feat(<模块>): 新增 <中文实体名> 模块（表/接口/页�
     （实测：菜单名被外部改掉后，重跑脚本也改不回来）。做法：INSERT/搬迁之后，再按**当前位置**
     （`parent_id + path`）UPDATE 一次权威字段。
 27. **状态标签配色**：绿=正常 / 黄=警告 / 红=失败或错误，非状态类标签不许借用这三色 —— 完整表格与四条硬要求见「状态标签配色契约」章节。
+28. **宽表的单元格交互（悬停提示 / 点击看值 / 操作列对齐）有独立契约**：悬停提示只允许「与表头同一套 tooltip」，
+    可点单元格悬停变蓝，点开只看**这一个字段**的完整值；操作列里「按条件出现的按钮」要放最后并留占位，否则不同行会错位
+    —— 完整写法与实测坑见「宽表单元格交互契约」章节。
 
 
 ## 状态标签配色契约（2026-10 用户定稿）
@@ -400,6 +403,46 @@ render: row => {
 - **验收（用户视角，两条都要过）**：量「搜索按钮右边缘 → 卡片右边缘」的距离，应等于卡片内边距（本项目 16px）；
   再把窗口缩到搜索项换行（如 1040px）重复量一次。只看接口/只看 DOM 不算过。
 
+
+## 宽表单元格交互契约（宽表 / 长文本列，2026-10 用户定稿）
+
+**规则三条：悬停提示只允许一种形式（与表头同一套 tooltip）；可点的单元格悬停变蓝；点开只展示「这一个字段」的完整值，不是整行。**
+
+```tsx
+import { NEllipsis } from 'naive-ui';
+
+// 列定义：ellipsis 负责「表头」的缩略 + 悬停提示；列宽用定宽 width（不是 minWidth）
+{ key: 'libId', title: 'lib_id', align: 'center', width: 150, ellipsis: { tooltip: true },
+  render: row => renderCell(row, 'libId', 'lib_id') }
+
+/** 单元格统一渲染：缩略 + 悬停提示（NEllipsis，与表头同一套） + 悬停变蓝 + 点击看单字段 */
+function renderCell(row, key, label) {
+  const value = cellText(row, key);
+  return (
+    <div class="cursor-pointer hover:text-primary" onClick={() => openCell(row, key, label)}>
+      <NEllipsis tooltip={{ content: value }}>{value}</NEllipsis>
+    </div>
+  );
+}
+```
+
+- ⚠️ **别用原生 `title=`**（那是 OS 灰框，跟表头的 tooltip 不是一套）；也**别在自己的 div 上加 `truncate`**
+  —— 外层（表格/NEllipsis）靠 scrollWidth 判溢出，内层先截断它就会判「没溢出」→ 提示根本不弹。
+- ⚠️ **列级 `ellipsis` 不能删**：表头的 hover 提示是它驱动的；单元格的提示由 `renderCell` 里的 `NEllipsis` 负责，
+  两者同时存在才是「表头 / 单元格同款」。实测：删掉列级 ellipsis 后表头提示消失。
+- 点击 = 打开**单字段**弹窗（`NModal`，标题 = 字段名，内容 = 完整值 + `break-all`），不要一次把整行所有字段铺开。
+- 悬停变蓝用 `hover:text-primary`（UnoCSS 主题 token）。实测 1680 下 `rgb(51,54,57)` → `rgb(14,66,210)`。
+- **操作列按钮顺序固定「修改 | 删除 | 处理」**：按条件出现的按钮（如只有不合格行才有的「处理」）必须放**最后**，
+  且不满足条件时渲染**占位**（同款 `ButtonIcon` + `class="invisible"`）。否则按钮组居中后，不同行的「修改 / 删除」
+  会横向错位（实测出现 x=1517 与 x=1542 两种位置 —— 用户就是看到这个提的）。
+- **新加的图标必须让用户「刷新一次页面」**（不是硬刷新，F5 就够）：老标签页的 iconify 运行时用的是它加载时那份包，
+  取不到新图标时**不报错也不画图形**（hover 仍出 tooltip，看起来就是「按钮在、图标是白的/看不见」）。
+  实测（持久化 localStorage 的浏览器）：旧包下 `svg.innerHTML.length = 0`（橙色色值有、图形没有）→ 刷新一次后 `= 813` 正常。
+  `tools/gen-iconify-offline.py` 只保证包里**有**，管不了已经打开的页面。要么改完让用户刷新一次，要么优先挑包里已有的图标。
+- 验收（真浏览器量，别靠肉眼）：① 表头与单元格 hover 出的 tooltip `className` 首位一致（都是 `.n-tooltip`）；
+  ② 悬停后单元格文字色发生变化；③ 点开的弹窗只有两行（字段名 + 完整值）；
+  ④ 所有行操作列第 1、2 个可见按钮的 `x` 完全相同；
+  ⑤ 每个图标按钮都量一次 `getComputedStyle(btn).color` + `btn.querySelector('svg').innerHTML.length`（>0 才算画出来了）。
 
 ## 真机联调与 UI 验收（本地栈，2026-10 实测）
 
