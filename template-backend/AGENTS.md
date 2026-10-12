@@ -12,6 +12,11 @@
 - 改动前说明文件清单和计划；保留用户未提交的改动，不顺手批量格式化或重构。
 - Controller 负责路由、参数校验、权限与响应；Service 负责业务规则和事务；Mapper 负责持久化。
 - 沿用 `domain`、`domain/bo`、`domain/vo` 分工，普通接口返回 `R<T>`，分页返回 `TableDataInfo<T>`；导出、流式接口按已有模式处理。
+- **service 层包结构**（协作类落位，2026-10 定稿，完整条文见 `docs/backend-code-standard.md`）：`service/` 及子包只放接口；
+  `service/impl/` 根放入口服务（被 Controller 注入的 `XxxService`/`XxxServiceImpl`）与能力组件（`*Sender`/`*Variables`/`*Renderer`/`*Converter`）；
+  只被其他服务注入的协作类进 `service/impl/<域>/`，**域内 ≥4 个类才建子包**；数据载体进 `domain/dto`；
+  跨层静态工具与常量进 `utils/`（准入：无实例状态 + 被 ≥2 个不同层/域使用 + 不含业务判定口径）。
+  例外：`ruoyi-report/service/template/` 是模板扩展点包（接口与实现同包，按 `module_code` 维护 Handler 只进这一个包）。
 - 优先构造器注入和 `@RequiredArgsConstructor`；复用现有异常、分页、日志、映射和权限组件。
 - 可读性优先于代码行数：允许多写局部变量和步骤，使用清晰的业务命名；权限、租户及可选查询条件用独立 `if` 表达，避免嵌套三元表达式、重复上下文调用和过长链式调用。
 - 构建查询时先声明 Wrapper，再设置基础条件、分支条件和排序，最后调用 Mapper；条件分支所需的上下文值在分支内读取。简单且含义一致的条件可以保持短链式调用，不为减少行数压缩业务逻辑。

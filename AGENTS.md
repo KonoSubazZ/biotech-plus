@@ -178,6 +178,14 @@ pnpm gen-route    # 生成路由
 
 **Java**
 - 分层不得越界：Controller 不写业务逻辑，Service 不拼 SQL，Mapper 不做业务判断。
+- **service 层包结构**（模块内协作类的落位规则，2026-10 定稿）：
+  `service/` 及其子包**只放接口**；`service/impl/` 根放**入口服务**（被 Controller 注入、名字以 `Service`/`ServiceImpl` 结尾）
+  与**能力组件**（`*Sender` / `*Variables` / `*Renderer` / `*Converter`，即使被 Controller 注入也留在根）；
+  只被其他服务注入的**协作类**放 `service/impl/<域>/`，且**域内 ≥4 个类才建子包**（不足 4 个留在根，不建小包、不预留空包）。
+  非 Bean 不放 service 层：**数据载体**（*Context / *Input）进 `domain/dto`；**跨层静态工具与常量**进 `utils/`
+  （准入：无实例状态 + 被 ≥2 个不同层/域的类使用 + 不含业务判定口径；不满足则跟随它服务的域包）。
+  完整条文见 `template-backend/docs/backend-code-standard.md`（含 `ruoyi-report` 的 `service/template` 模板扩展点包例外：
+  该包策略接口与实现同包，按 `module_code` 维护 Handler 只进这一个包）。
 - 单表 CRUD 用 `BaseMapperPlus` + Lambda Wrapper；复杂联表 / 子查询 / 聚合报表写 Mapper XML。
 - **禁止**用 `@Select` / `@Insert` / `@Update` / `@Delete` / `*Provider` / `@SelectKey` 在 Java 里写 SQL（Checkstyle 会拦）。
 - SQL 值参数用 `#{param}`；动态表名/列名/排序字段必须服务端白名单校验。
