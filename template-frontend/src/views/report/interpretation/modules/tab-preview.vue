@@ -379,10 +379,14 @@ async function searchCandidates(keyword: string) {
 
 /** 候选选项：已选中的父级必须出现在选项里（且带名字），否则 NSelect 回显不出来 */
 const targetOptions = computed(() => {
-  const options = candidateNodes.value.map(node => ({
-    label: `${node.gene ?? '-'} ${node.variantName ?? '-'}`,
-    value: node.mutationId
-  }));
+  // 没有 mutationId 的知识库节点不能当改靶目标，直接不进选项：
+  // 既避免把 null 塞进 NSelect 的 value（SelectMixedOption 的 value 只接受 string | number，
+  // 实测 vue-tsc 会报 TS2322），也免得用户选到一个没有 id 的项
+  const options = candidateNodes.value.flatMap(node =>
+    node.mutationId === null
+      ? []
+      : [{ label: `${node.gene ?? '-'} ${node.variantName ?? '-'}`, value: node.mutationId }]
+  );
   const ids = targetRow.value?.parentMutationIds ?? [];
   const names = targetRow.value?.parentMutationNames ?? [];
   const gene = targetRow.value?.gene ?? '';
