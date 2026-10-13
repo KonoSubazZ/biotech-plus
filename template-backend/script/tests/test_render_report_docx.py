@@ -96,6 +96,19 @@ class RenderReportDocxTest(unittest.TestCase):
 
         assert output.read_bytes() == b"existing-output"
 
+    def test_placeholder_filter_defaults_to_slash_boolean_true(self) -> None:
+        """`|fb` 兜底简写：兜底值默认 '/' 且空值一并替换；显式传参时与内置 `|d('/', true)` 同口径。"""
+        template = self.write_template(
+            "缺失：{{ o.missing|fb }}；空串：{{ o.empty|fb }}；数字0：{{ o.zero|fb }}；有值：{{ o.text|fb }}；"
+            "换兜底：{{ o.missing|fb('-') }}；字符串0：{{ o.stringZero|fb }}"
+        )
+        payload = self.write_json({"o": {"empty": "", "zero": 0, "text": "98%", "stringZero": "0"}})
+        output = self.work_dir / "output.docx"
+
+        render_report(template, payload, output)
+
+        assert self.document_text(output) == "缺失：/；空串：/；数字0：/；有值：98%；换兜底：-；字符串0：0"
+
     def test_renders_project_template_from_example_json(self) -> None:
         template = PROJECT_DIR / "src/main/resources/report-templates/同源重组修复（HRR）通路基因检测报告-圣域.docx"
         payload = PROJECT_DIR / "src/main/resources/report-templates/同源重组修复（HRR）通路基因检测报告-圣域.example.json"

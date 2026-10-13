@@ -41,6 +41,20 @@ Java 调用方：`org.dromara.report.service.ReportDocxRenderer`（ProcessBuilde
 > `~/docker/biotech-plus/Dockerfile.backend`（`./deploy.sh build-image`），
 > 参考工程的生产镜像同样是「temurin JRE + python3-pip + pip install」。
 
+## 模板可用的辅助方法（渲染环境）
+
+`render_report_docx.py` 建的 Jinja 环境（`undefined=StrictUndefined`、`autoescape=True`）除内置过滤器外，另注册了两样：
+
+- `{{ box(flag) }}`（`environment.globals["box"]`）：布尔或 `"1"/"true"/"yes"/"y"` → `☑`，其余 → `☐`。
+- `{{ x|fb }}`（`environment.filters["fb"] = placeholder`）：**兜底值简写**，等价内置 `{{ x|d('/', true) }}`——
+  值缺失（含 key 不存在）或为空（`None` / `''` / `[]` / `0` / `False`）时输出 `/`，省掉模板里每处都写一遍参数。
+  名字取 fallback 首字母，**刻意不叫 `d`**（`d` 是 Jinja 内置 `default` 的官方别名，覆盖它容易误伤）。
+
+`|fb` 仍可显式传参：`{{ x|fb('-') }}` 换兜底值；`{{ x|fb('/', false) }}` 退回「只替换未定义」（会把 `None` 印进正文，别用）。
+字符串 `"0"` 是 truthy 不会被替换，所以 QC 这类值保持字符串才安全。
+兼容性：内置 `|d('/', true)` / `|default(...)` 照旧生效，两种写法产物逐字节一致
+（2026-10-12 实测：同一模板 44 处 `|d('/',true)` 换成 `|fb` 后渲染出的 `document.xml` md5 相同）。
+
 ## 制品目录（生成产物放哪）
 
 根目录由 `report.artifact.root` 给定；本机容器固定挂 `/app/reports`（宿主

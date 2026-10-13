@@ -29,6 +29,7 @@ from typing import Any
 from docxtpl import DocxTemplate
 from jinja2 import Environment, StrictUndefined
 from jinja2.exceptions import TemplateError
+from jinja2.filters import do_default
 
 
 class RendererError(Exception):
@@ -67,6 +68,16 @@ def box(checked: Any) -> str:
     if isinstance(checked, str):
         checked = checked.strip().lower() in {"1", "true", "yes", "y"}
     return _CHECKED_BOX if checked else _UNCHECKED_BOX
+
+
+def placeholder(value: Any, default_value: Any = "/", boolean: bool = True) -> Any:
+    """模板 `|fb` 兜底简写：兜底值默认 '/'，并默认把空值（None / '' / [] / 0 / False）一并替换。
+
+    等价内置 `|d('/', true)`，省掉模板里每处都写一遍参数；要别的兜底值、或只想替换「未定义」时
+    仍可显式传参：`{{ x|fb('-') }}`、`{{ x|fb('/', false) }}`。
+    名字取 fallback 的首字母，避开 Jinja 内置的 `d` / `default` 别名。
+    """
+    return do_default(value, default_value, boolean)
 
 
 def load_json_object(json_path: Path) -> dict[str, Any]:
@@ -164,6 +175,8 @@ def render_to_bytes(template_path: Path, context: dict[str, Any]) -> tuple[bytes
     environment = Environment(undefined=StrictUndefined, autoescape=True)
     # 表单类模板要用的辅助方法：{{ box(flag) }} → ☑ / □（见 box 的注释）
     environment.globals["box"] = box
+    # 兜底值简写：模板写 {{ x|fb }} 即内置的 {{ x|d('/', true) }}（见 placeholder 的注释）
+    environment.filters["fb"] = placeholder
     try:
         referenced_variables = sorted(
             template.get_undeclared_template_variables(jinja_env=environment)

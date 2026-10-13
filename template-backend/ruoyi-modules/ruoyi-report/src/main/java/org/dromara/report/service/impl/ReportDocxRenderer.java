@@ -230,10 +230,26 @@ public class ReportDocxRenderer {
         }
     }
 
-    /** 子进程工作目录：输出文件所在目录（不存在时回退到进程当前目录） */
+    /**
+     * 子进程工作目录：输出文件所在目录 —— 顺带把这个目录建出来。
+     * <p>
+     * 不建会直接崩：{@code ProcessBuilder.directory} 指向不存在的目录时 {@code start()} 抛
+     * {@code Cannot run program "python3" (in directory ...): No such file or directory}。
+     * 而 DOCX 阶段目录是按天走的（{@code report/docx/<yyyyMMdd>/}），所以跨天后第一次生成必现。
+     * 建不出来（权限等）时回退到进程当前目录，不让整条渲染链断在这一步。
+     */
     private File realDir(Path outputPath) {
         Path parent = outputPath.toAbsolutePath().getParent();
-        return parent == null ? new File(".") : parent.toFile();
+        if (parent == null) {
+            return new File(".");
+        }
+        try {
+            Files.createDirectories(parent);
+        } catch (IOException e) {
+            log.warn("渲染阶段目录创建失败，回退到进程当前目录：{}，{}", parent, e.getMessage());
+            return new File(".");
+        }
+        return parent.toFile();
     }
 
     /** 渲染脚本/模板的本地缓存目录（放临时目录，不污染制品目录） */
