@@ -270,3 +270,13 @@ justauth:
       client-id: 10**********6
       client-secret: 1f7d08**********5b7**********29e
       redirect-uri: ${justauth.address}/social-callback?source=gitea
+
+--- # 上上签电子签署（iPaaS 网关）：生产环境
+# 域名/账号/模板与 UAT 大概率都不同（模板ID是建在环境里的），必须由对接人给出后填这里。
+# 留空 = 调用时快速失败（报「未配置 ssq.base-url」），不会静默连到测试环境。
+ssq:
+  base-url: ${SSQ_BASE_URL:}
+  client-id: ${SSQ_CLIENT_ID:}
+  client-secret: ${SSQ_CLIENT_SECRET:}
+  template-id: ${SSQ_TEMPLATE_ID:}
+  timeout-seconds: 30

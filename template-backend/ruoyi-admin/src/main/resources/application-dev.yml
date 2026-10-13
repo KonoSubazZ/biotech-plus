@@ -268,3 +268,13 @@ justauth:
       client-id: 10**********6
       client-secret: 1f7d08**********5b7**********29e
       redirect-uri: ${justauth.address}/social-callback?source=gitea
+
+--- # 上上签电子签署（iPaaS 网关）：本机 / 测试环境（与参考脚本 ~/project/ssq_api.py 一致）
+ssq:
+  base-url: ${SSQ_BASE_URL:https://ipaas-uat.novogene.com}
+  client-id: ${SSQ_CLIENT_ID:onco-pharma-platform}
+  client-secret: ${SSQ_CLIENT_SECRET:K7mP2qR9xT4wZ8nB}
+  # 签署模板ID：报告延迟 / 报告交付 / 质控不合格 三个场景共用（文档给定）
+  template-id: ${SSQ_TEMPLATE_ID:4197207713522448386}
+  # 单次 HTTP 超时（秒）
+  timeout-seconds: 30
