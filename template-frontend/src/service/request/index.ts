@@ -15,6 +15,10 @@ const { baseURL } = getServiceBaseURL(import.meta.env, isHttpProxy);
 export const request = createFlatRequest(
   {
     baseURL,
+    // 全局请求超时 30 秒（@sa/axios 包默认是 10 秒）：
+    // 报告/通知生成要跑「组装 JSON + Python 渲染 DOCX + OnlyOffice 转 PDF」，实测一次成功生成 13.2 秒，
+    // 10 秒会让页面先报超时、而后端其实已经生成完并落库（2026-10-13 实测）。
+    timeout: 30 * 1000,
     'axios-retry': {
       retries: 0
     }

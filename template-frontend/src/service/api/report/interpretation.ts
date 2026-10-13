@@ -175,7 +175,11 @@ export function fetchGenerateReport(data: {
   return request<Record<string, unknown>>({
     url: '/report/interpretation/generate',
     method: 'post',
-    data
+    data,
+    // 生成是重活（组装 JSON + Python 渲染 DOCX + OnlyOffice 转 PDF）：单独放宽到 180 秒，与后端转换上限
+    // （onlyoffice.timeout-seconds=180）对齐。全局是 30 秒（src/service/request/index.ts）；实测成功一次约 13 秒，
+    // 但模板大 / 文档服务器排队时可能超过 30 秒，会给页面造成「报超时、后端其实已落库」的假失败。
+    timeout: 180 * 1000
   });
 }
 
