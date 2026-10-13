@@ -276,9 +276,20 @@ function buildSomaticColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[]
   return [...baseColumns(), variantTypeColumn(), abundanceColumn(), variationLevelColumn(), operateColumn()];
 }
 
-/** 胚系列 = 公共列 + 变异类型 + 临床意义 + 操作（丰度/reads、合子、文件判定、位点等级不展示） */
+/** 合子列：CR_ALL 的 Zygosity（纯合/杂合）；只在胚系表用 */
+function zygosityColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
+  return {
+    key: 'zygosity',
+    title: '纯合/杂合',
+    align: 'center',
+    width: 110,
+    render: row => row.zygosity ?? '-'
+  };
+}
+
+/** 胚系列 = 公共列 + 变异类型 + 纯合/杂合 + 临床意义 + 操作（丰度/reads、文件判定、位点等级不展示） */
 function buildGermlineColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [...baseColumns(), variantTypeColumn(), significanceColumn(), operateColumn()];
+  return [...baseColumns(), variantTypeColumn(), zygosityColumn(), significanceColumn(), operateColumn()];
 }
 
 /** 临床意义列：五级人工确认（1 致病 ~ 5 良性），保存后重新预览 */
