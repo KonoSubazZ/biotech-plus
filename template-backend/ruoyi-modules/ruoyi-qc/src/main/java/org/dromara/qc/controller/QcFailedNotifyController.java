@@ -13,6 +13,7 @@ import org.dromara.common.web.core.BaseController;
 import org.dromara.qc.domain.bo.QcFailedNotifyBo;
 import org.dromara.qc.domain.vo.QcFailedNotifyPrefillVo;
 import org.dromara.qc.domain.vo.QcFailedNotifyResultVo;
+import org.dromara.qc.domain.vo.QcFailedNotifySignVo;
 import org.dromara.qc.service.IQcFailedNotifyService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -99,5 +100,46 @@ public class QcFailedNotifyController extends BaseController {
     @PostMapping("/generate")
     public R<QcFailedNotifyResultVo> generate(@Validated @RequestBody QcFailedNotifyBo bo) {
         return R.ok(notifyService.generate(bo));
+    }
+
+    /**
+     * 送签：把该通知的 PDF 送去上上签签署（生信 / 湿实验共用）。
+     *
+     * @param id 通知记录 id
+     * @return 合同号
+     */
+    @SaCheckPermission("qc:notify:sign")
+    @Log(title = "质控通知送签", businessType = BusinessType.UPDATE)
+    @RepeatSubmit()
+    @PostMapping("/{id}/sign")
+    public R<QcFailedNotifySignVo> sign(@PathVariable Long id) {
+        return R.ok(notifyService.sign(id));
+    }
+
+    /**
+     * 刷新签署状态：已签署则拉取签名后 PDF（落 notify/signed/）并更新通知状态。
+     *
+     * @param id 通知记录 id
+     * @return 刷新结果
+     */
+    @SaCheckPermission("qc:notify:sign")
+    @PostMapping("/{id}/refresh-sign")
+    public R<QcFailedNotifySignVo> refreshSign(@PathVariable Long id) {
+        return R.ok(notifyService.refreshSign(id));
+    }
+
+    /**
+     * 下载签名后 PDF（需先签署完成并刷新过一次）。
+     *
+     * @param id       通知记录 id
+     * @param response 响应
+     */
+    @SaCheckPermission("qc:notify:query")
+    @GetMapping("/{id}/signed-pdf")
+    public void downloadSignedPdf(@PathVariable Long id, HttpServletResponse response) throws IOException {
+        File file = notifyService.loadSignedPdf(id);
+        FileUtils.setAttachmentResponseHeader(response, file.getName());
+        response.setContentType("application/pdf");
+        Files.copy(file.toPath(), response.getOutputStream());
     }
 }

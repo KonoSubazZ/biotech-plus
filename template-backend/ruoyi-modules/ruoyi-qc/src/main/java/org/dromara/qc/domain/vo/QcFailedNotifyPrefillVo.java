@@ -50,6 +50,12 @@ public class QcFailedNotifyPrefillVo {
     /** 上次生成的 PDF 路径；有值表示该记录已转出 PDF（下载优先给 PDF） */
     private String lastPdfName;
 
+    /** 上上签合同号（送签后才有；前端据此启用「刷新签署状态」） */
+    private String signContractId;
+
+    /** 签名后 PDF 路径（签署完成并拉取后才有；有值表示可直接下载签名件） */
+    private String signedPdfPath;
+
     /** 上次落库的不合格环节（中文名，顿号分隔；用于反解勾选位） */
     private String qcStage;
 

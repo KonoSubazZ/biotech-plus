@@ -16,6 +16,7 @@ import org.dromara.qc.domain.WetLabQc;
 import org.dromara.qc.domain.bo.QcFailedNotifyBo;
 import org.dromara.qc.domain.vo.QcFailedNotifyPrefillVo;
 import org.dromara.qc.domain.vo.QcFailedNotifyResultVo;
+import org.dromara.qc.domain.vo.QcFailedNotifySignVo;
 import org.dromara.qc.domain.vo.QcNotifySampleVo;
 import org.dromara.qc.mapper.BioinfoQcMapper;
 import org.dromara.qc.mapper.QcFailedNotifyMapper;
@@ -24,6 +25,7 @@ import org.dromara.qc.service.IBioinfoQcService;
 import org.dromara.qc.service.IQcFailedNotifyService;
 import org.dromara.qc.service.IWetLabQcService;
 import org.dromara.report.config.ReportRendererProperties;
+import org.dromara.report.service.ISsqSignService;
 import org.dromara.report.service.impl.OnlyOfficePdfConverter;
 import org.dromara.report.service.impl.ReportDocxRenderer;
 import org.dromara.report.utils.ArtifactPermissions;
@@ -44,7 +46,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -62,6 +63,18 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
 
     /** 通知状态：生成文档后即为「已生成（文档）」；「已发送（邮件）」等邮件功能上线后由发送动作改写 */
     private static final String STATUS_GENERATED = "已生成（文档）";
+
+    /** 通知状态：已送签（上上签返回合同号后） */
+    private static final String STATUS_SUBMITTED = "已送签";
+
+    /** 通知状态：已签署（签名后 PDF 已回传落 signed/） */
+    private static final String STATUS_SIGNED = "已签署";
+
+    /** 查询接口实测的状态取值：已派发待签 */
+    private static final String CONTRACT_STATUS_SENT = "SENT";
+
+    /** 查询接口实测的状态取值：签署完成（2026-10-13 首次真连拿到） */
+    private static final String CONTRACT_STATUS_COMPLETE = "COMPLETE";
 
     /** 质控类型：生信（默认） */
     private static final String CATEGORY_BIOINFO = "bioinfo";
@@ -81,6 +94,7 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
     private final OnlyOfficePdfConverter pdfConverter;
     private final ReportRendererProperties rendererProperties;
     private final ObjectMapper objectMapper;
+    private final ISsqSignService ssqSignService;
 
     /** 制品根目录（与报告模块同一个目录，容器里固定挂 /app/reports） */
     @Value("${report.artifact.root:/app/reports}")
@@ -174,7 +188,7 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
             Path pdfPath = convertToPdfQuietly(docxPath);
             QcFailedNotify record = toRecord(bo, sample, jsonPath, docxPath, pdfPath, now);
             notifyMapper.insert(record);
-            writeBackNotifyStatus(record);
+            writeBackNotifyStatus(record.getSubbarcode(), record.getQcCategory(), record.getNotifyStatus());
             return toResult(record, rendered);
         } catch (RuntimeException e) {
             deleteQuietly(jsonPath);
@@ -258,6 +272,9 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
         vo.setLastGeneratedAt(latest.getLastGeneratedAt());
         vo.setLastDocxName(latest.getLastDocxName());
         vo.setLastPdfName(latest.getLastPdfName());
+        // 签署信息一并带回：刷新页面后「刷新签署状态 / 下载签名件」按钮仍可用
+        vo.setSignContractId(latest.getSignContractId());
+        vo.setSignedPdfPath(latest.getSignedPdfPath());
         vo.setWetLabQcId(latest.getWetLabQcId());
         vo.setBioinfoQcId(latest.getBioinfoQcId());
         // 原因本轮不由页面填：上次记录里为空时，保留后端按质控标准算出的不达标项（生信据此填写）
@@ -334,16 +351,15 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
      * 只更新 notify_status 一列，别的列不碰（用 UpdateWrapper 而不是整行覆盖，避免把质检值写脏）。
      * 页面暂不展示这一列，先把状态记下来。
      */
-    private void writeBackNotifyStatus(QcFailedNotify record) {
-        String subbarcode = record.getSubbarcode();
-        if (CATEGORY_WET_LAB.equals(record.getQcCategory())) {
+    private void writeBackNotifyStatus(String subbarcode, String qcCategory, String status) {
+        if (CATEGORY_WET_LAB.equals(qcCategory)) {
             wetLabQcMapper.update(null, Wrappers.<WetLabQc>lambdaUpdate()
-                .set(WetLabQc::getNotifyStatus, record.getNotifyStatus())
+                .set(WetLabQc::getNotifyStatus, status)
                 .eq(WetLabQc::getSubbarcode, subbarcode));
             return;
         }
         bioinfoQcMapper.update(null, Wrappers.<BioinfoQc>lambdaUpdate()
-            .set(BioinfoQc::getNotifyStatus, record.getNotifyStatus())
+            .set(BioinfoQc::getNotifyStatus, status)
             .eq(BioinfoQc::getSubbarcode, subbarcode));
     }
 
@@ -419,6 +435,120 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
             throw new ServiceException("通知 PDF 不存在，可能已被清理：" + file);
         }
         return file.toFile();
+    }
+
+    @Override
+    public File loadSignedPdf(Long id) {
+        QcFailedNotify record = notifyMapper.selectById(id);
+        if (record == null || StringUtils.isBlank(record.getSignedPdfPath())) {
+            throw new ServiceException("通知记录不存在或还没有签名后 PDF：id=" + id);
+        }
+        Path root = Path.of(artifactRoot).toAbsolutePath().normalize();
+        Path file = Path.of(record.getSignedPdfPath()).toAbsolutePath().normalize();
+        if (!file.startsWith(root)) {
+            throw new ServiceException("签名后 PDF 路径越出制品目录：" + file);
+        }
+        if (!Files.isRegularFile(file)) {
+            throw new ServiceException("签名后 PDF 不存在，可能已被清理：" + file);
+        }
+        return file.toFile();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public QcFailedNotifySignVo sign(Long id) {
+        QcFailedNotify record = requireNotify(id);
+        if (StringUtils.isNotBlank(record.getSignContractId())) {
+            throw new ServiceException("该通知已经送签（合同号 " + record.getSignContractId()
+                + "），不重复送签；要重新签请先重新生成通知");
+        }
+        if (StringUtils.isBlank(record.getPdfPath())) {
+            throw new ServiceException("该通知还没有 PDF（OnlyOffice 转换失败），请先重新生成通知再送签");
+        }
+        String contractId = ssqSignService.sendQcUnqualified(record.getPdfPath());
+        notifyMapper.update(null, Wrappers.<QcFailedNotify>lambdaUpdate()
+            .set(QcFailedNotify::getSignContractId, contractId)
+            .set(QcFailedNotify::getNotifyStatus, STATUS_SUBMITTED)
+            .eq(QcFailedNotify::getId, id));
+        writeBackNotifyStatus(record.getSubbarcode(), record.getQcCategory(), STATUS_SUBMITTED);
+        QcFailedNotifySignVo vo = new QcFailedNotifySignVo();
+        vo.setNotifyId(id);
+        vo.setContractId(contractId);
+        vo.setSigned(false);
+        vo.setNotifyStatus(STATUS_SUBMITTED);
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public QcFailedNotifySignVo refreshSign(Long id) {
+        QcFailedNotify record = requireNotify(id);
+        QcFailedNotifySignVo vo = new QcFailedNotifySignVo();
+        vo.setNotifyId(id);
+        vo.setContractId(record.getSignContractId());
+        vo.setNotifyStatus(record.getNotifyStatus());
+        vo.setSignedPdfPath(record.getSignedPdfPath());
+        if (StringUtils.isBlank(record.getSignContractId())) {
+            throw new ServiceException("该通知还没送签，无法刷新签署状态");
+        }
+        // 已经拉到签名件：直接返回，不重复下载覆盖
+        if (StringUtils.isNotBlank(record.getSignedPdfPath()) && Files.isRegularFile(Path.of(record.getSignedPdfPath()))) {
+            vo.setSigned(true);
+            vo.setSignedPdfName(Path.of(record.getSignedPdfPath()).getFileName().toString());
+            return vo;
+        }
+        String status = ssqSignService.queryContractStatus(record.getSignContractId());
+        vo.setContractStatus(status);
+        if (!isSignFinished(status)) {
+            vo.setSigned(false);
+            return vo;
+        }
+        Path signedDir = ReportArtifactPaths.signedDir(artifactRoot, ReportArtifactPaths.NOTIFY, LocalDate.now());
+        Path signed = ssqSignService.downloadSignedPdf(record.getSignContractId(), signedDir,
+            fileBaseOf(record.getPdfPath()));
+        ArtifactPermissions.relax(signed);
+        notifyMapper.update(null, Wrappers.<QcFailedNotify>lambdaUpdate()
+            .set(QcFailedNotify::getSignedPdfPath, signed.toString())
+            .set(QcFailedNotify::getNotifyStatus, STATUS_SIGNED)
+            .eq(QcFailedNotify::getId, id));
+        writeBackNotifyStatus(record.getSubbarcode(), record.getQcCategory(), STATUS_SIGNED);
+        vo.setSigned(true);
+        vo.setSignedPdfPath(signed.toString());
+        vo.setSignedPdfName(signed.getFileName().toString());
+        vo.setNotifyStatus(STATUS_SIGNED);
+        return vo;
+    }
+
+    /**
+     * 是否签署完成。
+     * <p>
+     * 只认 {@code COMPLETE}（2026-10-13 真连实测拿到的完成值）；{@code SENT} 是已派发待签，其余取值按「未完成」处理
+     * 且记一条 warn（不猜、不兜底：没实测过的值宁可停在「已送签」，也不去下载一份不完整的签名件）。
+     */
+    private boolean isSignFinished(String status) {
+        if (CONTRACT_STATUS_COMPLETE.equalsIgnoreCase(status)) {
+            return true;
+        }
+        if (!CONTRACT_STATUS_SENT.equalsIgnoreCase(status)) {
+            log.warn("上上签合同状态不是已实测的两个值（SENT / COMPLETE）：{}，按「未完成」处理", status);
+        }
+        return false;
+    }
+
+    /** 通知记录必须存在 */
+    private QcFailedNotify requireNotify(Long id) {
+        QcFailedNotify record = notifyMapper.selectById(id);
+        if (record == null) {
+            throw new ServiceException("通知记录不存在：id=" + id);
+        }
+        return record;
+    }
+
+    /** 同名基名：<...>/xxx.pdf → xxx（签名件与转化 PDF 同基名，靠目录区分阶段） */
+    private String fileBaseOf(String pdfPath) {
+        String name = Path.of(pdfPath).getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? name : name.substring(0, dot);
     }
 
     /**

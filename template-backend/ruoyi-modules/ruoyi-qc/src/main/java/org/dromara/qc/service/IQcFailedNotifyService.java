@@ -3,6 +3,7 @@ package org.dromara.qc.service;
 import org.dromara.qc.domain.bo.QcFailedNotifyBo;
 import org.dromara.qc.domain.vo.QcFailedNotifyPrefillVo;
 import org.dromara.qc.domain.vo.QcFailedNotifyResultVo;
+import org.dromara.qc.domain.vo.QcFailedNotifySignVo;
 
 import java.io.File;
 
@@ -52,4 +53,31 @@ public interface IQcFailedNotifyService {
      * @return PDF 文件
      */
     File loadPdf(Long id);
+
+    /**
+     * 把该通知的 PDF 送去上上签签署（前置：通知已生成且有 PDF）。
+     *
+     * @param id 通知记录 id
+     * @return 送签结果（含合同号）
+     */
+    QcFailedNotifySignVo sign(Long id);
+
+    /**
+     * 刷新签署状态：已签署则拉取签名后 PDF 落 signed/ 并更新通知状态。
+     *
+     * @param id 通知记录 id
+     * @return 刷新结果
+     */
+    QcFailedNotifySignVo refreshSign(Long id);
+
+    /**
+     * 取签名后的通知 PDF（按生成记录 id）
+     * <p>
+     * 口径与 {@link #loadPdf(Long)} 一致：只读记录里登记的路径、必须落在制品根目录内。
+     * 还没签署完成（signed_pdf_path 为空）时按「还没有签名后 PDF」报错。
+     *
+     * @param id 生成记录 id
+     * @return PDF 文件
+     */
+    File loadSignedPdf(Long id);
 }

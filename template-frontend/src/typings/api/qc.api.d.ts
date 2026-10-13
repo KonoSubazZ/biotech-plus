@@ -271,6 +271,10 @@ declare namespace Api {
       lastDocxName: string | null;
       /** 上次生成的 PDF 路径；有值表示已转出 PDF，下载优先给 PDF */
       lastPdfName: string | null;
+      /** 上上签合同号（送签后才有；有值表示可「刷新签署状态」） */
+      signContractId: string | null;
+      /** 签名后 PDF 路径（签署完成并拉取后才有；有值表示可下载签名件） */
+      signedPdfPath: string | null;
       /** 通知状态：已生成（文档）/ 已发送（邮件） */
       notifyStatus: string | null;
       /** 是否已经生成过 */
@@ -292,6 +296,29 @@ declare namespace Api {
       pdfPath: string | null;
       /** 生成的 PDF 文件名；转换失败时为空 */
       pdfName: string | null;
+    }
+
+    /**
+     * 质控通知送签结果（= 后端 QcFailedNotifySignVo）
+     * <p>
+     * 「送签」与「刷新签署状态」共用：送签返回合同号；刷新返回网关状态，
+     * signed=true 表示已签完、后端已把签名件拉到 notify/signed/（signedPdfPath/Name 有值）。
+     */
+    interface NotifySignResult {
+      /** 通知记录 id */
+      notifyId: string;
+      /** 上上签合同号（送签后回填；刷新时原样带回） */
+      contractId: string | null;
+      /** 网关返回的签署状态描述（原样） */
+      contractStatus: string | null;
+      /** 是否已签署完成（后端按「完成词」判断） */
+      signed: boolean;
+      /** 签名后 PDF 路径（已签署时才有） */
+      signedPdfPath: string | null;
+      /** 签名后 PDF 文件名（已签署时才有） */
+      signedPdfName: string | null;
+      /** 回写后的通知状态：已送签 / 已签署 等 */
+      notifyStatus: string | null;
     }
   }
 }

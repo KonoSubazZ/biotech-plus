@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { jsonClone } from '@sa/utils';
-import { fetchGenerateQcNotify, fetchGetQcNotifyPrefill } from '@/service/api/qc/qc-notify';
+import { fetchGenerateQcNotify, fetchGetQcNotifyPrefill, fetchRefreshQcNotifySign, fetchSignQcNotify } from '@/service/api/qc/qc-notify';
 import { useDownload } from '@/hooks/business/download';
 import { useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
@@ -93,12 +93,19 @@ const generating = ref(false);
 const downloadId = ref<number | null>(null);
 /** 该记录有没有 PDF：有则「下载生成通知」优先给 PDF，没有（转换失败/历史记录）退回 DOCX */
 const pdfAvailable = ref(false);
+/** 送签后拿到的合同号（用于「刷新签署状态」的可用性判断） */
+const signContractId = ref<string | null>(null);
+/** 已拿到签名件时，用记录 id 走既有下载口子 */
+const signedPdfId = ref<string | null>(null);
+const signing = ref(false);
+const refreshing = ref(false);
 
 /** 顶部提示：已生成过就报单号/时间/状态 */
 const generatedHint = computed(() => {
   if (!prefill.value?.generated) return '';
   const status = prefill.value.notifyStatus ? `，状态：${prefill.value.notifyStatus}` : '';
-  return `该样本已生成过通知：${prefill.value.notifyNo ?? ''}（${prefill.value.lastGeneratedAt ?? ''}）${status}；再点生成会新增一条记录`;
+  const signHint = signContractId.value ? `，合同号：${signContractId.value}` : '';
+  return `该样本已生成过通知：${prefill.value.notifyNo ?? ''}（${prefill.value.lastGeneratedAt ?? ''}）${status}${signHint}；再点生成会新增一条记录`;
 });
 
 /** 环节多选：五个布尔位 → 选中项数组（页面好用 NCheckboxGroup，横排） */
@@ -133,6 +140,9 @@ async function load() {
     model.value.qcCategory = props.qcCategory;
     downloadId.value = data.lastNotifyId ?? null;
     pdfAvailable.value = Boolean(data.lastPdfName);
+    // 签署相关状态：优先用本条记录带的（刷新页面后按钮仍可用），没有则清空，避免换样本时串用上一条
+    signContractId.value = data.signContractId ?? null;
+    signedPdfId.value = data.signedPdfPath ? String(data.lastNotifyId) : null;
   } finally {
     loading.value = false;
   }
@@ -175,6 +185,45 @@ function handleDownload() {
 /** 发送通知（邮件）：预设无功能，等邮件通道接上后再实现 */
 function handleSend() {
   window.$message?.info('发送通知（邮件）功能待实现：接上邮件通道后这里改成发送并置状态「已发送（邮件）」');
+}
+
+/** 送签（上上签）：前置是已生成通知且有 PDF；成功带回合同号 */
+async function handleSign() {
+  if (!downloadId.value) return;
+  signing.value = true;
+  try {
+    const { data, error } = await fetchSignQcNotify(String(downloadId.value));
+    if (error) return;
+    signContractId.value = data?.contractId ?? null;
+    window.$message?.success(`已送签，合同号：${data?.contractId ?? ''}`);
+  } finally {
+    signing.value = false;
+  }
+}
+
+/** 刷新签署状态：签完则把签名件拉到 notify/signed/ 并置「已签署」 */
+async function handleRefreshSign() {
+  if (!downloadId.value) return;
+  refreshing.value = true;
+  try {
+    const { data, error } = await fetchRefreshQcNotifySign(String(downloadId.value));
+    if (error) return;
+    signContractId.value = data?.contractId ?? signContractId.value;
+    if (data?.signed) {
+      signedPdfId.value = String(downloadId.value);
+      window.$message?.success(`已签署，签名件：${data?.signedPdfName ?? ''}`);
+    } else {
+      window.$message?.info(`对方还没签完（网关状态：${data?.contractStatus ?? '未知'}）`);
+    }
+  } finally {
+    refreshing.value = false;
+  }
+}
+
+/** 下载签名件（GET + 二进制，与既有「下载生成通知」同款口子） */
+function handleDownloadSigned() {
+  if (!signedPdfId.value) return;
+  zip(`/qc/notify/${signedPdfId.value}/signed-pdf`, `通知签名件-${signedPdfId.value}.pdf`);
 }
 </script>
 
@@ -296,6 +345,9 @@ function handleSend() {
         <NButton type="primary" :loading="generating" @click="handleGenerate">生成通知</NButton>
         <NButton :disabled="!downloadId" @click="handleDownload">下载生成通知</NButton>
         <NButton :disabled="!downloadId" @click="handleSend">发送通知</NButton>
+        <NButton :disabled="!downloadId" :loading="signing" @click="handleSign">送签</NButton>
+        <NButton :disabled="!signContractId" :loading="refreshing" @click="handleRefreshSign">刷新签署状态</NButton>
+        <NButton :disabled="!signedPdfId" @click="handleDownloadSigned">下载签名件</NButton>
       </NSpace>
     </template>
   </NModal>

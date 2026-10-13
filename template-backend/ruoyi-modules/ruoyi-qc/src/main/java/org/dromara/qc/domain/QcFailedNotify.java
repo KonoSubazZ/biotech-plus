@@ -96,6 +96,12 @@ public class QcFailedNotify extends BaseEntity {
 
     /** PDF 路径（OnlyOffice 转换产物；转换失败时为空，重新生成可补上） */
     private String pdfPath;
+
+    /** 上上签合同号（送签后回填） */
+    private String signContractId;
+
+    /** 签名后 PDF 路径（上上签回传） */
+    private String signedPdfPath;
     // @fields:end
 
     /** 逻辑删除标志 */

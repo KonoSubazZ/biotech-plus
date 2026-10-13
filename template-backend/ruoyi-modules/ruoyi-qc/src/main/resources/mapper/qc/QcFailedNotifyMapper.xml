@@ -60,6 +60,8 @@
                n.review_time       AS reviewTime,
                n.raw_docx_path     AS lastDocxName,
                n.pdf_path          AS lastPdfName,
+               n.sign_contract_id  AS signContractId,
+               n.signed_pdf_path   AS signedPdfPath,
                DATE_FORMAT(n.create_time, '%Y-%m-%d %H:%i:%s') AS lastGeneratedAt,
                TRUE                AS `generated`   -- generated 是 MySQL 保留字，别名必须反引号
         FROM qc_failed_notify n

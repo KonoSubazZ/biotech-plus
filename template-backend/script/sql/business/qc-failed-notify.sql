@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS `qc_failed_notify` (
     json_path         varchar(500)            DEFAULT NULL   COMMENT '渲染用的 JSON 路径',
     raw_docx_path     varchar(500)            DEFAULT NULL   COMMENT '生成的 DOCX 路径',
     pdf_path          varchar(500)            DEFAULT NULL   COMMENT 'PDF 路径（OnlyOffice 转换产物；转换失败时为空）',
+    sign_contract_id  varchar(64)             DEFAULT NULL   COMMENT '上上签合同号（送签后回填）',
+    signed_pdf_path   varchar(500)            DEFAULT NULL   COMMENT '签名后PDF路径（上上签回传）',
 
     create_by         bigint                  DEFAULT NULL   COMMENT '创建者',
     create_time       datetime                DEFAULT NULL   COMMENT '创建时间',

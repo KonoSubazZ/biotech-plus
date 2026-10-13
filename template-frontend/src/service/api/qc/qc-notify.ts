@@ -29,3 +29,30 @@ export function fetchGenerateQcNotify(data: Api.Qc.NotifyForm) {
     data
   });
 }
+
+/**
+ * 送签（上上签电子签署）
+ * <p>
+ * 前置：该记录已生成通知且有 PDF（后端校验，PDF 缺失会报错提示重新生成）；
+ * 成功返回送签拿到的合同号，重复送签后端会报错（换签请重新生成通知）。
+ *
+ * @param id 通知记录 id（qc_failed_notify.id）
+ */
+export function fetchSignQcNotify(id: string) {
+  return request<Api.Qc.NotifySignResult>({
+    url: `/qc/notify/${id}/sign`,
+    method: 'post'
+  });
+}
+
+/**
+ * 刷新签署状态：已签署则后端拉取签名后 PDF 落到 notify/signed/ 并置「已签署」
+ *
+ * @param id 通知记录 id（qc_failed_notify.id）
+ */
+export function fetchRefreshQcNotifySign(id: string) {
+  return request<Api.Qc.NotifySignResult>({
+    url: `/qc/notify/${id}/refresh-sign`,
+    method: 'post'
+  });
+}
