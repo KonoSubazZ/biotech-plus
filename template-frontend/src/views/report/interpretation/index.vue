@@ -5,12 +5,14 @@ import { NButton, NTag } from 'naive-ui';
 import { useRoute } from 'vue-router';
 import { fetchEnterInterpretation, fetchGetInterpretationList } from '@/service/api/report/interpretation';
 import { useAppStore } from '@/store/modules/app';
+import { useAuth } from '@/hooks/business/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
 import InterpretationDetail from './modules/interpretation-detail.vue';
 import InterpretationSearch from './modules/interpretation-search.vue';
 import { REPORT_STATUS_META, statusMeta } from './modules/interpretation-status';
+import { INTERPRETATION_TAB_PERMS } from './modules/interpretation-tabs';
 
 defineOptions({
   name: 'ReportInterpretation'
@@ -19,6 +21,7 @@ defineOptions({
 const appStore = useAppStore();
 const route = useRoute();
 const { routerPushByKey } = useRouterPush();
+const { hasAuth } = useAuth();
 
 /** 进入解读请求中（防止连点） */
 const entering = ref(false);
@@ -26,6 +29,16 @@ const entering = ref(false);
 /** 详情页参数来自 query（菜单路由是动态生成的，详情用同一路由 + query，避免多挂一个隐藏菜单） */
 const currentReportId = computed(() => queryNumber('reportId'));
 const currentAnalysisId = computed(() => queryNumber('analysisId'));
+
+/** 直达页签（路由 query.tab，可空）；详情页会再按权限收敛到有权限的页签 */
+const currentTab = computed(() => {
+  const raw = route.query.tab;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value ? String(value) : '';
+});
+
+/** 「解读」按钮：要有进入权限，且至少有一个页签权限（否则进去也只有一条无页签权限提示） */
+const canInterpret = computed(() => hasAuth('report:interpretation:enter') && hasAuth(INTERPRETATION_TAB_PERMS));
 
 function queryNumber(key: string) {
   const raw = route.query[key];
@@ -100,12 +113,15 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         align: 'center',
         width: 100,
         fixed: 'right',
-        render: row => (
+        render: row =>
           // 带文字的按钮（不用纯图标）：第一次交付要让用户一眼看到入口
-          <NButton text type="primary" loading={entering.value} onClick={() => handleEnter(row.analysisId)}>
-            解读
-          </NButton>
-        )
+          canInterpret.value ? (
+            <NButton text type="primary" loading={entering.value} onClick={() => handleEnter(row.analysisId)}>
+              解读
+            </NButton>
+          ) : (
+            <span>-</span>
+          )
       }
     ]
   });
@@ -122,9 +138,15 @@ async function handleEnter(analysisId: number) {
       return;
     }
     window.$message?.success(`已进入解读：报告 #${report.reportId}`);
-    await routerPushByKey('report_interpretation', {
-      query: { reportId: String(report.reportId), analysisId: String(report.analysisId) }
-    });
+    const query: Record<string, string> = {
+      reportId: String(report.reportId),
+      analysisId: String(report.analysisId)
+    };
+    // 从带页签的链接进来时保持同一页签，其它情况落到第一个有权限的页签
+    if (currentTab.value) {
+      query.tab = currentTab.value;
+    }
+    await routerPushByKey('report_interpretation', { query });
   } finally {
     entering.value = false;
   }
@@ -146,6 +168,7 @@ async function backToList() {
       v-if="currentReportId"
       :report-id="currentReportId"
       :analysis-id="currentAnalysisId"
+      :initial-tab="currentTab"
       @back="backToList"
     />
 

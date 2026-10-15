@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { NTag } from 'naive-ui';
+import { useRoute, useRouter } from 'vue-router';
 import { fetchGetInterpretationContext } from '@/service/api/report/interpretation';
+import { useAuth } from '@/hooks/business/auth';
+import { INTERPRETATION_TABS } from './interpretation-tabs';
 import { REPORT_STATUS_META, statusMeta } from './interpretation-status';
 import InterpretationTabFiles from './tab-files.vue';
 import InterpretationTabLims from './tab-lims.vue';
@@ -19,9 +22,11 @@ interface Props {
   reportId: number;
   /** 分析数据ID */
   analysisId: number;
+  /** 直达页签（路由 query.tab；空或越权时落到第一个有权限的页签） */
+  initialTab?: string;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { initialTab: '' });
 
 interface Emits {
   (e: 'back'): void;
@@ -29,20 +34,38 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 
+const router = useRouter();
+const route = useRoute();
+const { hasAuth } = useAuth();
+
 const loading = ref(false);
 const context = ref<Api.Report.InterpretationContext | null>(null);
 
-/** 详情页 Tab：① LIMS 信息已实现，其余 5 个由第 3~7 页逐个补齐 */
-const TABS = [
-  { name: 'lims', label: 'LIMS 信息' },
-  { name: 'files', label: '集群对接' },
-  { name: 'variants', label: '筛选位点' },
-  { name: 'preview', label: '报告预览' },
-  { name: 'review', label: '审核报告' },
-  { name: 'send', label: '报告发送' }
-];
+/** 只渲染有权限的页签：一个页签都没有时整个页签栏不出现（只给提示） */
+const visibleTabs = computed(() => INTERPRETATION_TABS.filter(tab => hasAuth(tab.perm)));
 
-const activeTab = ref('lims');
+function tabVisible(name: string) {
+  return visibleTabs.value.some(tab => tab.name === name);
+}
+
+/** 当前页签（空 = 没有可用页签） */
+const activeTab = ref('');
+
+/** 页签收敛：URL 指定的页签有权限就用它，否则落到第一个有权限的页签 */
+function syncActiveTab() {
+  activeTab.value = tabVisible(props.initialTab) ? props.initialTab : (visibleTabs.value[0]?.name ?? '');
+}
+
+watch(visibleTabs, syncActiveTab, { immediate: true });
+watch(() => props.initialTab, syncActiveTab);
+
+/** 切页签：写回 URL，刷新 / 复制链接都能停在同一页签 */
+function handleTabChange(name: string) {
+  activeTab.value = name;
+  if (route.query.tab !== name) {
+    router.replace({ query: { ...route.query, tab: name } });
+  }
+}
 
 const reportStatus = computed(() => statusMeta(REPORT_STATUS_META, context.value?.report.status ?? null, '未解读'));
 
@@ -111,8 +134,13 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
     </NAlert>
 
     <NCard :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
-      <NTabs v-model:value="activeTab" type="line" animated>
-        <NTabPane v-for="tab in TABS" :key="tab.name" :name="tab.name" :tab="tab.label">
+      <NAlert v-if="!visibleTabs.length" type="warning" :bordered="false" title="无页签权限">
+        当前账号没有该报告任一页签的权限（LIMS 信息 / 集群对接 / 筛选位点 / 报告预览 / 审核报告 / 报告发送），
+        请联系管理员分配。
+      </NAlert>
+
+      <NTabs v-else :value="activeTab" type="line" animated @update:value="handleTabChange">
+        <NTabPane v-for="tab in visibleTabs" :key="tab.name" :name="tab.name" :tab="tab.label">
           <template v-if="tab.name === 'lims'">
             <InterpretationTabLims v-if="context" :lims="context.lims" />
           </template>
@@ -144,9 +172,6 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
               :report-status="context?.report.status ?? null"
               @changed="loadContext"
             />
-          </template>
-          <template v-else>
-            <NEmpty :description="`${tab.label}：建设中（后续页面按 Tab 逐个交付）`" />
           </template>
         </NTabPane>
       </NTabs>

@@ -5,7 +5,6 @@ import {
   fetchGetInterpretationVariantList,
   fetchUpdateVariantReportStatus
 } from '@/service/api/report/interpretation';
-import { useAuth } from '@/hooks/business/auth';
 import { useNaiveForm } from '@/hooks/common/form';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
@@ -21,7 +20,6 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const { hasAuth } = useAuth();
 const { formRef, validate, restoreValidation } = useNaiveForm();
 
 /** 四类位点（与后端 history_*.source_type 口径一致） */
@@ -276,7 +274,6 @@ function reportedColumn() {
         value={reported(row)}
         size="small"
         loading={switchingId.value === row.id}
-        disabled={!hasAuth('report:interpretation:edit')}
         onUpdateValue={(value: boolean) => handleToggle(row, value)}
       />
     )

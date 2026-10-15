@@ -12,7 +12,6 @@ import {
 } from '@/service/api/report/interpretation';
 import ReportGenerateParams from './report-generate-params.vue';
 import { gradeCountTags } from './grade-count';
-import { useAuth } from '@/hooks/business/auth';
 import { useDownload } from '@/hooks/business/download';
 
 defineOptions({
@@ -34,8 +33,6 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
-
-const { hasAuth } = useAuth();
 
 /** en7 药物等级分组键与中文标签（1-4 获益 A-D，5-8 耐药 A-D） */
 const GROUP_KEYS = [
@@ -84,8 +81,6 @@ const targetIds = ref<number[]>([]);
 /** 本次弹窗内已加载的知识库候选（供 NSelect 回显与选择） */
 const candidateNodes = ref<Api.Report.NkbVariantNode[]>([]);
 const candidateLoading = ref(false);
-
-const canEdit = computed(() => hasAuth('report:interpretation:edit'));
 
 /** 顶部上下文一行（sampleInfo 是 Map，取值统一转字符串） */
 const contextLine = computed(() => {
@@ -304,7 +299,6 @@ function significanceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
         value={row.clinicalSignificance}
         options={SIGNIFICANCE_OPTIONS}
         size="small"
-        disabled={!canEdit.value}
         loading={savingId.value === row.sourceId}
         onUpdateValue={(value: number) => saveSignificance(row, value)}
       />
@@ -850,7 +844,6 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         clearable
         :options="targetOptions"
         :loading="candidateLoading"
-        :disabled="!canEdit"
         placeholder="输入基因或位点关键词搜索知识库节点"
         @search="searchCandidates"
       />
@@ -859,7 +852,6 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
           <NButton @click="targetVisible = false">取消</NButton>
           <NButton
             type="primary"
-            :disabled="!canEdit"
             :loading="savingId === targetRow?.sourceId"
             @click="confirmTarget"
           >

@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { NAlert, NButton, NCheckbox, NForm, NFormItem, NInput, NSelect, NSpace, NSpin, NTag } from 'naive-ui';
 import { fetchGetMailPreview, fetchSendReport } from '@/service/api/report/interpretation';
-import { useAuth } from '@/hooks/business/auth';
 
 defineOptions({
   name: 'InterpretationTabSend'
@@ -23,10 +22,6 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
-
-const { hasAuth } = useAuth();
-
-const canSendAuth = computed(() => hasAuth('report:interpretation:send'));
 
 /** 已发送：表单锁定，不再允许改内容或重发 */
 const sent = computed(() => props.reportStatus === 'SENT');
@@ -93,10 +88,9 @@ async function load() {
   }
 }
 
-/** 可发送 = 有权限 + 后端判定可发 + 选中的发件邮箱是启用状态 + 还没发过 */
+/** 可发送 = 后端判定可发 + 选中的发件邮箱是启用状态 + 还没发过（页签权限已保证有发送权） */
 const canSubmit = computed(
   () =>
-    canSendAuth.value &&
     preview.value?.canSend === true &&
     selectedSender.value?.enabled === '1' &&
     !sent.value
