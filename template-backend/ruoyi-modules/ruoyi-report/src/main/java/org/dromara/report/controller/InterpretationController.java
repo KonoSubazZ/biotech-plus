@@ -1,6 +1,7 @@
 package org.dromara.report.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import lombok.RequiredArgsConstructor;
 import org.dromara.common.core.domain.R;
 import org.dromara.common.idempotent.annotation.RepeatSubmit;
@@ -62,7 +63,12 @@ import java.util.Map;
  *   <li>GET /report/interpretation/list：analysis_data ⟕ 最新 analysis_report，一页一个分析批次。</li>
  *   <li>POST /report/interpretation/enter：创建/复用该批次的「解读中」报告，返回 reportId 供跳转详情页。</li>
  * </ul>
- * 位点筛选 / 预览 / 审核 / 发送在后续页面按 permission 点位逐个开放。
+ * <p>
+ * 权限口径（页签级）：详情页 6 个页签各一个权限点
+ * report:interpretation:{lims|files|variants|preview|review|send}——
+ * 「有页签权限 = 页签内按钮与接口都能用」。被多个页签复用的接口（context / files / preview /
+ * report-file）用 SaMode.OR 放行，其余接口挂所属页签的权限点；context 另外放行 list（只有列表权限的
+ * 账号进详情页至少要能看到报告头）。
  *
  * @author <你的名字>
  */
@@ -120,7 +126,18 @@ public class InterpretationController extends BaseController {
      * @param analysisId 分析数据ID
      * @return 上下文
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission(
+        value = {
+            "report:interpretation:lims",
+            "report:interpretation:list",
+            "report:interpretation:files",
+            "report:interpretation:variants",
+            "report:interpretation:preview",
+            "report:interpretation:review",
+            "report:interpretation:send"
+        },
+        mode = SaMode.OR
+    )
     @GetMapping("/context")
     public R<InterpretationContextVo> context(@RequestParam Long reportId, @RequestParam Long analysisId) {
         return R.ok(interpretationService.loadContext(reportId, analysisId));
@@ -134,7 +151,7 @@ public class InterpretationController extends BaseController {
      * @param pageQuery  分页参数
      * @return 分页列表
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission(value = {"report:interpretation:files", "report:interpretation:review"}, mode = SaMode.OR)
     @GetMapping("/files")
     public TableDataInfo<InterpretationFileVo> files(@RequestParam Long analysisId,
                                                     InterpretationFileQueryBo bo,
@@ -149,7 +166,7 @@ public class InterpretationController extends BaseController {
      * @param analysisId 分析数据ID
      * @return 文件内容（超长已截断）
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission(value = {"report:interpretation:files", "report:interpretation:review"}, mode = SaMode.OR)
     @GetMapping("/file/content")
     public R<InterpretationFileContentVo> fileContent(@RequestParam Long fileId, @RequestParam Long analysisId) {
         return R.ok(interpretationService.queryFileContent(fileId, analysisId));
@@ -163,7 +180,7 @@ public class InterpretationController extends BaseController {
      * @param pageQuery  分页参数
      * @return 分页列表
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission("report:interpretation:variants")
     @GetMapping("/variants")
     public TableDataInfo<Map<String, Object>> variants(@RequestParam Long analysisId,
                                                       InterpretationVariantQueryBo bo,
@@ -177,7 +194,7 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / sourceType / sourceId / isReported / filteredRationale）
      * @return 操作结果
      */
-    @SaCheckPermission("report:interpretation:edit")
+    @SaCheckPermission("report:interpretation:variants")
     @RepeatSubmit()
     @Log(title = "报告解读-入报告", businessType = BusinessType.UPDATE)
     @PostMapping("/variant-report-status")
@@ -195,7 +212,7 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
      * @return 预览数据 + 来源标记（artifact / realtime）
      */
-    @SaCheckPermission("report:interpretation:preview")
+    @SaCheckPermission(value = {"report:interpretation:preview", "report:interpretation:review"}, mode = SaMode.OR)
     @PostMapping("/preview")
     public R<InterpretationPreviewVo> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
         return R.ok(previewService.preview(bo));
@@ -279,7 +296,7 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / reportId）
      * @return 含 reportId / templateCode / reportName / jsonPath / docxPath / 渲染信息的结果
      */
-    @SaCheckPermission("report:interpretation:generate")
+    @SaCheckPermission("report:interpretation:preview")
     @Log(title = "报告生成", businessType = BusinessType.INSERT)
     @RepeatSubmit()
     @PostMapping("/generate")
@@ -296,7 +313,7 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / reportId / 生成参数）
      * @return 操作结果
      */
-    @SaCheckPermission("report:interpretation:review")
+    @SaCheckPermission("report:interpretation:preview")
     @RepeatSubmit()
     @Log(title = "报告解读-提交审核", businessType = BusinessType.UPDATE)
     @PostMapping("/submit")
@@ -317,7 +334,7 @@ public class InterpretationController extends BaseController {
      * @param analysisId 分析数据ID
      * @param response   响应
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission(value = {"report:interpretation:preview", "report:interpretation:review"}, mode = SaMode.OR)
     @GetMapping("/report-file")
     public void reportFile(@RequestParam Long reportId, @RequestParam Long analysisId,
                            HttpServletResponse response) throws IOException {
@@ -378,7 +395,7 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds，空列表 = 取消改靶）
      * @return 操作结果
      */
-    @SaCheckPermission("report:interpretation:edit")
+    @SaCheckPermission("report:interpretation:preview")
     @RepeatSubmit()
     @Log(title = "报告解读-改靶", businessType = BusinessType.UPDATE)
     @PostMapping("/variant-target")
@@ -393,13 +410,13 @@ public class InterpretationController extends BaseController {
      * @param keyword 关键词（基因符号 / 节点名片段）
      * @return 候选节点列表
      */
-    @SaCheckPermission("report:interpretation:edit")
+    @SaCheckPermission("report:interpretation:preview")
     @GetMapping("/parent-candidates")
     public R<List<NkbVariantNodeVo>> parentCandidates(@RequestParam("keyword") String keyword) {
         return R.ok(previewService.searchParentNodes(keyword));
     }
 
-    @SaCheckPermission("report:interpretation:edit")
+    @SaCheckPermission("report:interpretation:preview")
     @RepeatSubmit()
     @Log(title = "报告解读-胚系临床意义", businessType = BusinessType.UPDATE)
     @PostMapping("/germline-clinical-significance")
