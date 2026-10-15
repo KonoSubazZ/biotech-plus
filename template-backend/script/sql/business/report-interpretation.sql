@@ -633,15 +633,19 @@ SET @menu_id = (SELECT menu_id FROM sys_menu
     WHERE parent_id = @report_menu_id AND path = 'interpretation' AND menu_type = 'C' LIMIT 1);
 
 -- 按钮权限（F）：与 @SaCheckPermission 逐字一致，不进侧边栏
+-- 页签级权限口径（2026-10-15 起）：详情页一个页签一个权限点，「有页签权限 = 页签内按钮与接口都能用」；
+-- 旧的动作权限点 query / edit / generate 已退役，存量库迁移见 update_5.6.19-report-interpretation-tab-perms.sql
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
 SELECT t.menu_name, @menu_id, t.order_num, '', NULL, 1, 0, 'F', '0', '0', t.perms, '#', 1, NOW(), t.remark
-FROM (SELECT '查询' AS menu_name, 1 AS order_num, 'report:interpretation:query' AS perms, '查询解读列表' AS remark
-      UNION ALL SELECT '进入解读', 2, 'report:interpretation:enter', '创建/复用报告记录'
-      UNION ALL SELECT '位点编辑', 3, 'report:interpretation:edit', '入报告开关、改靶、临床意义'
-      UNION ALL SELECT '报告预览', 4, 'report:interpretation:preview', '模板数据预览'
-      UNION ALL SELECT '报告审核', 5, 'report:interpretation:review', '提交审核/通过/驳回'
-      UNION ALL SELECT '报告发送', 6, 'report:interpretation:send', '发送报告邮件') AS t
+FROM (SELECT '进入解读' AS menu_name, 1 AS order_num, 'report:interpretation:enter' AS perms,
+             '列表页「解读」按钮：创建/复用报告记录' AS remark
+      UNION ALL SELECT 'LIMS 信息', 2, 'report:interpretation:lims', '页签①LIMS 信息（仅查看：患者/疾病/样本）'
+      UNION ALL SELECT '集群对接', 3, 'report:interpretation:files', '页签②集群对接（仅查看下机文件与文件内容）'
+      UNION ALL SELECT '筛选位点', 4, 'report:interpretation:variants', '页签③筛选位点（入报告开关/过滤理由）'
+      UNION ALL SELECT '报告预览', 5, 'report:interpretation:preview', '页签④报告预览（预览/改靶/临床意义/生成/下载/提交审核）'
+      UNION ALL SELECT '审核报告', 6, 'report:interpretation:review', '页签⑤审核报告（审核通过/驳回）'
+      UNION ALL SELECT '报告发送', 7, 'report:interpretation:send', '页签⑥报告发送（邮件发送）') AS t
 WHERE @menu_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM sys_menu x WHERE x.parent_id = @menu_id AND x.perms = t.perms);
 
@@ -726,25 +730,9 @@ WHERE m.menu_id = @template_menu_id OR m.parent_id = @template_menu_id;
 
 
 -- ============================================================================
--- 按钮权限（F）：报告生成（正式生成 final JSON 并登记 report_json_path）
--- 幂等：按 perms 判存在；父菜单仍按 path 定位，不写死 menu_id
+-- 「生成报告」不再单设按钮权限点：正式生成 / 提交审核 / 下载报告都在「报告预览」页签内，
+-- 统一归页签④的权限点 report:interpretation:preview（页签级权限口径）。
 -- ============================================================================
-SET @report_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'report' LIMIT 1);
-SET @interpretation_menu_id = (SELECT menu_id FROM sys_menu
-    WHERE parent_id = @report_menu_id AND path = 'interpretation' AND menu_type = 'C' LIMIT 1);
-
-INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
-    menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT '生成报告', @interpretation_menu_id, 7, '', NULL, 1, 0, 'F', '0', '0',
-    'report:interpretation:generate', '#', 1, NOW(), '正式生成 final JSON 并登记制品路径'
-FROM (SELECT 1) AS dummy
-WHERE @interpretation_menu_id IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM sys_menu x
-      WHERE x.parent_id = @interpretation_menu_id AND x.perms = 'report:interpretation:generate');
-
-INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
-SELECT 1, m.menu_id FROM sys_menu m
-WHERE m.parent_id = @interpretation_menu_id AND m.perms = 'report:interpretation:generate';
 
 
 -- ============================================================================
