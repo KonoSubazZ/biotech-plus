@@ -361,25 +361,39 @@ async function handle(analysisId: number) {
         </div>
       </template>
 
-      <NTabs v-if="visibleTabs.length" :value="activeTab" type="line" animated @update:value="handleTabChange">
-        <NTabPane v-for="tab in visibleTabs" :key="tab.name" :name="tab.name" :tab="tab.label" />
-      </NTabs>
-      <NEmpty v-else class="py-40px" description="没有可访问的页签：请在角色里授予 report:flow:* 权限" />
+      <!-- 卡片内容定高 flex 列：页签与提示固定，表格自己滚。
+           表格不再用 flex-height（否则行少时表格被撑满整块、横向滚动条被推到视口下方看不见），
+           交给外层 overflow-auto：横向滚动条紧贴最后一行，竖直方向行多了就滚表体。 -->
+      <div class="h-full min-h-0 flex-col-stretch gap-8px">
+        <NTabs
+          v-if="visibleTabs.length"
+          :value="activeTab"
+          class="shrink-0"
+          type="line"
+          animated
+          @update:value="handleTabChange"
+        >
+          <NTabPane v-for="tab in visibleTabs" :key="tab.name" :name="tab.name" :tab="tab.label" />
+        </NTabs>
+        <NEmpty v-else class="shrink-0 py-40px" description="没有可访问的页签：请在角色里授予 report:flow:* 权限" />
 
-      <NAlert v-if="activeHint" class="mb-8px" :bordered="false" type="default">{{ activeHint }}</NAlert>
+        <NAlert v-if="activeHint" class="shrink-0" :bordered="false" type="default">{{ activeHint }}</NAlert>
 
-      <NDataTable
-        :columns="columns"
-        :data="data"
-        :flex-height="!appStore.isMobile"
-        :loading="loading"
-        :pagination="false"
-        :row-key="row => `${row.analysisId}-${row.reportId ?? 'none'}`"
-        :scroll-x="scrollX"
-        remote
-        size="small"
-        class="sm:h-full"
-      />
+        <div class="min-h-0 flex-1 overflow-auto">
+          <NDataTable
+            :columns="columns"
+            :data="data"
+            :flex-height="!appStore.isMobile"
+            :loading="loading"
+            :pagination="false"
+            :row-key="row => `${row.analysisId}-${row.reportId ?? 'none'}`"
+            :scroll-x="scrollX"
+            remote
+            size="small"
+            class="sm:h-full"
+          />
+        </div>
+      </div>
     </NCard>
   </div>
 </template>
