@@ -283,10 +283,12 @@ onlyoffice:
 # 且 scanner.py 目录与上传根目录都得挂进容器（见 ./deploy.sh 的 -v）。生产用环境变量覆盖：
 # DRIVER_SCANNER_PATH / DRIVER_ROOT_DIR / DRIVER_ENABLED。enabled=false 时按钮明确报「未启用」，不做假成功。
 --- # 报告签名通道：stub = 假实现（只落状态链，不连通道，离线联调用）；ssq = 真实上上签（报告交付场景）
-# 三个个人签署人当前固定「刘尚智 / 18034334041」（见 SsqSignServiceImpl.PERSON_SIGNERS）。
+# 默认 stub：本地/测试环境不依赖上上签网关也能跑通「签名中 → 已签名 → 发送」；
+# 生产用 ssq（见 application-prod.yml），任何环境都可用环境变量 REPORT_SIGN_PROVIDER 覆盖。
+# 三个个人签署人固定「刘尚智 / 18034334041」（见 SsqSignServiceImpl.PERSON_SIGNERS）。
 report:
   sign:
-    provider: ssq
+    provider: ${REPORT_SIGN_PROVIDER:stub}
 
 driver:
   enabled: true
