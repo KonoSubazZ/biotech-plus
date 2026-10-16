@@ -45,6 +45,24 @@ declare namespace Api {
       interpreter: number | null;
       /** 报告解读人昵称 */
       interpreterName: string | null;
+      /** 报告解读认领时间 */
+      reportInterpretedAt: string | null;
+      /** 生信看点人昵称 */
+      bioinfoViewedByName: string | null;
+      /** 生信看点完成时间 */
+      bioinfoViewedAt: string | null;
+      /** 生信复核人昵称 */
+      bioinfoReviewedByName: string | null;
+      /** 生信复核时间 */
+      bioinfoReviewedAt: string | null;
+      /** 报告文件（转化后的 PDF 文件名，取自 report_file_path） */
+      reportFilePdfName: string | null;
+      /** 签名件（签名后 PDF 文件名，取自 report_signed_file_path） */
+      reportSignedFileName: string | null;
+      /** 签名开始时间（送签时间） */
+      reportSignStartedAt: string | null;
+      /** 签名完成时间（上上签回调） */
+      reportSignedAt: string | null;
       /** 报告生成人 user_id */
       reportGeneratedBy: number | null;
       /** 报告生成人昵称 */

@@ -134,27 +134,54 @@ const { columns, columnChecks, data, getData, loading, scrollX } = useNaivePagin
       minWidth: 140,
       render: row => row.analysisDisease ?? '-'
     },
-    { key: 'interpreter', title: '报告解读人', align: 'center', minWidth: 110, render: row => row.interpreterName ?? '-' },
     {
-      key: 'reportGeneratedAt',
-      title: '报告生成',
+      key: 'bioinfoViewedAt',
+      title: '生信看点',
       align: 'center',
       minWidth: 130,
-      render: row => renderPersonTime(row.reportGeneratedByName, row.reportGeneratedAt)
+      render: row => renderPersonTime(row.bioinfoViewedByName, row.bioinfoViewedAt, true)
+    },
+    {
+      key: 'bioinfoReviewedAt',
+      title: '生信复核',
+      align: 'center',
+      minWidth: 130,
+      render: row => renderPersonTime(row.bioinfoReviewedByName, row.bioinfoReviewedAt, true)
+    },
+    {
+      key: 'reportInterpretedAt',
+      title: '报告解读人',
+      align: 'center',
+      minWidth: 130,
+      render: row => renderPersonTime(row.interpreterName, row.reportInterpretedAt, true)
+    },
+    {
+      key: 'reportFilePdfName',
+      title: '报告文件',
+      align: 'center',
+      minWidth: 240,
+      render: row => renderFileTime(row.reportFilePdfName, row.reportGeneratedAt)
     },
     {
       key: 'reportCheckedAt',
       title: '报告复核',
       align: 'center',
       minWidth: 130,
-      render: row => renderPersonTime(row.reportCheckedByName, row.reportCheckedAt)
+      render: row => renderPersonTime(row.reportCheckedByName, row.reportCheckedAt, true)
+    },
+    {
+      key: 'reportSignedAt',
+      title: '报告签名',
+      align: 'center',
+      minWidth: 240,
+      render: row => renderSignInfo(row.reportSignedFileName, row.reportSignStartedAt, row.reportSignedAt)
     },
     {
       key: 'reportSentAt',
       title: '报告发送',
       align: 'center',
       minWidth: 130,
-      render: row => renderPersonTime(row.reportSentByName, row.reportSentAt)
+      render: row => renderPersonTime(row.reportSentByName, row.reportSentAt, true)
     },
     {
       key: 'operate',
@@ -193,14 +220,45 @@ function renderReportStatus(row: Api.Report.SampleFlowRow) {
   );
 }
 
-/** 人 + 时间两行显示（没有就 '-'） */
-function renderPersonTime(name: string | null, at: string | null) {
+/** 人 + 时间两行显示（emptyWhenMissing=true 时两者都空就整格留空，不显示 '-'） */
+function renderPersonTime(name: string | null, at: string | null, emptyWhenMissing = false) {
   if (!name && !at) {
-    return <span>-</span>;
+    return emptyWhenMissing ? null : <span>-</span>;
   }
   return (
     <div class="flex-col items-center">
       <span>{name ?? '-'}</span>
+      <span class="text-12px op-60">{at ?? ''}</span>
+    </div>
+  );
+}
+
+/** 签名件 + 开始~完成 两行显示（没有签名件/时间则留空） */
+function renderSignInfo(fileName: string | null, startedAt: string | null, finishedAt: string | null) {
+  if (!fileName && !startedAt && !finishedAt) {
+    return null;
+  }
+  const range = startedAt || finishedAt ? `${startedAt ?? '-'} ~ ${finishedAt ?? '进行中'}` : '';
+  return (
+    <div class="flex-col items-center">
+      <span class="max-w-full truncate" title={fileName ?? ''}>
+        {fileName ?? '-'}
+      </span>
+      <span class="text-12px op-60">{range}</span>
+    </div>
+  );
+}
+
+/** 文件 + 时间两行显示（文件名截断、悬浮看全；都没有则留空） */
+function renderFileTime(fileName: string | null, at: string | null) {
+  if (!fileName && !at) {
+    return null;
+  }
+  return (
+    <div class="flex-col items-center">
+      <span class="max-w-full truncate" title={fileName ?? ''}>
+        {fileName ?? '-'}
+      </span>
       <span class="text-12px op-60">{at ?? ''}</span>
     </div>
   );
