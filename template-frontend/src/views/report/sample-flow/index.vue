@@ -53,15 +53,6 @@ const activeHint = computed(() => SAMPLE_FLOW_TABS.find(tab => tab.name === acti
 /** 页签条数：tab → { mine 与我相关, all 全部 }；没拿到就只显示页签名 */
 const tabCounts = ref<Record<string, { mine: number; all: number }>>({});
 
-/** 页签标签：两个口径不同显示「相关/全部」（如 生信审核(3/15)），相同只显示一个 */
-function tabLabel(tab: { name: string; label: string }) {
-  const count = tabCounts.value[tab.name];
-  if (!count) {
-    return tab.label;
-  }
-  return count.all === count.mine ? `${tab.label}(${count.all})` : `${tab.label}(${count.mine}/${count.all})`;
-}
-
 /** 拉页签条数（接口按权限只返回有权限的页签；失败静默，保留上一次数字） */
 async function loadSummary() {
   const { data: counts, error } = await fetchSampleFlowSummary();
@@ -484,44 +475,52 @@ async function handle(analysisId: number) {
            表格不再用 flex-height（否则行少时表格被撑满整块、横向滚动条被推到视口下方看不见），
            交给外层 overflow-auto：横向滚动条紧贴最后一行，竖直方向行多了就滚表体。 -->
       <div class="h-full min-h-0 flex-col-stretch gap-8px">
-        <NTabs
-          v-if="visibleTabs.length"
-          :value="activeTab"
-          class="shrink-0"
-          type="line"
-          animated
-          @update:value="handleTabChange"
-        >
-          <NTabPane v-for="tab in visibleTabs" :key="tab.name" :name="tab.name">
-            <template #tab>
-              <NTooltip :disabled="!tabCounts[tab.name]">
-                <template #trigger>
-                  <span>{{ tabLabel(tab) }}</span>
-                </template>
-                与你相关 {{ tabCounts[tab.name]?.mine ?? 0 }} 条 / 全部 {{ tabCounts[tab.name]?.all ?? 0 }} 条
-              </NTooltip>
-            </template>
-          </NTabPane>
-        </NTabs>
-        <NEmpty v-else class="shrink-0 py-40px" description="没有可访问的页签：请在角色里授予 report:flow:* 权限" />
-
-        <div v-if="activeHint || activeTab === 'signing'" class="flex shrink-0 items-center gap-8px">
-          <NTooltip v-if="activeHint">
-            <template #trigger>
-              <icon-ic-round-help-outline class="cursor-help text-16px op-60" />
-            </template>
-            {{ activeHint }}
-          </NTooltip>
-          <NButton
-            v-if="activeTab === 'signing'"
-            size="small"
-            type="primary"
-            :loading="refreshingSign"
-            @click="handleRefreshSign"
+        <!-- 页签行：左边页签（带条数），右边小问号提示 + 「刷新签名」（只在签名页签出现） -->
+        <div class="flex shrink-0 items-center justify-between gap-8px">
+          <NTabs
+            v-if="visibleTabs.length"
+            :value="activeTab"
+            class="min-w-0 flex-1"
+            type="line"
+            animated
+            @update:value="handleTabChange"
           >
-            刷新签名
-          </NButton>
+            <NTabPane v-for="tab in visibleTabs" :key="tab.name" :name="tab.name">
+              <template #tab>
+                <NTooltip :disabled="!tabCounts[tab.name]">
+                  <template #trigger>
+                    <span class="inline-flex items-center">
+                      <span>{{ tab.label }}</span>
+                      <span v-if="tabCounts[tab.name]" class="ml-4px op-70">({{ tabCounts[tab.name].mine }})</span>
+                    </span>
+                  </template>
+                  与你相关 {{ tabCounts[tab.name]?.mine ?? 0 }} 条 / 全部 {{ tabCounts[tab.name]?.all ?? 0 }} 条
+                </NTooltip>
+              </template>
+            </NTabPane>
+          </NTabs>
+          <NEmpty v-else class="py-40px" description="没有可访问的页签：请在角色里授予 report:flow:* 权限" />
+
+          <div class="flex shrink-0 items-center gap-8px">
+            <NTooltip v-if="activeHint">
+              <template #trigger>
+                <icon-ic-round-help-outline class="cursor-help text-16px op-60" />
+              </template>
+              {{ activeHint }}
+            </NTooltip>
+            <NButton
+              v-if="activeTab === 'signing'"
+              size="small"
+              type="primary"
+              :loading="refreshingSign"
+              @click="handleRefreshSign"
+            >
+              刷新签名
+            </NButton>
+          </div>
         </div>
+
+
 
         <div class="min-h-0 flex-1 overflow-auto">
           <NDataTable
