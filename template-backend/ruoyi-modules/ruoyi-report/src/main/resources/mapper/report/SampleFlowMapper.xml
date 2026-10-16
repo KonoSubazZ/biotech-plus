@@ -10,6 +10,65 @@
 -->
 <mapper namespace="org.dromara.report.mapper.SampleFlowMapper">
 
+    <!-- 页签条件：列表与计数共用一份，避免两处口径漂移 -->
+    <sql id="tabCondition">
+    <choose>
+        <when test="query.tab == 'driver'">
+            <!-- 1.1 驱动异常：样本级驱动失败（含部分文件失败） -->
+            AND d.drive_status = 10
+        </when>
+        <when test="query.tab == 'bioinfo-view'">
+            <!-- 1.2 生信看点：驱动成功、且还没看点完（没有报告记录 或 停在 20 生信看点） -->
+            AND d.drive_status = 11
+            AND (r.report_id IS NULL OR r.report_status = 20)
+        </when>
+        <when test="query.tab == 'bioinfo-review'">
+            <!-- 1.3 生信审核：21，默认看别人看点的（不能审自己看点的） -->
+            AND r.report_status = 21
+            <if test="query.showAll == null or !query.showAll">
+                AND (r.report_bioinfo_viewed_by IS NULL OR r.report_bioinfo_viewed_by != #{currentUserId})
+            </if>
+        </when>
+        <when test="query.tab == 'pending-interpret'">
+            <!-- 1.4 报告待解读：30 全部可见（认领后状态变 31，自然从这里消失） -->
+            AND r.report_status = 30
+        </when>
+        <when test="query.tab == 'interpreting'">
+            <!-- 1.5 报告解读中：31/32/33，默认只看自己认领的 -->
+            AND r.report_status IN (31, 32, 33)
+            <if test="query.showAll == null or !query.showAll">
+                AND r.report_interpreted_by = #{currentUserId}
+            </if>
+        </when>
+        <when test="query.tab == 'pending-review'">
+            <!-- 1.6 报告待审核：40，默认看别人的（自己产出的不能审） -->
+            AND r.report_status = 40
+            <if test="query.showAll == null or !query.showAll">
+                AND (r.report_generated_by IS NULL OR r.report_generated_by != #{currentUserId})
+            </if>
+        </when>
+        <when test="query.tab == 'reviewing'">
+            <!-- 1.7 报告审核中：41，默认只看自己认领的 -->
+            AND r.report_status = 41
+            <if test="query.showAll == null or !query.showAll">
+                AND r.report_review_claimed_by = #{currentUserId}
+            </if>
+        </when>
+        <when test="query.tab == 'signing'">
+            <!-- 1.8 报告签名：50/52/53 -->
+            AND r.report_status IN (50, 52, 53)
+        </when>
+        <when test="query.tab == 'sending'">
+            <!-- 1.9 报告发送：60/61/62 -->
+            AND r.report_status IN (60, 61, 62)
+        </when>
+        <otherwise>
+            <!-- 未知页签：不返回数据（前端页签定义与这里一一对应） -->
+            AND 1 = 0
+        </otherwise>
+    </choose>
+    </sql>
+
     <select id="selectFlowPage" resultType="org.dromara.report.domain.vo.SampleFlowRowVo">
         SELECT
             d.analysis_id           AS analysisId,
@@ -68,61 +127,7 @@
         LEFT JOIN sys_user uc ON uc.user_id = r.report_checked_by
         LEFT JOIN sys_user us ON us.user_id = r.report_sent_by
         WHERE d.del_flag = '0'
-        <choose>
-            <when test="query.tab == 'driver'">
-                <!-- 1.1 驱动异常：样本级驱动失败（含部分文件失败） -->
-                AND d.drive_status = 10
-            </when>
-            <when test="query.tab == 'bioinfo-view'">
-                <!-- 1.2 生信看点：驱动成功、且还没看点完（没有报告记录 或 停在 20 生信看点） -->
-                AND d.drive_status = 11
-                AND (r.report_id IS NULL OR r.report_status = 20)
-            </when>
-            <when test="query.tab == 'bioinfo-review'">
-                <!-- 1.3 生信审核：21，默认看别人看点的（不能审自己看点的） -->
-                AND r.report_status = 21
-                <if test="query.showAll == null or !query.showAll">
-                    AND (r.report_bioinfo_viewed_by IS NULL OR r.report_bioinfo_viewed_by != #{currentUserId})
-                </if>
-            </when>
-            <when test="query.tab == 'pending-interpret'">
-                <!-- 1.4 报告待解读：30 全部可见（认领后状态变 31，自然从这里消失） -->
-                AND r.report_status = 30
-            </when>
-            <when test="query.tab == 'interpreting'">
-                <!-- 1.5 报告解读中：31/32/33，默认只看自己认领的 -->
-                AND r.report_status IN (31, 32, 33)
-                <if test="query.showAll == null or !query.showAll">
-                    AND r.report_interpreted_by = #{currentUserId}
-                </if>
-            </when>
-            <when test="query.tab == 'pending-review'">
-                <!-- 1.6 报告待审核：40，默认看别人的（自己产出的不能审） -->
-                AND r.report_status = 40
-                <if test="query.showAll == null or !query.showAll">
-                    AND (r.report_generated_by IS NULL OR r.report_generated_by != #{currentUserId})
-                </if>
-            </when>
-            <when test="query.tab == 'reviewing'">
-                <!-- 1.7 报告审核中：41，默认只看自己认领的 -->
-                AND r.report_status = 41
-                <if test="query.showAll == null or !query.showAll">
-                    AND r.report_review_claimed_by = #{currentUserId}
-                </if>
-            </when>
-            <when test="query.tab == 'signing'">
-                <!-- 1.8 报告签名：50/52/53 -->
-                AND r.report_status IN (50, 52, 53)
-            </when>
-            <when test="query.tab == 'sending'">
-                <!-- 1.9 报告发送：60/61/62 -->
-                AND r.report_status IN (60, 61, 62)
-            </when>
-            <otherwise>
-                <!-- 未知页签：不返回数据（前端页签定义与这里一一对应） -->
-                AND 1 = 0
-            </otherwise>
-        </choose>
+        <include refid="tabCondition"/>
         <if test="query.subbarcode != null and query.subbarcode != ''">
             AND d.subbarcode LIKE CONCAT('%', #{query.subbarcode}, '%')
         </if>
@@ -173,4 +178,15 @@
           AND (report_generated_by IS NULL OR report_generated_by != #{userId})
     </update>
 
+
+    <!-- 单页签条数：FROM/JOIN 与列表一致（不含展示用的用户 join，避免计数被放大） -->
+    <select id="countByTab" resultType="int">
+        SELECT COUNT(*)
+        FROM analysis_data d
+        LEFT JOIN analysis_report r
+               ON r.report_id = (SELECT MAX(r2.report_id) FROM analysis_report r2
+                                 WHERE r2.analysis_id = d.analysis_id AND r2.del_flag = '0')
+        WHERE d.del_flag = '0'
+        <include refid="tabCondition"/>
+    </select>
 </mapper>

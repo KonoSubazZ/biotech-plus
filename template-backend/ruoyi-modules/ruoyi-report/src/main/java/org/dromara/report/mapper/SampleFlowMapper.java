@@ -31,6 +31,15 @@ public interface SampleFlowMapper {
                                          @Param("currentUserId") Long currentUserId);
 
     /**
+     * 单个页签的条数（与列表共用同一份页签条件，见 XML 的 tabCondition）。
+     *
+     * @param query         页签查询条件（只用 tab 与 showAll 两个字段）
+     * @param currentUserId 当前登录用户（可见性判断）
+     * @return 条数
+     */
+    int countByTab(@Param("query") SampleFlowQueryBo query, @Param("currentUserId") Long currentUserId);
+
+    /**
      * 取该批次最新一份报告的关键字段（处理动作判断用：有没有报告、什么状态、谁产出的、谁认领的）。
      *
      * @param analysisId 分析数据ID

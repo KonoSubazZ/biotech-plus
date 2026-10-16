@@ -6,6 +6,9 @@ import org.dromara.report.domain.bo.SampleFlowHandleBo;
 import org.dromara.report.domain.bo.SampleFlowQueryBo;
 import org.dromara.report.domain.vo.SampleFlowHandleVo;
 import org.dromara.report.domain.vo.SampleFlowRowVo;
+import org.dromara.report.domain.vo.SampleFlowTabCountVo;
+
+import java.util.List;
 
 /**
  * 样本流转 业务接口（报告管理 › 样本流转）
@@ -22,6 +25,14 @@ public interface ISampleFlowService {
      * @return 分页列表
      */
     TableDataInfo<SampleFlowRowVo> selectPageList(SampleFlowQueryBo bo, PageQuery pageQuery);
+
+    /**
+     * 各页签条数（页签标签上的数字）：同时给「与我相关」与「全部」两个口径，口径与列表一致；
+     * 没有该页签权限的不返回（前端也不渲染这个页签）。
+     *
+     * @return [{tab, mineCount, allCount}]
+     */
+    List<SampleFlowTabCountVo> summary();
 
     /**
      * 页签「处理」：按页签决定是跳转报告解读某个页签（跳转前按需建/复用报告记录），

@@ -11,10 +11,15 @@ import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.SampleFlowHandleBo;
 import org.dromara.report.domain.bo.SampleFlowQueryBo;
+import org.dromara.report.domain.vo.ReportSignRefreshVo;
 import org.dromara.report.domain.vo.SampleFlowHandleVo;
 import org.dromara.report.domain.vo.SampleFlowRowVo;
+import org.dromara.report.domain.vo.SampleFlowTabCountVo;
+import org.dromara.report.service.IReportSignService;
 import org.dromara.report.service.ISampleFlowService;
 import org.springframework.validation.annotation.Validated;
+
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,6 +49,9 @@ public class SampleFlowController extends BaseController {
 
     private final ISampleFlowService sampleFlowService;
 
+    /** 报告签名通道（刷新签名状态用；未对接期是假实现） */
+    private final IReportSignService reportSignService;
+
     /**
      * 分页查询样本流转列表（按页签）
      *
@@ -63,6 +71,30 @@ public class SampleFlowController extends BaseController {
      * @param bo 入参（tab / analysisId）
      * @return 跳转目标（targetTab + reportId）或状态更新结果
      */
+    /**
+     * 各页签条数（页签标签上的数字）：含「与我相关」与「全部」两个口径。
+     *
+     * @return [{tab, mineCount, allCount}]
+     */
+    @SaCheckPermission("report:flow:list")
+    @GetMapping("/summary")
+    public R<List<SampleFlowTabCountVo>> summary() {
+        return R.ok(sampleFlowService.summary());
+    }
+
+    /**
+     * 刷新签名状态（批量）：把当前所有「签名中」的报告逐个查上上签，签完的落签名件并转「报告待发送」。
+     *
+     * @return 刷新结果汇总（完成 / 失败 / 仍签名中 + 逐条失败原因）
+     */
+    @SaCheckPermission("report:flow:signing")
+    @RepeatSubmit()
+    @Log(title = "样本流转-刷新签名状态", businessType = BusinessType.UPDATE)
+    @PostMapping("/sign/refresh")
+    public R<ReportSignRefreshVo> refreshSigning() {
+        return R.ok(reportSignService.refreshSigning());
+    }
+
     @SaCheckPermission("report:flow:process")
     @RepeatSubmit()
     @Log(title = "样本流转-处理", businessType = BusinessType.UPDATE)

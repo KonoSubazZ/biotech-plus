@@ -12,6 +12,7 @@ import org.dromara.report.domain.bo.SampleFlowHandleBo;
 import org.dromara.report.domain.bo.SampleFlowQueryBo;
 import org.dromara.report.domain.vo.SampleFlowHandleVo;
 import org.dromara.report.domain.vo.SampleFlowRowVo;
+import org.dromara.report.domain.vo.SampleFlowTabCountVo;
 import org.dromara.report.mapper.SampleFlowMapper;
 import org.dromara.report.service.IInterpretationService;
 import org.dromara.report.service.IReportSignService;
@@ -20,6 +21,8 @@ import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,6 +54,10 @@ public class SampleFlowServiceImpl implements ISampleFlowService {
         "sending", "send"
     );
 
+    /** 页签展示顺序（与前端页签定义一致，summary 按这个顺序返回） */
+    private static final List<String> TAB_ORDER = List.of("driver", "bioinfo-view", "bioinfo-review",
+        "pending-interpret", "interpreting", "pending-review", "reviewing", "signing", "sending");
+
     /** 页签 → 页签权限点（与 sys_menu 的 report:flow:* 逐字一致） */
     private static final Map<String, String> TAB_PERMS = Map.ofEntries(
         Map.entry("driver", "report:flow:driver"),
@@ -70,6 +77,35 @@ public class SampleFlowServiceImpl implements ISampleFlowService {
 
     /** 报告签名通道（未对接期是假实现） */
     private final IReportSignService reportSignService;
+
+    @Override
+    public List<SampleFlowTabCountVo> summary() {
+        Long userId = LoginHelper.getUserId();
+        List<SampleFlowTabCountVo> list = new ArrayList<>();
+        for (String tab : TAB_ORDER) {
+            // 没该页签权限的不返回（页签不渲染，数字也不要）
+            if (!StpUtil.hasPermission(TAB_PERMS.get(tab))) {
+                continue;
+            }
+            list.add(countTab(tab, userId));
+        }
+        return list;
+    }
+
+    /** 单个页签的两个口径条数（与列表同一份 SQL 条件） */
+    private SampleFlowTabCountVo countTab(String tab, Long userId) {
+        SampleFlowTabCountVo vo = new SampleFlowTabCountVo();
+        vo.setTab(tab);
+        SampleFlowQueryBo mine = new SampleFlowQueryBo();
+        mine.setTab(tab);
+        mine.setShowAll(false);
+        vo.setMineCount(sampleFlowMapper.countByTab(mine, userId));
+        SampleFlowQueryBo all = new SampleFlowQueryBo();
+        all.setTab(tab);
+        all.setShowAll(true);
+        vo.setAllCount(sampleFlowMapper.countByTab(all, userId));
+        return vo;
+    }
 
     @Override
     public TableDataInfo<SampleFlowRowVo> selectPageList(SampleFlowQueryBo bo, PageQuery pageQuery) {
