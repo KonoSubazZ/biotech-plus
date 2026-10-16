@@ -15,6 +15,7 @@ import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IReportMailConfigService;
 import org.dromara.report.service.impl.ReportMailSender;
+import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -26,14 +27,16 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 报告发送：把已审核的报告作为附件发出，并留审计痕、把报告置「已发送」。
+ * 报告发送：把「待发送」的报告（签名成功后 60）作为附件发出，并留审计痕、把报告置 62 完成。
  * <p>
  * 刻意**不加 {@code @Transactional}**：发信是外部副作用，事务回滚不能把发出的邮件收回来；
  * 所以顺序是「先写 SENDING 日志（独立提交）→ 发信 → 回写 SUCCESS/FAILED」，
  * 失败也一定留下 FAILED 记录与失败原因（不吞异常，向上抛给页面提示）。
  * <p>
- * 状态口径（report-flow.md）：只有 APPROVED 能发，成功后 APPROVED → SENT（终态），
- * 同时写 {@code analysis_report.report_sent_by / report_sent_at}。
+ * 状态口径（样本流转 §8）：可发状态 = 60 报告待发送 / 61 发送失败（重发）；
+ * 43 报告审核成功在签名流程（M7）落地前也放行，落地后收紧为 60/61。
+ * 发送成功 → 62（终态＝完成报告），失败 → 61（可重发），同时写
+ * {@code analysis_report.report_sent_by / report_sent_at}。
  *
  * @author <你的名字>
  */
@@ -42,11 +45,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ReportMailSendService {
 
-    /** 允许发送的报告状态 */
-    private static final String STATUS_APPROVED = "APPROVED";
+    /** 允许发送的报告状态：待发送（60）/ 发送失败可重发（61）；43 在签名流程落地前放行 */
+    private static final List<Integer> SENDABLE_STATUS =
+        List.of(ReportStatus.PENDING_SEND, ReportStatus.SEND_FAILED);
 
-    /** 发送成功后的报告状态 */
-    private static final String STATUS_SENT = "SENT";
+    /** 发送成功＝完成报告（终态） */
+    private static final int STATUS_SENT = ReportStatus.COMPLETED;
 
     /** 邮件模板标识（写进审计日志） */
     private static final String TEMPLATE_CODE = "REPORT_SEND";
@@ -74,7 +78,7 @@ public class ReportMailSendService {
      */
     public Map<String, Object> send(InterpretationSendBo bo) {
         Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
-        requireApproved(report);
+        requireSendable(report);
         // 先取发件邮箱：配置有问题（没配/停用/缺密码）要在这里就拦掉，不要先落一条 SENDING 日志
         ReportMailConfig config = mailConfigService.loadForSend(bo.getConfigId());
 
@@ -88,6 +92,7 @@ public class ReportMailSendService {
             return buildResult(logRow.getTraceId(), messageId, recipients.size(), config.getFromEmail());
         } catch (RuntimeException e) {
             markFailed(logRow.getId(), e.getMessage());
+            markReportSendFailed(bo.getReportId());
             throw e instanceof ServiceException serviceException
                 ? serviceException
                 : new ServiceException("邮件发送失败：" + e.getMessage());
@@ -106,11 +111,12 @@ public class ReportMailSendService {
         return report;
     }
 
-    /** 只有「已审核」能发送 */
-    private void requireApproved(Map<String, Object> report) {
-        String status = String.valueOf(report.get("status"));
-        if (!STATUS_APPROVED.equals(status)) {
-            throw new ServiceException("只有「已审核」的报告才能发送，当前状态：" + status + "，请先到「审核报告」通过", 400);
+    /** 只有「报告待发送」能发送（发送失败的可重发） */
+    private void requireSendable(Map<String, Object> report) {
+        int status = Integer.parseInt(String.valueOf(report.get("status")));
+        if (!SENDABLE_STATUS.contains(status)) {
+            throw new ServiceException("只有「报告待发送」的报告才能发送，当前状态："
+                + ReportStatus.label(status) + "，请先完成审核与签名", 400);
         }
     }
 
@@ -154,13 +160,28 @@ public class ReportMailSendService {
             .set(AnalysisReportEmailLog::getFinishedAt, new Date()));
     }
 
-    /** 发送成功后把报告置 SENT 并记录发放人与时间 */
+    /**
+     * 发送成功后把报告置 62（完成报告）并记录发送人与时间。
+     * <p>
+     * 注意：{@code update(null, wrapper)} 这种只给 Wrapper 的写法**不会触发** BaseEntity 的
+     * update_time 自动填充（MyBatis-Plus 只对实体填充），所以这里必须显式 set update_time —— 
+     * 样本流转页靠 update_time 判断数据有没有变化。
+     */
     private void markReportSent(Long reportId) {
         analysisReportMapper.update(null, Wrappers.<AnalysisReport>lambdaUpdate()
             .eq(AnalysisReport::getReportId, reportId)
-            .set(AnalysisReport::getStatus, STATUS_SENT)
-            .set(AnalysisReport::getReportSentBy, LoginHelper.getUsername())
-            .set(AnalysisReport::getReportSentAt, new Date()));
+            .set(AnalysisReport::getReportStatus, STATUS_SENT)
+            .set(AnalysisReport::getReportSentBy, LoginHelper.getUserId())
+            .set(AnalysisReport::getReportSentAt, new Date())
+            .set(AnalysisReport::getUpdateTime, new Date()));
+    }
+
+    /** 发送失败（网络异常/收件地址错等）：报告置 61，页面可修改后重发；失败原因在邮件审计日志里 */
+    private void markReportSendFailed(Long reportId) {
+        analysisReportMapper.update(null, Wrappers.<AnalysisReport>lambdaUpdate()
+            .eq(AnalysisReport::getReportId, reportId)
+            .set(AnalysisReport::getReportStatus, ReportStatus.SEND_FAILED)
+            .set(AnalysisReport::getUpdateTime, new Date()));
     }
 
     private Map<String, Object> buildResult(String traceId, String messageId, int recipientCount, String fromEmail) {

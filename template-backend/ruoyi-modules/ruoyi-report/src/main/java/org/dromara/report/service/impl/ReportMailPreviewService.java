@@ -1,6 +1,7 @@
 package org.dromara.report.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.utils.StringUtils;
 import org.dromara.report.domain.vo.InterpretationContextVo;
@@ -11,6 +12,7 @@ import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationService;
 import org.dromara.report.service.IReportMailConfigService;
 import org.dromara.report.utils.ReportMailDefaults;
+import org.dromara.report.utils.ReportStatus;
 import org.dromara.report.service.impl.ReportMailVariables;
 import org.springframework.stereotype.Service;
 
@@ -30,18 +32,20 @@ import java.util.Set;
  *   <li><b>收件候选只看 LIMS</b>：取该报告 LIMS 的 4 个邮箱字段（报告接收人 / 送检邮箱 / 患者信息邮箱 / 接诊医生邮箱），
  *       去空去重，且只留含 {@code @} 的值（LIMS 里这几个字段常存姓名）；不按客户查表（本期不做按客户配收件人）。</li>
  *   <li><b>标题正文是默认值</b>：取「默认发件邮箱」那套模板渲染；页面可改。</li>
- *   <li><b>可发送条件</b>：报告已审核 + 制品文件存在 + 至少有一条启用的发件邮箱。</li>
+ *   <li><b>可发送条件</b>：报告状态为「报告待发送 / 报告发送失败」+ 制品文件存在 + 至少有一条启用的发件邮箱。</li>
  * </ul>
  * 报告状态与 LIMS 都走既有入口（{@code selectReportRow} / {@code loadContext}），口径与「LIMS 信息」Tab 完全一致。
  *
  * @author <你的名字>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReportMailPreviewService {
 
-    /** 可发送的报告状态（对齐 report-flow.md：APPROVED → SENT） */
-    private static final String STATUS_APPROVED = "APPROVED";
+    /** 可发送的报告状态：待发送（60）/ 发送失败可重发（61）—— 与 ReportMailSendService 同一口径 */
+    private static final List<Integer> SENDABLE_STATUS =
+        List.of(ReportStatus.PENDING_SEND, ReportStatus.SEND_FAILED);
 
     private final InterpretationMapper interpretationMapper;
 
@@ -84,12 +88,26 @@ public class ReportMailPreviewService {
             asString(report.get("reportFileRawPath"))));
         vo.setAttachmentName(attachmentName);
 
-        String status = asString(report.get("status"));
+        Integer status = statusCode(report.get("status"));
         boolean hasEnabledSender = options.stream().anyMatch(option -> "1".equals(option.getEnabled()));
         vo.setConfigEnabled(hasEnabledSender);
-        vo.setCanSend(hasEnabledSender && STATUS_APPROVED.equals(status) && attachmentName != null);
+        vo.setCanSend(hasEnabledSender && SENDABLE_STATUS.contains(status) && attachmentName != null);
         vo.setBlockedReason(blockedReason(hasEnabledSender, status, attachmentName));
         return vo;
+    }
+
+    /** 报告状态码（report_status 别名为 status；取不到/非法时给 null，由调用方按「未知」提示） */
+    private Integer statusCode(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            // 脏数据（状态列不是数字）按「未知状态」处理，不阻断预览：留日志便于排查
+            log.warn("报告状态不是合法数字，按未知状态处理：status={}", value);
+            return null;
+        }
     }
 
     /** 报告行 + 批次校验 */
@@ -139,12 +157,12 @@ public class ReportMailPreviewService {
     }
 
     /** 不允许发送的原因（按「先配置后流程」的顺序给第一条）；三项都满足时返回空表示可发送 */
-    private String blockedReason(boolean hasEnabledSender, String status, String attachmentName) {
+    private String blockedReason(boolean hasEnabledSender, Integer status, String attachmentName) {
         String reason = null;
         if (!hasEnabledSender) {
             reason = "没有可用的发件邮箱：请到「报告管理 › 邮件配置」新增一条并启用";
-        } else if (!STATUS_APPROVED.equals(status)) {
-            reason = "只有「已审核」的报告才能发送，当前状态：" + (StringUtils.isBlank(status) ? "未知" : status);
+        } else if (!SENDABLE_STATUS.contains(status)) {
+            reason = "只有「报告待发送」的报告才能发送，当前状态：" + ReportStatus.label(status);
         } else if (attachmentName == null) {
             reason = "报告文件尚未生成，请先在「报告预览」页生成报告";
         }
