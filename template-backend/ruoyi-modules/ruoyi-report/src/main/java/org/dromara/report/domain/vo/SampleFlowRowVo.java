@@ -71,6 +71,39 @@ public class SampleFlowRowVo implements Serializable {
     /** 报告解读人昵称（join sys_user） */
     private String interpreterName;
 
+    /** 报告解读认领时间 */
+    private Date reportInterpretedAt;
+
+    /** 生信看点人（sys_user.user_id） */
+    private Long bioinfoViewedBy;
+
+    /** 生信看点人昵称（join sys_user） */
+    private String bioinfoViewedByName;
+
+    /** 生信看点完成时间 */
+    private Date bioinfoViewedAt;
+
+    /** 生信复核人（sys_user.user_id） */
+    private Long bioinfoReviewedBy;
+
+    /** 生信复核人昵称（join sys_user） */
+    private String bioinfoReviewedByName;
+
+    /** 生信复核时间 */
+    private Date bioinfoReviewedAt;
+
+    /** 报告文件（转化后的 PDF 文件名，取自 report_file_path 的文件名部分；未生成为空） */
+    private String reportFilePdfName;
+
+    /** 签名件（签名后 PDF 文件名，取自 report_signed_file_path；未签名为空） */
+    private String reportSignedFileName;
+
+    /** 签名开始时间（送签时间） */
+    private Date reportSignStartedAt;
+
+    /** 签名完成时间（上上签回调） */
+    private Date reportSignedAt;
+
     /** 报告生成人（sys_user.user_id） */
     private Long reportGeneratedBy;
 

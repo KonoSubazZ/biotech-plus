@@ -29,6 +29,13 @@
             r.report_status         AS reportStatus,
             r.report_interpreted_by AS interpreter,
             u.nick_name             AS interpreterName,
+            r.report_interpreted_at AS reportInterpretedAt,
+            r.report_bioinfo_viewed_by   AS bioinfoViewedBy,
+            uv.nick_name                 AS bioinfoViewedByName,
+            r.report_bioinfo_viewed_at   AS bioinfoViewedAt,
+            r.report_bioinfo_reviewed_by AS bioinfoReviewedBy,
+            ur.nick_name                 AS bioinfoReviewedByName,
+            r.report_bioinfo_reviewed_at AS bioinfoReviewedAt,
             r.report_generated_by   AS reportGeneratedBy,
             ug.nick_name            AS reportGeneratedByName,
             r.report_generated_at   AS reportGeneratedAt,
@@ -38,6 +45,10 @@
             r.report_sent_by        AS reportSentBy,
             us.nick_name            AS reportSentByName,
             r.report_sent_at        AS reportSentAt,
+            SUBSTRING_INDEX(r.report_file_path, '/', -1)         AS reportFilePdfName,
+            SUBSTRING_INDEX(r.report_signed_file_path, '/', -1)  AS reportSignedFileName,
+            r.report_sign_started_at AS reportSignStartedAt,
+            r.report_sign_time      AS reportSignedAt,
             r.report_revert_from    AS revertFrom,
             <!-- 最新更新时间：三张表里最大的那个 update_time（没有报告/没有样本信息时用 create_time 兜底） -->
             GREATEST(COALESCE(d.update_time, d.create_time, '1970-01-01'),
@@ -51,6 +62,8 @@
                ON r.report_id = (SELECT MAX(r2.report_id) FROM analysis_report r2
                                  WHERE r2.analysis_id = d.analysis_id AND r2.del_flag = '0')
         LEFT JOIN sys_user u  ON u.user_id  = r.report_interpreted_by
+        LEFT JOIN sys_user uv ON uv.user_id = r.report_bioinfo_viewed_by
+        LEFT JOIN sys_user ur ON ur.user_id = r.report_bioinfo_reviewed_by
         LEFT JOIN sys_user ug ON ug.user_id = r.report_generated_by
         LEFT JOIN sys_user uc ON uc.user_id = r.report_checked_by
         LEFT JOIN sys_user us ON us.user_id = r.report_sent_by

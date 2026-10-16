@@ -80,25 +80,27 @@
         ORDER BY f.file_id ASC
     </select>
 
-    <!-- 送签：43 报告审核成功（审核通过自动送签）/ 52 签名失败（重新送签）→ 50 报告签名中 -->
+    <!-- 送签：43 报告审核成功（审核通过自动送签）/ 52 签名失败（重新送签）→ 50 报告签名中
+         report_sign_started_at = 送签时间（开始）；report_sign_time 只在回调成功时写（完成时间） -->
     <update id="updateReportSigning">
         UPDATE analysis_report
-        SET report_status        = 50,
-            report_sign_flow_no  = #{flowNo},
-            report_sign_time     = NOW(),
-            report_sign_fail_reason = NULL,
-            update_time          = NOW()
+        SET report_status            = 50,
+            report_sign_flow_no      = #{flowNo},
+            report_sign_started_at   = NOW(),
+            report_sign_fail_reason  = NULL,
+            update_time              = NOW()
         WHERE report_id = #{reportId} AND del_flag = '0'
           AND report_status IN (43, 52)
     </update>
 
-    <!-- 签名结果：50 → 60 报告待发送（成功）/ 52 签名失败；送签即失败时从 43 落 52 -->
+    <!-- 签名结果：50 → 60 报告待发送（成功）/ 52 签名失败；送签即失败时从 43 落 52。
+         成功时写 report_sign_time（完成时间）；失败不写完成时间（保留开始时间，列表显示「开始 ~ 」）。 -->
     <update id="updateReportSignResult">
         UPDATE analysis_report
         SET report_status            = #{status},
             report_signed_file_path  = #{signedFilePath},
             report_sign_fail_reason  = #{failReason},
-            report_sign_time         = NOW(),
+            report_sign_time         = CASE WHEN #{status} = 60 THEN NOW() ELSE report_sign_time END,
             update_time              = NOW()
         WHERE report_id = #{reportId} AND del_flag = '0'
           AND report_status IN (43, 50)
