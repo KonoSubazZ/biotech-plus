@@ -79,13 +79,19 @@ public class SsqSignServiceImpl implements ISsqSignService {
 
     /**
      * 个人角色签署人：按 {@code routeOrder} 固定（2026-10-13 口径，前期先固定参数跑测试）。
-     * 1 = 报告解读人 / 反馈人 → 刘尚智；2 = 报告复核人 / 复核人 → 罗阔；3 = 审批人（报告交付才有）→ 刘尚智。
+     * 三个签署人当前**统一固定**为「刘尚智 / 18034334041」（用户口径 2026-10-17：先跑通通道，
+     * 三个参数都一样）；后续按业务参数化时改成从 user 参数取（username + phone，见 skill §8）。
      * 后期接业务数据时，把这张表换成「按报告/质控记录里的人工角色取账号」即可（见 plan §1-9）。
      */
+    /** 固定签署人姓名 / 手机号（用户口径 2026-10-17：三个签署位都填这一组） */
+    private static final String SIGNER_NAME = "刘尚智";
+
+    private static final String SIGNER_ACCOUNT = "18034334041";
+
     private static final Map<String, Signer> PERSON_SIGNERS = Map.of(
-        "1", new Signer("18034334041", "刘尚智"),
-        "2", new Signer("18610464338", "罗阔"),
-        "3", new Signer("18034334041", "刘尚智"));
+        "1", new Signer(SIGNER_ACCOUNT, SIGNER_NAME),
+        "2", new Signer(SIGNER_ACCOUNT, SIGNER_NAME),
+        "3", new Signer(SIGNER_ACCOUNT, SIGNER_NAME));
 
     /** 企业盖章的操作账号（该角色 needNotice=false，不传 userName） */
     private static final String ENTERPRISE_OPERATOR_ACCOUNT = "18610464338";

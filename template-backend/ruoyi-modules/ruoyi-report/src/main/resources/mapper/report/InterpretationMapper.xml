@@ -106,6 +106,24 @@
           AND report_status IN (43, 50)
     </update>
 
+    <!-- 批量刷新签名状态：所有「签名中」且有合同号的报告 -->
+    <select id="selectReportsInSigning" resultType="java.util.LinkedHashMap">
+        SELECT report_id           AS reportId,
+               report_sign_flow_no AS signFlowNo,
+               report_status       AS status
+        FROM analysis_report
+        WHERE del_flag = '0'
+          AND report_status = 50
+          AND report_sign_flow_no IS NOT NULL
+        ORDER BY report_id
+    </select>
+
+    <!-- 报告当前状态码（刷新后统计） -->
+    <select id="selectReportSignStatus" resultType="java.lang.Integer">
+        SELECT report_status FROM analysis_report
+        WHERE report_id = #{reportId} AND del_flag = '0'
+    </select>
+
     <!-- 回调按流程号找报告 -->
     <select id="selectReportBySignFlowNo" resultType="java.util.LinkedHashMap">
         SELECT report_id        AS reportId,
@@ -411,6 +429,7 @@
     <!-- 预览用：报告 + 模板 + 分析行 -->
     <select id="selectReportRow" resultType="java.util.LinkedHashMap">
         SELECT r.report_id        AS reportId,
+               r.report_name      AS reportName,
                r.analysis_id      AS analysisId,
                r.subbarcode       AS subbarcode,
                r.product          AS product,

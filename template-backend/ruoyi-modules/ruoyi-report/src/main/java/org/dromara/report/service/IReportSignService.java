@@ -1,5 +1,7 @@
 package org.dromara.report.service;
 
+import org.dromara.report.domain.vo.ReportSignRefreshVo;
+
 /**
  * 报告签名（上上签）—— 接口。
  * <p>
@@ -44,4 +46,14 @@ public interface IReportSignService {
      * @param reason 失败原因
      */
     void handleFailure(String flowNo, String reason);
+
+    /**
+     * 刷新签名状态：把当前所有「签名中」（50）且有合同号的报告逐个查通道 ——
+     * 签署完成的下载签名件落 {@code <root>/report/signed/} 并转 60，通道报错转 52，未完成保持 50。
+     * <p>
+     * 「样本流转 › 报告签名」页签的手动刷新按钮走这里（批量，逐条互不影响，结果汇总返回）。
+     *
+     * @return 刷新结果汇总
+     */
+    ReportSignRefreshVo refreshSigning();
 }

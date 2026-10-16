@@ -9,6 +9,8 @@ import org.dromara.report.domain.bo.InterpretationReviewBo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IReportSignService;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -129,13 +131,32 @@ public class InterpretationReviewService {
         }
         log.info("报告审核通过：reportId={}，analysisId={}", bo.getReportId(), bo.getAnalysisId());
 
-        // 口径：审核通过（43）后自动送签 → 50 报告签名中；送签本身失败则落 52 报告签名失败（原因见签名页签），
-        // 「审核通过」这一步已经成功，不能因为送签通道问题把它回滚掉。
+        // 口径：审核通过（43）后自动送签 → 50 报告签名中。
+        // 送签必须等「审核通过」这个事务**提交之后**再做：送签在独立事务里（见 IReportSignService#submit），
+        // 事务没提交它读不到 43，会被状态校验拦下；提交后再送签，送签失败也只落 52，不会回滚审核通过。
+        Long reportId = bo.getReportId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    autoSign(reportId);
+                }
+            });
+        } else {
+            autoSign(reportId);
+        }
+    }
+
+    /**
+     * 审核通过后自动送签（事务提交后执行）：送签失败落 52 报告签名失败 + 原因，样本留在「报告签名」页签可重送。
+     * 这里把异常吞掉——「审核通过」已经成立，不能因为送签通道问题把用户看到的结果改回去。
+     */
+    private void autoSign(Long reportId) {
         try {
-            reportSignService.submit(bo.getReportId());
+            reportSignService.submit(reportId);
         } catch (RuntimeException e) {
-            log.warn("审核通过后自动送签失败，状态落 52 报告签名失败：reportId={} 原因={}", bo.getReportId(), e.getMessage());
-            interpretationMapper.updateReportSignResult(bo.getReportId(), ReportStatus.SIGN_FAILED, null, e.getMessage());
+            log.warn("审核通过后自动送签失败，状态落 52 报告签名失败：reportId={} 原因={}", reportId, e.getMessage());
+            interpretationMapper.updateReportSignResult(reportId, ReportStatus.SIGN_FAILED, null, e.getMessage());
         }
     }
 

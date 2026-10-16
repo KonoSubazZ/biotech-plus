@@ -51,6 +51,21 @@ public interface InterpretationMapper {
                                               @Param("query") InterpretationFileQueryBo query);
 
     /**
+     * 取所有「签名中」（50）且有合同号的报告（批量刷新签名状态用）。
+     *
+     * @return [{reportId, signFlowNo, status}]
+     */
+    List<Map<String, Object>> selectReportsInSigning();
+
+    /**
+     * 取报告当前状态码（刷新后统计用）。
+     *
+     * @param reportId 报告ID
+     * @return 状态码；报告不存在返回 null
+     */
+    Integer selectReportSignStatus(@Param("reportId") Long reportId);
+
+    /**
      * 送签：状态 → 50 报告签名中，写签名流程号与送签时间。
      * <p>
      * 允许的来源状态：43 报告审核成功（审核通过后自动送签）、52 报告签名失败（重新送签）；

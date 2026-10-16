@@ -3,12 +3,13 @@ package org.dromara.report.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
-import org.dromara.report.domain.vo.ReportTemplateData;
+import org.dromara.report.domain.vo.ReportSignRefreshVo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IReportSignService;
 import org.dromara.report.utils.ReportStatus;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -36,8 +37,15 @@ public class ReportSignStubService implements IReportSignService {
 
     private final InterpretationMapper interpretationMapper;
 
+    /**
+     * 送签。
+     * <p>
+     * <b>独立事务（REQUIRES_NEW）</b>：审核通过后自动送签时，送签失败（通道连不上等）只影响送签这一步，
+     * 不能把「审核通过」那个事务一起标记成 rollback-only —— 否则调用方即使 catch 了异常，
+     * 提交时仍会 UnexpectedRollbackException，状态回滚到 41、页面报「发生未知异常」（实测踩到过）。
+     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public String submit(Long reportId) {
         Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
         if (report == null) {
@@ -84,6 +92,15 @@ public class ReportSignStubService implements IReportSignService {
             throw new ServiceException("报告不在「签名中」，无法标记签名失败：reportId=" + reportId);
         }
         log.info("【假签名】收到失败回调：reportId={} flowNo={} 原因={}", reportId, flowNo, failReason);
+    }
+
+    @Override
+    public ReportSignRefreshVo refreshSigning() {
+        ReportSignRefreshVo vo = new ReportSignRefreshVo();
+        vo.getMessages().add("当前是签名假实现（report.sign.provider=stub），不连上上签通道，无法刷新签名状态；"
+            + "接真实通道请把 provider 配成 ssq");
+        log.info("假签名实现：跳过签名状态刷新");
+        return vo;
     }
 
     /** 回调只带流程号：按流程号找报告，找不到直接报错（不猜） */
