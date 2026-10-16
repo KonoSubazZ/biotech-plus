@@ -102,6 +102,30 @@ declare namespace Api {
       tab: string;
     };
 
+    /** 页签条数（页签标签上的数字） */
+    interface SampleFlowTabCount {
+      /** 页签名（与页签定义、report:flow:* 后缀一致） */
+      tab: string;
+      /** 与我相关的条数（列表默认口径） */
+      mineCount: number;
+      /** 全部条数（打开「只看相关」时的口径）；与 mineCount 相同表示该页签不区分人 */
+      allCount: number;
+    }
+
+    /** 刷新签名结果汇总 */
+    interface ReportSignRefreshResult {
+      /** 检查的报告条数 */
+      total: number;
+      /** 签名完成（转报告待发送）的条数 */
+      completed: number;
+      /** 失败的条数 */
+      failed: number;
+      /** 仍签名中的条数 */
+      signing: number;
+      /** 提示与逐条失败原因 */
+      messages: string[] | null;
+    }
+
     /** 页签「处理」入参 */
     interface SampleFlowHandleParams {
       /** 页签 */

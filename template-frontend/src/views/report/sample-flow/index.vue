@@ -1,7 +1,12 @@
 <script setup lang="tsx">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { NButton, NSpace, NSwitch, NTag } from 'naive-ui';
-import { fetchGetSampleFlowList, fetchHandleSampleFlow } from '@/service/api/report/sample-flow';
+import { NButton, NSpace, NSwitch, NTag, NTooltip } from 'naive-ui';
+import {
+  fetchGetSampleFlowList,
+  fetchHandleSampleFlow,
+  fetchRefreshSigning,
+  fetchSampleFlowSummary
+} from '@/service/api/report/sample-flow';
 import { useAppStore } from '@/store/modules/app';
 import { useAuth } from '@/hooks/business/auth';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
@@ -42,8 +47,61 @@ watch(
   { immediate: true }
 );
 
-/** 当前页签的「处理」说明（告诉用户点处理会发生什么） */
+/** 当前页签的「处理」说明（鼠标悬浮小问号看；顺手把按钮行的显隐也交给它） */
 const activeHint = computed(() => SAMPLE_FLOW_TABS.find(tab => tab.name === activeTab.value)?.hint ?? '');
+
+/** 页签条数：tab → { mine 与我相关, all 全部 }；没拿到就只显示页签名 */
+const tabCounts = ref<Record<string, { mine: number; all: number }>>({});
+
+/** 页签标签：两个口径不同显示「相关/全部」（如 生信审核(3/15)），相同只显示一个 */
+function tabLabel(tab: { name: string; label: string }) {
+  const count = tabCounts.value[tab.name];
+  if (!count) {
+    return tab.label;
+  }
+  return count.all === count.mine ? `${tab.label}(${count.all})` : `${tab.label}(${count.mine}/${count.all})`;
+}
+
+/** 拉页签条数（接口按权限只返回有权限的页签；失败静默，保留上一次数字） */
+async function loadSummary() {
+  const { data: counts, error } = await fetchSampleFlowSummary();
+  if (error || !counts) {
+    return;
+  }
+  const map: Record<string, { mine: number; all: number }> = {};
+  counts.forEach(item => {
+    map[item.tab] = { mine: item.mineCount, all: item.allCount };
+  });
+  tabCounts.value = map;
+}
+
+/** 刷新签名请求中（1.8 报告签名页签的按钮，防连点） */
+const refreshingSign = ref(false);
+
+/** 刷新签名：批量刷新所有「签名中」报告的签署状态（服务端逐个查上上签，逐条互不影响） */
+async function handleRefreshSign() {
+  if (refreshingSign.value) {
+    return;
+  }
+  refreshingSign.value = true;
+  try {
+    const { data: result, error } = await fetchRefreshSigning();
+    if (error || !result) {
+      return;
+    }
+    const line = `刷新签名完成：共 ${result.total} 条，签名完成 ${result.completed} 条，失败 ${result.failed} 条，仍签名中 ${result.signing} 条`;
+    // 批量只发汇总；有逐条失败原因时一并带出来（别只报成功数）
+    if (result.messages?.length) {
+      window.$message?.warning(`${line}；${result.messages.join('；')}`);
+    } else {
+      window.$message?.success(line);
+    }
+    await loadSummary();
+    queryNow();
+  } finally {
+    refreshingSign.value = false;
+  }
+}
 
 /** 查询条件：分析日期默认不限（样本流转要跨天看流转，默认当天常常空表） */
 const searchParams = ref<Api.Report.SampleFlowSearchParams>({
@@ -288,6 +346,7 @@ function resetQuery() {
 function handleTabChange(name: string) {
   activeTab.value = name;
   queryNow();
+  loadSummary();
 }
 
 /** 页签收敛完成后（首个有权限的页签）自动加载一次数据 */
@@ -305,6 +364,7 @@ async function refreshQuietly() {
   if (document.visibilityState !== 'visible') {
     return;
   }
+  loadSummary();
   const { data: response, error } = await fetchGetSampleFlowList(currentQuery());
   if (error) {
     return;
@@ -328,6 +388,7 @@ function refreshOnFocus() {
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 
 onMounted(() => {
+  loadSummary();
   pollTimer = setInterval(refreshQuietly, POLL_INTERVAL);
   window.addEventListener('focus', refreshOnFocus);
   document.addEventListener('visibilitychange', refreshOnFocus);
@@ -431,11 +492,36 @@ async function handle(analysisId: number) {
           animated
           @update:value="handleTabChange"
         >
-          <NTabPane v-for="tab in visibleTabs" :key="tab.name" :name="tab.name" :tab="tab.label" />
+          <NTabPane v-for="tab in visibleTabs" :key="tab.name" :name="tab.name">
+            <template #tab>
+              <NTooltip :disabled="!tabCounts[tab.name]">
+                <template #trigger>
+                  <span>{{ tabLabel(tab) }}</span>
+                </template>
+                与你相关 {{ tabCounts[tab.name]?.mine ?? 0 }} 条 / 全部 {{ tabCounts[tab.name]?.all ?? 0 }} 条
+              </NTooltip>
+            </template>
+          </NTabPane>
         </NTabs>
         <NEmpty v-else class="shrink-0 py-40px" description="没有可访问的页签：请在角色里授予 report:flow:* 权限" />
 
-        <NAlert v-if="activeHint" class="shrink-0" :bordered="false" type="default">{{ activeHint }}</NAlert>
+        <div v-if="activeHint || activeTab === 'signing'" class="flex shrink-0 items-center gap-8px">
+          <NTooltip v-if="activeHint">
+            <template #trigger>
+              <icon-ic-round-help-outline class="cursor-help text-16px op-60" />
+            </template>
+            {{ activeHint }}
+          </NTooltip>
+          <NButton
+            v-if="activeTab === 'signing'"
+            size="small"
+            type="primary"
+            :loading="refreshingSign"
+            @click="handleRefreshSign"
+          >
+            刷新签名
+          </NButton>
+        </div>
 
         <div class="min-h-0 flex-1 overflow-auto">
           <NDataTable
