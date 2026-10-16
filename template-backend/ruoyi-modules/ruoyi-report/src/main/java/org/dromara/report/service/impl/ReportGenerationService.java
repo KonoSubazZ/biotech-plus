@@ -14,6 +14,7 @@ import org.dromara.report.service.impl.ReportDocxRenderer;
 import org.dromara.report.utils.ArtifactPermissions;
 import org.dromara.report.utils.ReportArtifactPaths;
 import org.dromara.report.utils.ReportNameResolver;
+import org.dromara.report.utils.ReportStatus;
 import org.dromara.report.service.impl.ReportNameVariables;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -52,6 +54,10 @@ import org.dromara.report.service.template.ReportTemplateDataService;
 @Service
 @RequiredArgsConstructor
 public class ReportGenerationService {
+
+    /** 允许「生成报告」的来源状态：解读中 / 生成成功 / 生成失败（后两个是同一份制品的重新生成） */
+    private static final List<Integer> GENERATABLE_STATUS =
+        List.of(ReportStatus.INTERPRETING, ReportStatus.GENERATED, ReportStatus.GENERATE_FAILED);
 
     /** 文件名里的时间戳格式（与制品命名约定一致） */
     private static final DateTimeFormatter FILE_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss", Locale.ROOT);
@@ -81,16 +87,22 @@ public class ReportGenerationService {
      * @return 含报告名、JSON/DOCX 路径、渲染结果的结果集
      */
     public Map<String, Object> generate(InterpretationPreviewBo bo) {
-        ReportTemplateData data = previewService.buildPreview(bo);
-        Map<String, Object> reportRow = interpretationMapper.selectReportRow(bo.getReportId());
-        ReportTemplateVo template = resolveTemplate(bo, data, reportRow);
-        String reportName = resolveReportName(template, data, reportRow);
-        applyReportName(data, reportName);
+        assertGeneratable(bo.getReportId());
 
-        Path jsonPath = jsonTarget(bo.getReportId(), data.getTemplateCode(), reportName);
-        Path docxPath = docxTarget(jsonPath);
+        // 整段生成流程都包在 try 里：**任何**一步失败（上下文校验、模板解析、JSON/DOCX 渲染）都落 33 + 原因，
+        // 半成品（JSON/DOCX/PDF）不留 —— 页面与「报告解读中」页签能看到失败状态与原因，修复参数后可再生成。
+        Path jsonPath = null;
+        Path docxPath = null;
         Path pdfPath = null;
         try {
+            ReportTemplateData data = previewService.buildPreview(bo);
+            Map<String, Object> reportRow = interpretationMapper.selectReportRow(bo.getReportId());
+            ReportTemplateVo template = resolveTemplate(bo, data, reportRow);
+            String reportName = resolveReportName(template, data, reportRow);
+            applyReportName(data, reportName);
+
+            jsonPath = jsonTarget(bo.getReportId(), data.getTemplateCode(), reportName);
+            docxPath = docxTarget(jsonPath);
             writeJson(jsonPath, data);
             ArtifactPermissions.relax(jsonPath);
             Path templateFile = reportDocxRenderer.locateTemplate(template);
@@ -98,13 +110,44 @@ public class ReportGenerationService {
             ArtifactPermissions.relax(docxPath);
             pdfPath = convertPdfQuietly(docxPath);
             updateArtifact(bo, data, jsonPath, docxPath, pdfPath, reportName);
+            markGenerated(bo.getReportId());
             return buildResult(data, reportName, jsonPath, docxPath, rendered);
         } catch (RuntimeException e) {
             deleteQuietly(jsonPath);
             deleteQuietly(docxPath);
             deleteQuietly(pdfPath);
+            markGenerateFailed(bo.getReportId(), e.getMessage());
             throw e;
         }
+    }
+
+    /**
+     * 生成前的状态校验：只有「报告解读中 / 生成成功 / 生成失败」能生成（后两个是重新生成）。
+     * <p>
+     * 口径（用户 2026-10-16）：报告解读中 31 → 生成成功 32 / 生成失败 33，都可再次生成覆盖同一份制品；
+     * 已提交审核（40 及以后）不允许再生成，避免审核中的报告被悄悄换掉。
+     */
+    private void assertGeneratable(Long reportId) {
+        Map<String, Object> reportRow = interpretationMapper.selectReportRow(reportId);
+        if (reportRow == null) {
+            throw new ServiceException("报告不存在或已删除：reportId=" + reportId);
+        }
+        int status = Integer.parseInt(String.valueOf(reportRow.get("status")));
+        if (!GENERATABLE_STATUS.contains(status)) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status) + "）不允许生成报告：reportId=" + reportId
+                + "（生成报告只在「报告解读中」阶段，已提交审核的报告不能再生成）");
+        }
+    }
+
+    /** 生成成功：状态转 32，并清空上一次的失败原因 */
+    private void markGenerated(Long reportId) {
+        interpretationMapper.updateReportGenerated(reportId, ReportStatus.GENERATED, null);
+    }
+
+    /** 生成失败：状态落 33 并记原因（下次生成成功会自动清掉） */
+    private void markGenerateFailed(Long reportId, String reason) {
+        interpretationMapper.updateReportGenerated(reportId, ReportStatus.GENERATE_FAILED, reason);
+        log.warn("报告生成失败：reportId={} 原因={}", reportId, reason);
     }
 
     /**

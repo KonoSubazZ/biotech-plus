@@ -8,6 +8,8 @@ import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationReviewBo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationPreviewService;
+import org.dromara.report.service.IReportSignService;
+import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -25,12 +27,12 @@ import org.dromara.report.service.impl.preview.PreviewContextBuilder;
  * 必须把结果固定下来（history_* 冻结、NKB 更新不刷新），否则审到一半知识库变了会「审的和出报告的不是一回事」。
  * 预览与生成仍然只读（复用历史照常，但不写新行、不登记复用），未提交的报告不占用匹配历史。
  * <p>
- * 状态机（设计书 §11.1）：
+ * 状态机（数字码见 {@link ReportStatus}）：
  * <pre>
- * INTERPRETING --提交审核--> PENDING_REVIEW --通过--> APPROVED --发送--> SENT
- *                                      \--驳回--> REJECTED --重新提交--> PENDING_REVIEW
+ * 31/32/33 --提交解读--> 40 报告待审核 --审核通过--> 43 报告审核成功（随后自动送签）
+ *                                    \--审核不通过--> 回退 31 报告解读中（同一条记录，带回退原因）
  * </pre>
- * 目前实现「提交审核」与「审核通过」；驳回（REJECTED）、发送（SENT）按页面逐个排期。
+ * 「认领」（30→31、40→41）由样本流转/详情页的动作接口负责，这里只管审核动作本身。
  *
  * @author <你的名字>
  */
@@ -39,23 +41,22 @@ import org.dromara.report.service.impl.preview.PreviewContextBuilder;
 @RequiredArgsConstructor
 public class InterpretationReviewService {
 
-    /** 允许「提交审核」的来源状态（驳回后可重新提交） */
-    private static final List<String> SUBMITTABLE_STATUS = List.of("INTERPRETING", "REJECTED");
+    /** 允许「提交解读」的来源状态：解读中 / 生成成功 / 生成失败（都还能再提交一次） */
+    private static final List<Integer> SUBMITTABLE_STATUS =
+        List.of(ReportStatus.INTERPRETING, ReportStatus.GENERATED, ReportStatus.GENERATE_FAILED);
 
-    /** 提交审核后的报告状态 */
-    private static final String STATUS_PENDING_REVIEW = "PENDING_REVIEW";
+    /** 提交解读后的报告状态：报告待审核 */
+    private static final int STATUS_PENDING_REVIEW = ReportStatus.PENDING_REVIEW;
 
-    /** 允许「审核通过」的来源状态：设计书 §11.1 只允许待审核 */
-    private static final List<String> APPROVABLE_STATUS = List.of("PENDING_REVIEW");
+    /** 允许「审核通过 / 审核不通过」的来源状态：待审核（未认领也能审）、审核中（认领后审） */
+    private static final List<Integer> REVIEWABLE_STATUS =
+        List.of(ReportStatus.PENDING_REVIEW, ReportStatus.REVIEWING);
 
     /** 审核通过后的报告状态 */
-    private static final String STATUS_APPROVED = "APPROVED";
+    private static final int STATUS_APPROVED = ReportStatus.REVIEW_APPROVED;
 
-    /** 允许「驳回」的来源状态：只有待审核 */
-    private static final List<String> REJECTABLE_STATUS = List.of("PENDING_REVIEW");
-
-    /** 驳回后的报告状态 */
-    private static final String STATUS_REJECTED = "REJECTED";
+    /** 审核不通过后的落点状态：回退到「报告解读中」 */
+    private static final int STATUS_REVERTED = ReportStatus.INTERPRETING;
 
     private final InterpretationMapper interpretationMapper;
 
@@ -63,8 +64,11 @@ public class InterpretationReviewService {
 
     private final IInterpretationPreviewService previewService;
 
+    /** 报告签名通道（上上签未对接期间是假实现：只落状态链，见 ReportSignStubService） */
+    private final IReportSignService reportSignService;
+
     /**
-     * 提交审核：先冻结匹配历史，再把报告状态置为 PENDING_REVIEW。
+     * 提交解读：先冻结匹配历史，再把报告状态置为 40（报告待审核）。
      * <p>
      * 两件事在同一事务里：冻结失败（NKB 异常等）状态就不会变，避免出现「已送审但历史没冻结」的报告。
      * 只有已生成报告（有成品文件）才能提交 —— 审核对象就是那份生成的报告。
@@ -76,9 +80,10 @@ public class InterpretationReviewService {
     @Transactional(rollbackFor = Exception.class)
     public void submit(InterpretationPreviewBo bo) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
-        String status = asString(report.get("status"));
+        int status = currentStatus(report);
         if (!SUBMITTABLE_STATUS.contains(status)) {
-            throw new ServiceException("当前状态（" + status + "）不允许提交审核：reportId=" + bo.getReportId());
+            throw new ServiceException("当前状态（" + ReportStatus.label(status)
+                + "）不允许提交解读：reportId=" + bo.getReportId());
         }
         String reportFile = StringUtils.hasText(asString(report.get("reportFilePath")))
             ? asString(report.get("reportFilePath")) : asString(report.get("reportFileRawPath"));
@@ -97,7 +102,7 @@ public class InterpretationReviewService {
     }
 
     /**
-     * 审核通过：只做状态流转（INTERPRETING / PENDING_REVIEW → APPROVED）。
+     * 审核通过：只做状态流转（40/41 → 43 报告审核成功，随后自动送签转 50）。
      * <p>
      * 匹配历史在「提交审核」时就已经冻结，这里不再重算 —— 否则审核时页面参数一变就会多冻出一条不一致的历史。
      * 状态更新带来源状态条件，重复点击/并发时后到的那次影响行数为 0，直接报错让用户刷新。
@@ -107,25 +112,35 @@ public class InterpretationReviewService {
     @Transactional(rollbackFor = Exception.class)
     public void approve(InterpretationPreviewBo bo) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
-        String status = asString(report.get("status"));
-        if (STATUS_APPROVED.equals(status)) {
+        int status = currentStatus(report);
+        if (STATUS_APPROVED == status) {
             throw new ServiceException("报告已审核通过，无需重复审核：reportId=" + bo.getReportId());
         }
-        if (!APPROVABLE_STATUS.contains(status)) {
-            throw new ServiceException("当前状态（" + status + "）不允许审核通过：reportId=" + bo.getReportId());
+        if (!REVIEWABLE_STATUS.contains(status)) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status)
+                + "）不允许审核通过：reportId=" + bo.getReportId());
         }
         assertNotProducer(report);
 
         int affected = interpretationMapper.updateReportReview(bo.getReportId(), STATUS_APPROVED, null,
-            currentUserId(), LoginHelper.getUserId(), APPROVABLE_STATUS);
+            LoginHelper.getUserId(), LoginHelper.getUserId(), REVIEWABLE_STATUS, null, null);
         if (affected == 0) {
             throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + bo.getReportId());
         }
         log.info("报告审核通过：reportId={}，analysisId={}", bo.getReportId(), bo.getAnalysisId());
+
+        // 口径：审核通过（43）后自动送签 → 50 报告签名中；送签本身失败则落 52 报告签名失败（原因见签名页签），
+        // 「审核通过」这一步已经成功，不能因为送签通道问题把它回滚掉。
+        try {
+            reportSignService.submit(bo.getReportId());
+        } catch (RuntimeException e) {
+            log.warn("审核通过后自动送签失败，状态落 52 报告签名失败：reportId={} 原因={}", bo.getReportId(), e.getMessage());
+            interpretationMapper.updateReportSignResult(bo.getReportId(), ReportStatus.SIGN_FAILED, null, e.getMessage());
+        }
     }
 
     /**
-     * 驳回：把报告置为 REJECTED，并把驳回原因写进 analysis_report.comment（最新一条）。
+     * 驳回：把报告回退到 31（报告解读中，同一条记录），原因写进 comment 与回退字段。
      * <p>
      * 只有「待审核」能驳回；原因必填；产出人不能审核自己的报告；
      * 状态更新带来源状态条件，重复点击/并发时后到的那次影响行数为 0，直接报错让用户刷新。
@@ -138,18 +153,35 @@ public class InterpretationReviewService {
             throw new ServiceException("驳回原因不能为空");
         }
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
-        String status = asString(report.get("status"));
-        if (!REJECTABLE_STATUS.contains(status)) {
-            throw new ServiceException("当前状态（" + status + "）不允许驳回：reportId=" + bo.getReportId());
+        int status = currentStatus(report);
+        if (!REVIEWABLE_STATUS.contains(status)) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status)
+                + "）不允许驳回：reportId=" + bo.getReportId());
         }
         assertNotProducer(report);
 
-        int affected = interpretationMapper.updateReportReview(bo.getReportId(), STATUS_REJECTED,
-            bo.getReason().trim(), currentUserId(), LoginHelper.getUserId(), REJECTABLE_STATUS);
+        // 审核不通过：同一条报告回退到「报告解读中」，来源状态与原因留在回退字段里
+        // （样本流转「报告解读中」页签用它打「审核失败回退」标签，与正常认领区分）
+        int affected = interpretationMapper.updateReportReview(bo.getReportId(), STATUS_REVERTED,
+            bo.getReason().trim(), LoginHelper.getUserId(), LoginHelper.getUserId(), REVIEWABLE_STATUS,
+            status, bo.getReason().trim());
         if (affected == 0) {
             throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + bo.getReportId());
         }
         log.info("报告已驳回：reportId={}，analysisId={}", bo.getReportId(), bo.getAnalysisId());
+    }
+
+    /** 报告行里的状态码（XML 把 report_status 别名为 status） */
+    private int currentStatus(Map<String, Object> report) {
+        Object value = report.get("status");
+        if (value == null) {
+            throw new ServiceException("报告状态缺失：reportId=" + asString(report.get("reportId")));
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            throw new ServiceException("报告状态非法（" + value + "）：reportId=" + asString(report.get("reportId")));
+        }
     }
 
     /** 产出人不能审核自己的报告（report_generated_by 存的是用户ID字符串，与当前登录用户同口径比较） */
