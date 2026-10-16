@@ -16,7 +16,7 @@ import java.util.Date;
  * 语义（docs/context/report/report-module-design.md）：
  * <ul>
  *   <li>analysis_data 表示一次分析批次，analysis_report 表示一份报告；一个批次可有多份报告（不同模板 / 驳回重出）。</li>
- *   <li>status 是状态机：INTERPRETING → PENDING_REVIEW → APPROVED → SENT，PENDING_REVIEW 可 REJECTED。</li>
+ *   <li>report_status 是状态机（int 码，取值与中文见 {@link org.dromara.report.utils.ReportStatus}）。</li>
  *   <li>product_id 指向 product_config.id（本仓产品主数据），不是参考工程里的 product 表。</li>
  * </ul>
  *
@@ -82,26 +82,26 @@ public class AnalysisReport extends BaseEntity {
     /** 正式生成 JSON 文件路径 */
     private String reportJsonPath;
 
-    /** 报告产出人 */
-    private String reportGeneratedBy;
+    /** 报告生成人（sys_user.user_id） */
+    private Long reportGeneratedBy;
 
     /** 报告生成时间 */
     private Date reportGeneratedAt;
 
-    /** 报告审核人 */
-    private String reportCheckedBy;
+    /** 报告复核人（sys_user.user_id） */
+    private Long reportCheckedBy;
 
     /** 报告审核时间 */
     private Date reportCheckedAt;
 
-    /** 报告发放人 */
-    private String reportSentBy;
+    /** 报告发送人（sys_user.user_id，非用户名） */
+    private Long reportSentBy;
 
     /** 报告发放时间 */
     private Date reportSentAt;
 
-    /** 状态：INTERPRETING / PENDING_REVIEW / APPROVED / REJECTED / SENT */
-    private String status;
+    /** 报告状态（int 状态码，取值见 {@link org.dromara.report.utils.ReportStatus}） */
+    private Integer reportStatus;
 
     /** 备注（含最新驳回原因） */
     private String comment;

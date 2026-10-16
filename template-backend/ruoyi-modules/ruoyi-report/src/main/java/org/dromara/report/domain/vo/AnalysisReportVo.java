@@ -52,7 +52,8 @@ public class AnalysisReportVo implements Serializable {
     private String template;
 
     /** 状态 */
-    private String status;
+    /** 报告状态（int 码，与实体 reportStatus / 库 report_status 同名同类型） */
+    private Integer reportStatus;
 
     /** 备注 / 驳回原因 */
     private String comment;

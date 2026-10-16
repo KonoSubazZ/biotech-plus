@@ -37,7 +37,7 @@ import java.util.Map;
  *   <li>未审核必须拒绝（且不写审计日志）；</li>
  *   <li>发件邮箱按页面选的 configId 走（不传则用默认邮箱 —— 由配置服务决定）；</li>
  *   <li>发送成功 → 日志 SUCCESS + 报告置 SENT + 记发放人/时间；</li>
- *   <li>发送失败 → 日志 FAILED + 原因入库，且**不改**报告状态，异常继续往上抛。</li>
+ *   <li>发送失败 → 日志 FAILED + 原因入库，报告状态置 61（可重发），异常继续往上抛。</li>
  * </ul>
  * 只跑本类：mvn -Plocal -DskipTests=false -Dtest=ReportMailSendServiceTest test
  *
@@ -90,7 +90,8 @@ public class ReportMailSendServiceTest {
         return config;
     }
 
-    private Map<String, Object> report(String status) {
+    /** 报告行（status 是 int 状态码，见 ReportStatus） */
+    private Map<String, Object> report(int status) {
         Map<String, Object> row = new HashMap<>();
         row.put("reportId", 4);
         row.put("analysisId", 1);
@@ -112,14 +113,14 @@ public class ReportMailSendServiceTest {
     }
 
     @Test
-    @DisplayName("未审核的报告必须拒绝，且不写审计日志、不发信")
+    @DisplayName("未到「报告待发送」的报告必须拒绝，且不写审计日志、不发信")
     void notApprovedIsRejected() {
-        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report("PENDING_REVIEW"));
+        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report(40));
 
         ServiceException error = Assertions.assertThrows(ServiceException.class, () -> service.send(bo()));
 
         Assertions.assertEquals(400, error.getCode());
-        Assertions.assertTrue(error.getMessage().contains("已审核"), error.getMessage());
+        Assertions.assertTrue(error.getMessage().contains("报告待发送"), error.getMessage());
         Mockito.verifyNoInteractions(emailLogMapper);
         Mockito.verifyNoInteractions(mailSender);
         Mockito.verifyNoInteractions(analysisReportMapper);
@@ -128,7 +129,7 @@ public class ReportMailSendServiceTest {
     @Test
     @DisplayName("页面选了发件邮箱就按它的 configId 发")
     void usesSelectedSenderConfig() {
-        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report("APPROVED"));
+        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report(60));
         InterpretationSendBo bo = bo();
         bo.setConfigId(7L);
 
@@ -142,7 +143,7 @@ public class ReportMailSendServiceTest {
     @Test
     @DisplayName("发件邮箱配置有问题（未配置/停用/缺密码）时不写日志、不发信")
     void invalidSenderConfigIsRejectedBeforeLogging() {
-        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report("APPROVED"));
+        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report(60));
         Mockito.when(mailConfigService.loadForSend(Mockito.any()))
             .thenThrow(new ServiceException("发件邮箱未配置密码", 400));
 
@@ -156,7 +157,7 @@ public class ReportMailSendServiceTest {
     @Test
     @DisplayName("发送成功：日志 SENDING→SUCCESS，报告置 SENT 并记发放人")
     void successMarksLogAndReportSent() {
-        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report("APPROVED"));
+        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report(60));
         Mockito.when(mailSender.send(
             Mockito.any(), Mockito.anyString(), Mockito.any(),
             Mockito.anyString(), Mockito.anyString(), Mockito.any(File[].class)
@@ -179,15 +180,17 @@ public class ReportMailSendServiceTest {
         Assertions.assertTrue(logSet.contains("provider_message_id"), logSet);
 
         String reportSet = captureSet(analysisReportMapper, AnalysisReport.class);
-        Assertions.assertTrue(reportSet.contains("SENT"), reportSet);
+        // 发送成功 → report_status = 62（完成报告）+ 记录发送人/时间
+        Assertions.assertTrue(reportSet.contains("report_status"), reportSet);
+        Assertions.assertTrue(reportSet.contains("62"), reportSet);
         Assertions.assertTrue(reportSet.contains("report_sent_by"), reportSet);
         Assertions.assertTrue(reportSet.contains("report_sent_at"), reportSet);
     }
 
     @Test
-    @DisplayName("发送失败：日志 FAILED + 原因入库，报告状态不变，异常继续抛")
+    @DisplayName("发送失败：日志 FAILED + 原因入库，报告状态置 61（可重发），异常继续抛")
     void sendFailureMarksLogFailed() {
-        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report("APPROVED"));
+        Mockito.when(interpretationMapper.selectReportRow(4L)).thenReturn(report(60));
         Mockito.when(mailSender.send(
             Mockito.any(), Mockito.anyString(), Mockito.any(),
             Mockito.anyString(), Mockito.anyString(), Mockito.any(File[].class)
@@ -199,7 +202,11 @@ public class ReportMailSendServiceTest {
         String logSet = captureSet(emailLogMapper, AnalysisReportEmailLog.class);
         Assertions.assertTrue(logSet.contains("FAILED"), logSet);
         Assertions.assertTrue(logSet.contains("failure_reason"), logSet);
-        Mockito.verify(analysisReportMapper, Mockito.never()).update(Mockito.any(), Mockito.any());
+
+        // 失败要把报告置 61（报告发送失败），页面才能重发
+        String reportSet = captureSet(analysisReportMapper, AnalysisReport.class);
+        Assertions.assertTrue(reportSet.contains("report_status"), reportSet);
+        Assertions.assertTrue(reportSet.contains("61"), reportSet);
     }
 
     /** 抓 update 的 LambdaUpdateWrapper，把 SET 子句与参数值拼成字符串，便于断言「写了哪些列/什么值」 */

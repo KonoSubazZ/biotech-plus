@@ -50,7 +50,7 @@ public class InterpretationRowVo implements Serializable {
     /** 报告ID（为空表示该批次还没点过「解读」） */
     private Long reportId;
 
-    /** 报告状态：INTERPRETING / PENDING_REVIEW / APPROVED / REJECTED / SENT */
+    /** 报告状态（int 码，取值见 org.dromara.report.utils.ReportStatus） */
     private String reportStatus;
 
     /** 解读癌种 */
