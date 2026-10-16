@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  样本流转：analysis_data ⟕ sample_file ⟕ 该批次最新一份 analysis_report（⟕ sys_user 取解读人昵称）。
+  约定（对齐 InterpretationMapper.xml）：
+    · 不用 SELECT *，显式列出并别名成驼峰，和 VO 字段逐一对齐
+    · 值一律 #{param} 绑定；租户条件由租户拦截器自动附加，这里不写 tenant_id
+    · 分页由 MyBatis-Plus 分页插件接管，这里不写 LIMIT
+    · 页签过滤（tab）与可见性（showAll）在 <choose> 里分支，口径与 SampleFlowServiceImpl 的注释一一对应
+-->
+<mapper namespace="org.dromara.report.mapper.SampleFlowMapper">
+
+    <select id="selectFlowPage" resultType="org.dromara.report.domain.vo.SampleFlowRowVo">
+        SELECT
+            d.analysis_id           AS analysisId,
+            d.analysis_date         AS analysisDate,
+            d.subbarcode            AS subbarcode,
+            d.barcode               AS barcode,
+            d.product               AS product,
+            d.drive_status          AS driveStatus,
+            d.drive_executed_at     AS driveExecutedAt,
+            s.customer_name         AS customerName,
+            s.patient_name          AS patientName,
+            s.sample_type           AS sampleType,
+            s.erp_test_name         AS erpTestName,
+            r.report_id             AS reportId,
+            r.report_name           AS reportName,
+            r.analysis_disease      AS analysisDisease,
+            r.report_status         AS reportStatus,
+            r.report_interpreted_by AS interpreter,
+            u.nick_name             AS interpreterName,
+            r.report_generated_by   AS reportGeneratedBy,
+            ug.nick_name            AS reportGeneratedByName,
+            r.report_generated_at   AS reportGeneratedAt,
+            r.report_checked_by     AS reportCheckedBy,
+            uc.nick_name            AS reportCheckedByName,
+            r.report_checked_at     AS reportCheckedAt,
+            r.report_sent_by        AS reportSentBy,
+            us.nick_name            AS reportSentByName,
+            r.report_sent_at        AS reportSentAt,
+            r.report_revert_from    AS revertFrom,
+            <!-- 最新更新时间：三张表里最大的那个 update_time（没有报告/没有样本信息时用 create_time 兜底） -->
+            GREATEST(COALESCE(d.update_time, d.create_time, '1970-01-01'),
+                     COALESCE(r.update_time, r.create_time, '1970-01-01'),
+                     COALESCE(s.update_time, s.create_time, '1970-01-01')) AS latestUpdateTime
+        FROM analysis_data d
+        LEFT JOIN sample_file s
+               ON s.id = (SELECT MAX(s2.id) FROM sample_file s2
+                          WHERE s2.subbarcode = d.subbarcode AND s2.del_flag = '0')
+        LEFT JOIN analysis_report r
+               ON r.report_id = (SELECT MAX(r2.report_id) FROM analysis_report r2
+                                 WHERE r2.analysis_id = d.analysis_id AND r2.del_flag = '0')
+        LEFT JOIN sys_user u  ON u.user_id  = r.report_interpreted_by
+        LEFT JOIN sys_user ug ON ug.user_id = r.report_generated_by
+        LEFT JOIN sys_user uc ON uc.user_id = r.report_checked_by
+        LEFT JOIN sys_user us ON us.user_id = r.report_sent_by
+        WHERE d.del_flag = '0'
+        <choose>
+            <when test="query.tab == 'driver'">
+                <!-- 1.1 驱动异常：样本级驱动失败（含部分文件失败） -->
+                AND d.drive_status = 10
+            </when>
+            <when test="query.tab == 'bioinfo-view'">
+                <!-- 1.2 生信看点：驱动成功、且还没看点完（没有报告记录 或 停在 20 生信看点） -->
+                AND d.drive_status = 11
+                AND (r.report_id IS NULL OR r.report_status = 20)
+            </when>
+            <when test="query.tab == 'bioinfo-review'">
+                <!-- 1.3 生信审核：21，默认看别人看点的（不能审自己看点的） -->
+                AND r.report_status = 21
+                <if test="query.showAll == null or !query.showAll">
+                    AND (r.report_bioinfo_viewed_by IS NULL OR r.report_bioinfo_viewed_by != #{currentUserId})
+                </if>
+            </when>
+            <when test="query.tab == 'pending-interpret'">
+                <!-- 1.4 报告待解读：30 全部可见（认领后状态变 31，自然从这里消失） -->
+                AND r.report_status = 30
+            </when>
+            <when test="query.tab == 'interpreting'">
+                <!-- 1.5 报告解读中：31/32/33，默认只看自己认领的 -->
+                AND r.report_status IN (31, 32, 33)
+                <if test="query.showAll == null or !query.showAll">
+                    AND r.report_interpreted_by = #{currentUserId}
+                </if>
+            </when>
+            <when test="query.tab == 'pending-review'">
+                <!-- 1.6 报告待审核：40，默认看别人的（自己产出的不能审） -->
+                AND r.report_status = 40
+                <if test="query.showAll == null or !query.showAll">
+                    AND (r.report_generated_by IS NULL OR r.report_generated_by != #{currentUserId})
+                </if>
+            </when>
+            <when test="query.tab == 'reviewing'">
+                <!-- 1.7 报告审核中：41，默认只看自己认领的 -->
+                AND r.report_status = 41
+                <if test="query.showAll == null or !query.showAll">
+                    AND r.report_review_claimed_by = #{currentUserId}
+                </if>
+            </when>
+            <when test="query.tab == 'signing'">
+                <!-- 1.8 报告签名：50/52/53 -->
+                AND r.report_status IN (50, 52, 53)
+            </when>
+            <when test="query.tab == 'sending'">
+                <!-- 1.9 报告发送：60/61/62 -->
+                AND r.report_status IN (60, 61, 62)
+            </when>
+            <otherwise>
+                <!-- 未知页签：不返回数据（前端页签定义与这里一一对应） -->
+                AND 1 = 0
+            </otherwise>
+        </choose>
+        <if test="query.subbarcode != null and query.subbarcode != ''">
+            AND d.subbarcode LIKE CONCAT('%', #{query.subbarcode}, '%')
+        </if>
+        <if test="query.product != null and query.product != ''">
+            AND d.product LIKE CONCAT('%', #{query.product}, '%')
+        </if>
+        <if test="query.analysisDate != null and query.analysisDate != ''">
+            AND d.analysis_date = #{query.analysisDate}
+        </if>
+        ORDER BY d.analysis_date DESC, d.analysis_id DESC
+    </select>
+
+    <!-- 该批次最新一份报告的关键字段（处理动作判断用） -->
+    <select id="selectLatestReport" resultType="java.util.LinkedHashMap">
+        SELECT report_id               AS reportId,
+               report_status           AS reportStatus,
+               report_generated_by     AS reportGeneratedBy,
+               report_interpreted_by   AS reportInterpretedBy,
+               report_review_claimed_by AS reportReviewClaimedBy
+        FROM analysis_report
+        WHERE analysis_id = #{analysisId} AND del_flag = '0'
+        ORDER BY report_id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 报告认领（30 报告待解读 → 31 报告解读中）：来源状态条件防重复认领 -->
+    <update id="claimInterpret">
+        UPDATE analysis_report
+        SET report_status         = 31,
+            report_interpreted_by = #{userId},
+            report_interpreted_at = NOW(),
+            update_by             = #{userId},
+            update_time           = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 30
+    </update>
+
+    <!-- 报告复核认领（40 报告待审核 → 41 报告审核中）：不能认领自己产出的报告 -->
+    <update id="claimReview">
+        UPDATE analysis_report
+        SET report_status            = 41,
+            report_review_claimed_by = #{userId},
+            report_review_claimed_at = NOW(),
+            update_by                = #{userId},
+            update_time              = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 40
+          AND (report_generated_by IS NULL OR report_generated_by != #{userId})
+    </update>
+
+</mapper>

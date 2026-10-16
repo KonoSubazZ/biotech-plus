@@ -10,6 +10,7 @@ import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
+import org.dromara.report.domain.vo.FileRedriveVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 
 import java.util.Map;
@@ -57,6 +58,40 @@ public interface IInterpretationService {
      */
     TableDataInfo<InterpretationFileVo> selectFileList(Long analysisId, InterpretationFileQueryBo bo,
                                                       PageQuery pageQuery);
+
+    /**
+     * 生信看点完成（筛选位点页签的按钮）：20 生信看点 → 21 生信审核，记看点人与时间。
+     * <p>
+     * 口径：看点人写 report_bioinfo_viewed_by，之后该样本从「生信看点」页签消失（页签只显示
+     * 没人看点的或自己看点的），出现在「生信审核」页签；看点人不能审自己看点的报告。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     * @return 流转后的报告状态（21 生信审核）
+     */
+    Integer finishBioinfoView(Long analysisId, Long reportId);
+
+    /**
+     * 生信复核通过（筛选位点页签的按钮）：21 生信审核 → 30 报告待解读。
+     * <p>
+     * 口径：复核人不能是看点人本人（看点人 ≠ 复核人）；流转到 30 后样本出现在「报告待解读」页签，
+     * 该页签全部可见，由解读人认领后转 31「报告解读中」。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     * @return 流转后的报告状态（30 报告待解读）
+     */
+    Integer finishBioinfoReview(Long analysisId, Long reportId);
+
+    /**
+     * 重新驱动一个文件（集群对接页签的文件行按钮）：调外部 scanner.py 驱动单个文件，
+     * 脚本自己写回文件级/样本级状态，本方法再把最新状态读回来给页面。
+     *
+     * @param analysisId 分析数据ID
+     * @param fileId     文件ID
+     * @return 文件最新状态 + 批次级驱动状态 + 脚本说明
+     */
+    FileRedriveVo redriveFile(Long analysisId, Long fileId);
 
     /**
      * 查看单个文件内容（Tab②）

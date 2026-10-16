@@ -51,6 +51,89 @@ public interface InterpretationMapper {
                                               @Param("query") InterpretationFileQueryBo query);
 
     /**
+     * 送签：状态 → 50 报告签名中，写签名流程号与送签时间。
+     * <p>
+     * 允许的来源状态：43 报告审核成功（审核通过后自动送签）、52 报告签名失败（重新送签）；
+     * 带来源条件，重复点击/并发时后到的那次影响行数为 0。
+     *
+     * @param reportId 报告ID
+     * @param flowNo   签名流程号
+     * @return 影响行数
+     */
+    int updateReportSigning(@Param("reportId") Long reportId, @Param("flowNo") String flowNo);
+
+    /**
+     * 签名结果落状态：50 → 60 报告待发送（成功）/ 52 报告签名失败（失败）；送签即失败时也允许从 43 落 52。
+     *
+     * @param reportId       报告ID
+     * @param status         60 报告待发送 / 52 报告签名失败
+     * @param signedFilePath 签名后 PDF 路径（成功时；未对接期可为空）
+     * @param failReason     失败原因（失败时）
+     * @return 影响行数
+     */
+    int updateReportSignResult(@Param("reportId") Long reportId, @Param("status") Integer status,
+                              @Param("signedFilePath") String signedFilePath,
+                              @Param("failReason") String failReason);
+
+    /**
+     * 按签名流程号取报告（回调只带流程号，不信任回调里的 reportId）。
+     *
+     * @param flowNo 签名流程号
+     * @return {reportId, analysisId, status, reportFilePath}；找不到返回 null
+     */
+    Map<String, Object> selectReportBySignFlowNo(@Param("flowNo") String flowNo);
+
+    /**
+     * 报告生成结果落状态：成功 32（顺带清空失败原因）/ 失败 33（写失败原因）。
+     *
+     * @param reportId   报告ID
+     * @param status     32 报告生成成功 / 33 报告生成失败
+     * @param failReason 生成失败原因（成功时传 null，清空历史原因）
+     * @return 影响行数
+     */
+    int updateReportGenerated(@Param("reportId") Long reportId, @Param("status") Integer status,
+                              @Param("failReason") String failReason);
+
+    /**
+     * 生信看点完成（20 生信看点 → 21 生信审核）：记看点人与时间。
+     * <p>
+     * 带来源状态条件：重复点击或并发时后到的那次影响行数为 0，调用方据此提示刷新。
+     *
+     * @param reportId 报告ID
+     * @param userId   看点人（写 report_bioinfo_viewed_by）
+     * @return 影响行数
+     */
+    int updateBioinfoViewed(@Param("reportId") Long reportId, @Param("userId") Long userId);
+
+    /**
+     * 生信复核通过（21 生信审核 → 30 报告待解读）：记复核人与时间。
+     * <p>
+     * 带来源状态条件：重复点击或并发时后到的那次影响行数为 0，调用方据此提示刷新。
+     *
+     * @param reportId 报告ID
+     * @param userId   复核人（写 report_bioinfo_reviewed_by）
+     * @return 影响行数
+     */
+    int updateBioinfoReviewed(@Param("reportId") Long reportId, @Param("userId") Long userId);
+
+    /**
+     * 取单个文件的行（重新驱动前校验文件属于该批次、拿落盘路径）。
+     *
+     * @param fileId     文件ID
+     * @param analysisId 分析数据ID
+     * @return {fileId, fileName, filePath, status}；文件不存在返回 null
+     */
+    Map<String, Object> selectFileRow(@Param("fileId") Long fileId, @Param("analysisId") Long analysisId);
+
+    /**
+     * 取该批次的样本级驱动状态（重新驱动后读回来展示）。
+     *
+     * @param analysisId 分析数据ID
+     * @return drive_status（int 码）；批次不存在返回 null
+     */
+    Integer selectAnalysisDriveStatus(@Param("analysisId") Long analysisId);
+
+    /**
      * 取单个文件的文本内容（data_file_status.file_text），超长按 maxLength 截断。
      *
      * @param fileId    文件ID
@@ -263,8 +346,8 @@ public interface InterpretationMapper {
      * @param fromStatuses 允许的来源状态
      * @return 影响行数
      */
-    int updateReportStatusIfIn(@Param("reportId") Long reportId, @Param("status") String status,
-                              @Param("fromStatuses") List<String> fromStatuses);
+    int updateReportStatusIfIn(@Param("reportId") Long reportId, @Param("status") Integer status,
+                              @Param("fromStatuses") List<Integer> fromStatuses);
 
     /**
      * 审核动作状态流转（通过 / 驳回共用）：置目标状态 + 审核人/审核时间；
@@ -282,11 +365,13 @@ public interface InterpretationMapper {
      * @return 影响行数
      */
     int updateReportReview(@Param("reportId") Long reportId,
-                           @Param("status") String status,
+                           @Param("status") Integer status,
                            @Param("comment") String comment,
-                           @Param("checkedBy") String checkedBy,
+                           @Param("checkedBy") Long checkedBy,
                            @Param("operatorId") Long operatorId,
-                           @Param("fromStatuses") List<String> fromStatuses);
+                           @Param("fromStatuses") List<Integer> fromStatuses,
+                           @Param("revertFrom") Integer revertFrom,
+                           @Param("revertReason") String revertReason);
 
     /**
      * 回填报告业务字段：生成报告时把本次生效的「解读癌种」写回 analysis_report

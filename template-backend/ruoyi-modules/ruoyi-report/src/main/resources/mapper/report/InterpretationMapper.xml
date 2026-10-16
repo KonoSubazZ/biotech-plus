@@ -21,7 +21,7 @@
             d.drive_status        AS driveStatus,
             d.drive_executed_at   AS driveExecutedAt,
             r.report_id           AS reportId,
-            r.status              AS reportStatus,
+            r.report_status       AS reportStatus,
             r.analysis_disease    AS analysisDisease,
             r.template_id         AS templateId,
             r.template            AS template,
@@ -43,7 +43,7 @@
             AND d.product LIKE CONCAT('%', #{query.product}, '%')
         </if>
         <if test="query != null and query.reportStatus != null and query.reportStatus != ''">
-            AND r.status = #{query.reportStatus}
+            AND r.report_status = #{query.reportStatus}
         </if>
         <if test="query != null and query.analysisDate != null and query.analysisDate != ''">
             AND d.analysis_date = #{query.analysisDate}
@@ -78,6 +78,93 @@
             AND f.status = #{query.status}
         </if>
         ORDER BY f.file_id ASC
+    </select>
+
+    <!-- 送签：43 报告审核成功（审核通过自动送签）/ 52 签名失败（重新送签）→ 50 报告签名中 -->
+    <update id="updateReportSigning">
+        UPDATE analysis_report
+        SET report_status        = 50,
+            report_sign_flow_no  = #{flowNo},
+            report_sign_time     = NOW(),
+            report_sign_fail_reason = NULL,
+            update_time          = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status IN (43, 52)
+    </update>
+
+    <!-- 签名结果：50 → 60 报告待发送（成功）/ 52 签名失败；送签即失败时从 43 落 52 -->
+    <update id="updateReportSignResult">
+        UPDATE analysis_report
+        SET report_status            = #{status},
+            report_signed_file_path  = #{signedFilePath},
+            report_sign_fail_reason  = #{failReason},
+            report_sign_time         = NOW(),
+            update_time              = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status IN (43, 50)
+    </update>
+
+    <!-- 回调按流程号找报告 -->
+    <select id="selectReportBySignFlowNo" resultType="java.util.LinkedHashMap">
+        SELECT report_id        AS reportId,
+               analysis_id      AS analysisId,
+               report_status    AS status,
+               report_file_path AS reportFilePath
+        FROM analysis_report
+        WHERE report_sign_flow_no = #{flowNo} AND del_flag = '0'
+        LIMIT 1
+    </select>
+
+    <!-- 报告生成结果：32 生成成功（清空失败原因）/ 33 生成失败（写失败原因） -->
+    <update id="updateReportGenerated">
+        UPDATE analysis_report
+        SET report_status          = #{status},
+            report_gen_fail_reason = #{failReason},
+            update_time            = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+    </update>
+
+    <!-- 生信看点完成：20 → 21，写看点人/时间（来源状态条件防重复提交） -->
+    <update id="updateBioinfoViewed">
+        UPDATE analysis_report
+        SET report_status            = 21,
+            report_bioinfo_viewed_by = #{userId},
+            report_bioinfo_viewed_at = NOW(),
+            update_by                = #{userId},
+            update_time              = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 20
+    </update>
+
+    <!-- 生信复核通过：21 → 30，写复核人/时间（来源状态条件防重复提交） -->
+    <update id="updateBioinfoReviewed">
+        UPDATE analysis_report
+        SET report_status              = 30,
+            report_bioinfo_reviewed_by = #{userId},
+            report_bioinfo_reviewed_at = NOW(),
+            update_by                  = #{userId},
+            update_time                = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 21
+    </update>
+
+    <!-- 单文件行（重新驱动用）：拿落盘路径与当前状态 -->
+    <select id="selectFileRow" resultType="java.util.LinkedHashMap">
+        SELECT file_id   AS fileId,
+               file_name AS fileName,
+               file_path AS filePath,
+               status    AS status
+        FROM data_file_status
+        WHERE file_id = #{fileId}
+          AND analysis_id = #{analysisId}
+          AND del_flag = '0'
+    </select>
+
+    <!-- 批次级驱动状态（重新驱动后读回展示） -->
+    <select id="selectAnalysisDriveStatus" resultType="java.lang.Integer">
+        SELECT drive_status
+        FROM analysis_data
+        WHERE analysis_id = #{analysisId} AND del_flag = '0'
     </select>
 
     <!-- Tab② 查看文件内容：LEFT() 在库里截断，避免把超大 LONGTEXT 整个拉到应用层 -->
@@ -336,10 +423,12 @@
                r.report_file_raw_path AS reportFileRawPath,
                r.report_file_path  AS reportFilePath,
                r.report_signed_file_path AS reportSignedFilePath,
-               r.sign_status       AS signStatus,
                r.report_generated_by AS reportGeneratedBy,
                r.report_generated_at AS reportGeneratedAt,
-               r.status           AS status,
+               r.report_status    AS status,
+               r.report_bioinfo_viewed_by   AS reportBioinfoViewedBy,
+               r.report_bioinfo_reviewed_by AS reportBioinfoReviewedBy,
+               r.report_interpreted_by      AS reportInterpretedBy,
                t.template_code    AS templateCode,
                t.template_version AS templateVersion,
                t.module_code      AS moduleCode
@@ -409,7 +498,7 @@
     <!-- 审核动作（通过/驳回）：置状态 + 审核人/时间；驳回时同时写 comment（通过不改备注） -->
     <update id="updateReportReview">
         UPDATE analysis_report
-        SET status            = #{status},
+        SET report_status     = #{status},
             report_checked_by = #{checkedBy},
             report_checked_at = NOW(),
             update_by         = #{operatorId},
@@ -417,17 +506,23 @@
         <if test="comment != null">
             , comment = #{comment}
         </if>
+        <if test="revertFrom != null">
+            , report_revert_from = #{revertFrom}
+        </if>
+        <if test="revertReason != null">
+            , report_revert_reason = #{revertReason}
+        </if>
         WHERE report_id = #{reportId} AND del_flag = '0'
-          AND status IN
+          AND report_status IN
         <foreach collection="fromStatuses" item="item" open="(" separator="," close=")">#{item}</foreach>
     </update>
 
     <!-- 报告状态流转：只在允许的来源状态下更新（0 行 = 状态已变，调用方报错让用户刷新） -->
     <update id="updateReportStatusIfIn">
         UPDATE analysis_report
-        SET status = #{status}, update_time = NOW()
+        SET report_status = #{status}, update_time = NOW()
         WHERE report_id = #{reportId} AND del_flag = '0'
-          AND status IN
+          AND report_status IN
         <foreach collection="fromStatuses" item="item" open="(" separator="," close=")">#{item}</foreach>
     </update>
 

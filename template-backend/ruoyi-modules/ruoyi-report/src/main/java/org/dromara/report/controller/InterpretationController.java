@@ -12,7 +12,10 @@ import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.InterpretationEnterBo;
 import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
+import org.dromara.report.domain.bo.InterpretationBioinfoBo;
+import org.dromara.report.domain.bo.InterpretationSignCallbackBo;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
+import org.dromara.report.domain.bo.InterpretationFileRedriveBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationReviewBo;
 import org.dromara.report.domain.bo.InterpretationSendBo;
@@ -23,6 +26,7 @@ import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
+import org.dromara.report.domain.vo.FileRedriveVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationMailPreviewVo;
@@ -32,6 +36,7 @@ import org.dromara.report.domain.vo.ReportTemplateData;
 
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IInterpretationService;
+import org.dromara.report.service.IReportSignService;
 import org.dromara.report.service.impl.InterpretationReviewService;
 import org.dromara.report.service.impl.ReportFileService;
 import org.dromara.report.service.impl.ReportGenerationService;
@@ -91,6 +96,9 @@ public class InterpretationController extends BaseController {
     private final ReportMailPreviewService mailPreviewService;
 
     private final ReportMailSendService mailSendService;
+
+    /** 报告签名通道（未对接期是假实现 ReportSignStubService） */
+    private final IReportSignService reportSignService;
 
     /**
      * 分页查询报告解读列表
@@ -173,6 +181,77 @@ public class InterpretationController extends BaseController {
     }
 
     /**
+     * 签名回调（**上上签未对接期间的占位接口**）：成功 → 50 → 60 报告待发送；失败 → 50 → 52 报告签名失败。
+     * <p>
+     * 接真实通道后由 {@code ISsqSignService} 的回调替代（同一个 {@code IReportSignService} 实现）。
+     * 当前权限挂在「样本流转 › 报告签名」页签上（report:flow:signing），便于联调与断言测试。
+     *
+     * @param bo 入参（flowNo + success，失败可带 reason）
+     * @return 空响应
+     */
+    @SaCheckPermission("report:flow:signing")
+    @RepeatSubmit
+    @Log(title = "报告签名-回调（未对接期占位）", businessType = BusinessType.UPDATE)
+    @PostMapping("/sign/callback")
+    public R<Void> signCallback(@RequestBody @Validated InterpretationSignCallbackBo bo) {
+        if (Boolean.FALSE.equals(bo.getSuccess())) {
+            reportSignService.handleFailure(bo.getFlowNo(), bo.getReason());
+            return R.ok();
+        }
+        reportSignService.handleCallback(bo.getFlowNo(), bo.getSignedPdfUrl());
+        return R.ok();
+    }
+
+    /**
+     * Tab③ 筛选位点 - 看点完成：20 生信看点 → 21 生信审核。
+     * <p>
+     * 权限 = 筛选位点页签的权限（页签权限 = 页签内按钮权限，与全站口径一致）。
+     *
+     * @param bo 入参（analysisId / reportId）
+     * @return 流转后的报告状态
+     */
+    @SaCheckPermission("report:interpretation:variants")
+    @RepeatSubmit()
+    @Log(title = "筛选位点-看点完成", businessType = BusinessType.UPDATE)
+    @PostMapping("/bioinfo/view-complete")
+    public R<Integer> finishBioinfoView(@RequestBody @Validated InterpretationBioinfoBo bo) {
+        return R.ok(interpretationService.finishBioinfoView(bo.getAnalysisId(), bo.getReportId()));
+    }
+
+    /**
+     * Tab③ 筛选位点 - 生信复核通过：21 生信审核 → 30 报告待解读。
+     * <p>
+     * 不能复核「自己看点」的报告（服务端按 report_bioinfo_viewed_by 校验）；
+     * 权限同筛选位点页签。
+     *
+     * @param bo 入参（analysisId / reportId）
+     * @return 流转后的报告状态（30 报告待解读）
+     */
+    @SaCheckPermission("report:interpretation:variants")
+    @RepeatSubmit()
+    @Log(title = "筛选位点-生信复核通过", businessType = BusinessType.UPDATE)
+    @PostMapping("/bioinfo/review-complete")
+    public R<Integer> finishBioinfoReview(@RequestBody @Validated InterpretationBioinfoBo bo) {
+        return R.ok(interpretationService.finishBioinfoReview(bo.getAnalysisId(), bo.getReportId()));
+    }
+
+    /**
+     * Tab② 重新驱动单个文件：后端调外部 scanner.py（单文件驱动），脚本写回状态后把最新状态返回。
+     * <p>
+     * 只允许该批次内的文件；驱动未启用/脚本路径没配时明确报错，不做兜底假成功。
+     *
+     * @param bo 入参（analysisId / fileId）
+     * @return 文件最新状态 + 批次级驱动状态 + 脚本说明
+     */
+    @SaCheckPermission("report:interpretation:files")
+    @RepeatSubmit()
+    @Log(title = "集群对接-重新驱动", businessType = BusinessType.UPDATE)
+    @PostMapping("/file/redrive")
+    public R<FileRedriveVo> redriveFile(@RequestBody @Validated InterpretationFileRedriveBo bo) {
+        return R.ok(interpretationService.redriveFile(bo.getAnalysisId(), bo.getFileId()));
+    }
+
+    /**
      * Tab③ 筛选位点：按类型分页查询位点
      *
      * @param analysisId 分析数据ID
@@ -219,10 +298,10 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * 报告审核通过：置 APPROVED 并把该报告的位点匹配结果冻结进 history_*
+     * 报告审核通过：置 43（报告审核成功）并把该报告的位点匹配结果冻结进 history_*
      * （匹配历史只在审核通过时落库，预览与生成都是只读）。
      * <p>
-     * 只允许 PENDING_REVIEW 流转过来；产出人不能审核自己的报告；重复审核会直接报错。
+     * 只允许「报告待审核 / 报告审核中」（40/41）流转过来；产出人不能审核自己的报告；重复审核会直接报错。
      *
      * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
      */
@@ -236,7 +315,7 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * 报告驳回：PENDING_REVIEW → REJECTED，驳回原因必填并写入 analysis_report.comment。
+     * 报告驳回：40/41 回退到 31（报告解读中，同一条记录），驳回原因必填，写入 comment 与回退字段。
      * <p>
      * 只有待审核能驳回；产出人不能驳回自己的报告；状态更新带来源状态条件防重复驳回。
      *
@@ -305,7 +384,7 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * 提交审核：冻结本次解读的位点匹配历史（history_*），再把报告状态置为 PENDING_REVIEW。
+     * 提交解读：冻结本次解读的位点匹配历史（history_*），再把报告状态置为 40（报告待审核）。
      * <p>
      * 入参与生成接口同一套（模板 / 解读癌种 / 报告日期 / 解读人）：冻结结果依赖癌种范围等参数，
      * 必须与生成时一致，否则冻出来的历史跟报告内容对不上。只有已生成报告才能提交。
