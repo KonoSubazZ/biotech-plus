@@ -73,6 +73,14 @@ public class SampleFlowServiceImpl implements ISampleFlowService {
 
     @Override
     public TableDataInfo<SampleFlowRowVo> selectPageList(SampleFlowQueryBo bo, PageQuery pageQuery) {
+        String tab = bo.getTab();
+        if (!TAB_PERMS.containsKey(tab)) {
+            throw new ServiceException("页签不存在：" + tab);
+        }
+        // 口径：页签权限 = 页签内接口与按钮权限。列表也要按页签校验，
+        // 否则只有页面权限（report:flow:list）的角色能读到别的环节的数据。
+        StpUtil.checkPermission(TAB_PERMS.get(tab));
+
         Page<SampleFlowRowVo> page = sampleFlowMapper.selectFlowPage(pageQuery.build(), bo, LoginHelper.getUserId());
         return TableDataInfo.build(page);
     }
