@@ -1,7 +1,9 @@
 <script setup lang="tsx">
-import { ref, watch } from 'vue';
-import { NButton, NSwitch } from 'naive-ui';
+import { computed, ref, watch } from 'vue';
+import { NButton, NPopconfirm, NSwitch } from 'naive-ui';
 import {
+  fetchFinishBioinfoReview,
+  fetchFinishBioinfoView,
   fetchGetInterpretationVariantList,
   fetchUpdateVariantReportStatus
 } from '@/service/api/report/interpretation';
@@ -16,9 +18,86 @@ defineOptions({
 interface Props {
   /** 分析数据ID：位点范围锁定在这个批次内 */
   analysisId: number;
+  /** 报告ID（「看点完成」要写在哪条报告上） */
+  reportId?: number | null;
+  /** 报告状态（int 码，数字或字符串都收；只有 20 生信看点才允许看点完成） */
+  reportStatus?: number | string | null;
 }
 
 const props = defineProps<Props>();
+
+interface Emits {
+  /** 状态流转了（看点完成 20→21），通知详情页刷新报告头与状态标签 */
+  (e: 'changed'): void;
+}
+
+const emit = defineEmits<Emits>();
+
+/** 允许「看点完成」的报告状态：20 生信看点 */
+const VIEW_COMPLETABLE_STATUS = 20;
+
+/** 允许「生信复核通过」的报告状态：21 生信审核 */
+const REVIEW_COMPLETABLE_STATUS = 21;
+
+/** 看点完成按钮：报告状态是 20 才出现（完成后再点没有意义，后端也会拦） */
+const canFinishView = computed(() => Number(props.reportStatus) === VIEW_COMPLETABLE_STATUS);
+
+/** 生信复核通过按钮：报告状态是 21 才出现（看点人不能复核自己看点的，服务端也会拦） */
+const canFinishReview = computed(() => Number(props.reportStatus) === REVIEW_COMPLETABLE_STATUS);
+
+/** 看点完成请求中（防连点） */
+const finishingView = ref(false);
+
+/** 生信复核请求中（防连点） */
+const finishingReview = ref(false);
+
+/**
+ * 看点完成：20 生信看点 → 21 生信审核，看点人写 report_bioinfo_viewed_by。
+ * 完成后该样本从「样本流转 › 生信看点」消失、出现在「生信审核」（同一批报告，换环节看）。
+ */
+/**
+ * 生信复核通过：21 生信审核 → 30 报告待解读。
+ * 复核人不能是看点人本人（后端按 report_bioinfo_viewed_by 校验）；流转后样本出现在「报告待解读」页签。
+ */
+async function handleFinishReview() {
+  if (finishingReview.value) {
+    return;
+  }
+  finishingReview.value = true;
+  try {
+    const { data: status, error } = await fetchFinishBioinfoReview({
+      analysisId: props.analysisId,
+      reportId: props.reportId as number
+    });
+    if (error) {
+      return;
+    }
+    window.$message?.success(`生信复核通过，报告已流转到「报告待解读」（当前状态码 ${status}）`);
+    emit('changed');
+  } finally {
+    finishingReview.value = false;
+  }
+}
+
+async function handleFinishView() {
+  if (finishingView.value) {
+    return;
+  }
+  finishingView.value = true;
+  try {
+    const { data: status, error } = await fetchFinishBioinfoView({
+      analysisId: props.analysisId,
+      reportId: props.reportId as number
+    });
+    if (error) {
+      return;
+    }
+    window.$message?.success(`看点完成，报告已流转到「生信审核」（当前状态码 ${status}）`);
+    emit('changed');
+  } finally {
+    finishingView.value = false;
+  }
+}
 
 const { formRef, validate, restoreValidation } = useNaiveForm();
 
@@ -337,7 +416,21 @@ watch(
           {{ item.label }}
         </NRadioButton>
       </NRadioGroup>
-      <span class="text-12px op-60">共享状态：同一分析批次的位点「报出」状态不按报告隔离</span>
+      <div class="flex items-center gap-12px">
+        <span class="text-12px op-60">共享状态：同一分析批次的位点「报出」状态不按报告隔离</span>
+        <NPopconfirm v-if="canFinishView" @positive-click="handleFinishView">
+          <template #trigger>
+            <NButton size="small" type="primary" :loading="finishingView">看点完成</NButton>
+          </template>
+          确认看点完成？完成后报告流转到「生信审核」，且不能再由你复核该报告。
+        </NPopconfirm>
+        <NPopconfirm v-if="canFinishReview" @positive-click="handleFinishReview">
+          <template #trigger>
+            <NButton size="small" type="success" :loading="finishingReview">生信复核通过</NButton>
+          </template>
+          确认生信复核通过？报告将流转到「报告待解读」，等待解读人认领。
+        </NPopconfirm>
+      </div>
     </NSpace>
 
     <NForm ref="formRef" :model="searchParams" label-placement="left" :label-width="90">

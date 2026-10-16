@@ -21,14 +21,15 @@ defineOptions({
 interface Props {
   analysisId: number;
   reportId: number;
-  /** 报告当前状态（详情页 context 给的，用来判断能不能提交审核；可空 = 还没加载出来） */
-  reportStatus?: string | null;
+  /** 报告当前状态（详情页 context 给的，用来判断能不能生成报告 / 提交解读；可空 = 还没加载出来） */
+  /** 报告状态（后端返回 int 码，这里数组/字符串都收，内部统一 Number() 比较） */
+  reportStatus?: number | string | null;
 }
 
 const props = defineProps<Props>();
 
 interface Emits {
-  /** 状态被本页改过（如提交审核），通知详情页刷新报告头 */
+  /** 状态被本页改过（如提交解读），通知详情页刷新报告头 */
   (e: 'changed'): void;
 }
 
@@ -163,16 +164,22 @@ function handleDownload() {
   zip(fetchGetReportFileUrl(props.reportId, props.analysisId), '');
 }
 
-/** 允许提交审核的报告状态（与后端 InterpretationReviewService.SUBMITTABLE_STATUS 保持一致） */
-const SUBMITTABLE_STATUS = ['INTERPRETING', 'REJECTED'];
+/** 允许提交解读的报告状态（与后端 InterpretationReviewService.SUBMITTABLE_STATUS 一致：31/32/33） */
+const SUBMITTABLE_STATUS = [31, 32, 33];
 
-/** 提交审核按钮：已生成报告（有成品文件）+ 状态允许提交时才出现 */
-const canSubmitReview = computed(() => hasReportFile.value && SUBMITTABLE_STATUS.includes(props.reportStatus ?? ''));
+/** 允许「生成报告」的报告状态：31 报告解读中 / 32 生成成功 / 33 生成失败（与后端一致） */
+const GENERATABLE_STATUS = [31, 32, 33];
+
+/** 生成报告按钮：解读中阶段才出现（已提交审核的报告不能再生成，后端也会拦） */
+const canGenerate = computed(() => GENERATABLE_STATUS.includes(Number(props.reportStatus)));
+
+/** 提交解读按钮：已生成报告（有成品文件）+ 状态允许提交时才出现 */
+const canSubmitReview = computed(() => hasReportFile.value && SUBMITTABLE_STATUS.includes(Number(props.reportStatus)));
 
 const submitting = ref(false);
 
 /**
- * 提交审核：后端在同一事务里冻结本次解读的位点匹配历史（history_*）并把报告置为待审核。
+ * 提交解读：后端在同一事务里冻结本次解读的位点匹配历史（history_*）并把报告置为待审核（40）。
  * 参数与生成时同一套（预览页在已生成状态下是锁定回填的），否则冻出的历史与报告内容对不上。
  */
 async function handleSubmitReview() {
@@ -184,7 +191,7 @@ async function handleSubmitReview() {
       ...(generateParamsRef.value?.params ?? {})
     });
     if (!error) {
-      window.$message?.success('已提交审核，请到「审核报告」处理');
+      window.$message?.success('已提交解读，报告流转到「报告待审核」');
       emit('changed');
     }
   } finally {
@@ -632,7 +639,9 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         <NSpace :size="8">
           <NButton size="small" @click="jsonVisible = true">查看 JSON</NButton>
           <NButton size="small" type="primary" ghost :loading="editing" @click="() => loadPreview()">重新预览</NButton>
-          <NButton size="small" type="primary" :loading="generating" @click="handleGenerate">生成报告</NButton>
+          <NButton v-if="canGenerate" size="small" type="primary" :loading="generating" @click="handleGenerate">
+            生成报告
+          </NButton>
           <NButton v-if="hasReportFile" size="small" type="success" ghost @click="handleDownload">下载报告</NButton>
           <NButton
             v-if="canSubmitReview"
@@ -642,7 +651,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
             :loading="submitting"
             @click="handleSubmitReview"
           >
-            提交审核
+            提交解读
           </NButton>
         </NSpace>
       </NSpace>

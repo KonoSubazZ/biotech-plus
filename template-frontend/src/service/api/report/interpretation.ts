@@ -43,6 +43,33 @@ export function fetchGetInterpretationFileContent(params: { fileId: number; anal
   });
 }
 
+/** Tab③ 看点完成：20 生信看点 → 21 生信审核（返回流转后的状态码） */
+export function fetchFinishBioinfoView(data: { analysisId: number; reportId: number }) {
+  return request<number>({
+    url: '/report/interpretation/bioinfo/view-complete',
+    method: 'post',
+    data
+  });
+}
+
+/** Tab③ 生信复核通过：21 生信审核 → 30 报告待解读（返回流转后的状态码） */
+export function fetchFinishBioinfoReview(data: { analysisId: number; reportId: number }) {
+  return request<number>({
+    url: '/report/interpretation/bioinfo/review-complete',
+    method: 'post',
+    data
+  });
+}
+
+/** Tab② 重新驱动单个文件（后端调外部 scanner.py 驱动单文件，脚本写回状态后返回最新值） */
+export function fetchRedriveInterpretationFile(data: { analysisId: number; fileId: number }) {
+  return request<Api.Report.FileRedriveResult>({
+    url: '/report/interpretation/file/redrive',
+    method: 'post',
+    data
+  });
+}
+
 /** Tab③ 筛选位点：按类型分页查询位点 */
 export function fetchGetInterpretationVariantList(params: Api.Report.InterpretationVariantSearchParams) {
   return request<Api.Common.PaginatingQueryRecord<Api.Report.InterpretationVariant>>({

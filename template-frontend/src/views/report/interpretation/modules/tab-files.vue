@@ -1,10 +1,12 @@
 <script setup lang="tsx">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { NTag } from 'naive-ui';
 import {
   fetchGetInterpretationFileContent,
-  fetchGetInterpretationFileList
+  fetchGetInterpretationFileList,
+  fetchRedriveInterpretationFile
 } from '@/service/api/report/interpretation';
+import { useAuth } from '@/hooks/business/auth';
 import { useNaiveForm } from '@/hooks/common/form';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
@@ -22,7 +24,50 @@ interface Props {
 
 const props = defineProps<Props>();
 
+interface Emits {
+  /** 重新驱动完成（状态可能变了），通知详情页刷新报告头 */
+  (e: 'changed'): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const { hasAuth } = useAuth();
 const { formRef, validate, restoreValidation } = useNaiveForm();
+
+/** 重新驱动：页签权限 = 页签内按钮权限（后端同一权限点 + 会再校验文件归属） */
+const canRedrive = computed(() => hasAuth('report:interpretation:files'));
+
+/** 正在重新驱动的文件ID（按钮转圈，防连点） */
+const redrivingFileId = ref<number | null>(null);
+
+/**
+ * 重新驱动单个文件：后端起 scanner.py 驱动这个文件，脚本按「所有文件都 Loaded」重算样本级状态。
+ * 完成后刷新文件列表（样本级状态在报告头/样本流转页看到）。
+ */
+async function handleRedrive(fileId: number) {
+  if (redrivingFileId.value !== null) {
+    return;
+  }
+  redrivingFileId.value = fileId;
+  try {
+    const { data: result, error } = await fetchRedriveInterpretationFile({
+      analysisId: props.analysisId,
+      fileId
+    });
+    if (error) {
+      return;
+    }
+    if (result.fileStatus === 'Loaded') {
+      window.$message?.success(result.message || '重新驱动成功');
+    } else {
+      window.$message?.warning(result.message || `重新驱动未成功，文件状态：${result.fileStatus ?? '未知'}`);
+    }
+    await getData();
+    emit('changed');
+  } finally {
+    redrivingFileId.value = null;
+  }
+}
 
 /** 状态筛选项（data_file_status.status） */
 const FILE_STATUS_OPTIONS = [
@@ -105,8 +150,27 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
         ellipsis: { tooltip: true },
         render: row => row.message ?? '-'
       },
-      // 操作列先占位留着（按需求暂不放按钮）
-      { key: 'operate', title: $t('common.operate'), align: 'center', width: 100, fixed: 'right' }
+      {
+        key: 'operate',
+        title: $t('common.operate'),
+        align: 'center',
+        width: 110,
+        fixed: 'right',
+        // 每个文件行都能重新驱动（驱动脚本支持单文件：scanner.py <文件绝对路径> <根目录>）
+        render: row =>
+          canRedrive.value ? (
+            <NButton
+              text
+              type="primary"
+              loading={redrivingFileId.value === row.fileId}
+              onClick={() => handleRedrive(row.fileId)}
+            >
+              重新驱动
+            </NButton>
+          ) : (
+            <span>-</span>
+          )
+      }
     ]
   });
 

@@ -11,7 +11,8 @@ interface Props {
   analysisId: number;
   reportId: number;
   /** 报告当前状态（详情页 context 给的；SENT = 已发送，表单锁定） */
-  reportStatus?: string | null;
+  /** 报告状态（后端返回 int 码，这里数组/字符串都收，内部统一 Number() 比较） */
+  reportStatus?: number | string | null;
 }
 
 const props = defineProps<Props>();
@@ -23,8 +24,8 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 
-/** 已发送：表单锁定，不再允许改内容或重发 */
-const sent = computed(() => props.reportStatus === 'SENT');
+/** 已完成（62 报告发送成功）：表单锁定，不再允许改内容或重发 */
+const sent = computed(() => Number(props.reportStatus) === 62);
 
 const loading = ref(false);
 const sending = ref(false);

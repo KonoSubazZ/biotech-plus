@@ -162,11 +162,12 @@ async function backToList() {
 <template>
   <div
     class="min-h-500px flex-col-stretch gap-16px"
-    :class="currentReportId ? 'overflow-y-auto' : 'overflow-hidden lt-sm:overflow-auto'"
+    :class="currentAnalysisId ? 'overflow-y-auto' : 'overflow-hidden lt-sm:overflow-auto'"
   >
+    <!-- 只带 analysisId 也能进详情（驱动异常样本还没报告记录，只放行集群对接页签） -->
     <InterpretationDetail
-      v-if="currentReportId"
-      :report-id="currentReportId"
+      v-if="currentAnalysisId"
+      :report-id="currentReportId || null"
       :analysis-id="currentAnalysisId"
       :initial-tab="currentTab"
       @back="backToList"

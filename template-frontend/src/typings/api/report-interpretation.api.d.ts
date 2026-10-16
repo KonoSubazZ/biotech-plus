@@ -27,13 +27,13 @@ declare namespace Api {
       productId: number | null;
       /** 解读人员 */
       analyzer: string | null;
-      /** 集群驱动状态：DRIVING / LOADED / PARTIAL */
-      driveStatus: string | null;
+      /** 集群驱动状态（int 码：10 驱动失败 / 11 驱动成功 / 12 驱动中） */
+      driveStatus: number | null;
       /** 驱动执行时间 */
       driveExecutedAt: string | null;
       /** 报告ID（为空 = 该批次还没点过「解读」） */
       reportId: number | null;
-      /** 报告状态：INTERPRETING / PENDING_REVIEW / APPROVED / REJECTED / SENT */
+      /** 报告状态（int 码：20/21/30/31/32/33/40/41/42/43/50/52/53/60/61/62，见后端 utils/ReportStatus） */
       reportStatus: string | null;
       /** 解读癌种 */
       analysisDisease: string | null;
@@ -63,6 +63,20 @@ declare namespace Api {
         Common.CommonSearchParams
     >;
 
+    /** 单文件重新驱动结果（= 后端 FileRedriveVo） */
+    interface FileRedriveResult {
+      /** 文件ID */
+      fileId: number;
+      /** 文件名 */
+      fileName: string | null;
+      /** 该文件驱动后的状态（Loaded / Pending / Error） */
+      fileStatus: string | null;
+      /** 该批次的样本级驱动状态（int 码：10 失败 / 11 成功 / 12 驱动中） */
+      driveStatus: number | null;
+      /** 驱动脚本给的说明（成功行数 / 失败原因） */
+      message: string | null;
+    }
+
     /** 报告头信息（= 后端 AnalysisReportVo，进详情页要用 reportId） */
     interface InterpretationReport {
       reportId: number;
@@ -74,7 +88,8 @@ declare namespace Api {
       analysisDisease: string | null;
       templateId: number | null;
       template: string | null;
-      status: string;
+      /** 报告状态（int 码：20/21/30/31/32/33/40/41/42/43/50/52/53/60/61/62） */
+      reportStatus: number | null;
       comment: string | null;
       createTime: string | null;
       /** 报告产出人（用户ID字符串） */

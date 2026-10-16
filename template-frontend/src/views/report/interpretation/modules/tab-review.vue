@@ -64,7 +64,7 @@ const reportInfo = computed(() => (preview.value?.reportInfo ?? {}) as Record<st
 const sampleInfo = computed(() => (preview.value?.sampleInfo ?? {}) as Record<string, unknown>);
 
 /** 状态展示：中文标签 + 配色（未知值原样显示，不静默按正常色渲染） */
-const statusTag = computed(() => statusMeta(REPORT_STATUS_META, report.value?.status ?? null));
+const statusTag = computed(() => statusMeta(REPORT_STATUS_META, report.value?.reportStatus ?? null));
 
 const hasReportFile = computed(() => previewSource.value === 'artifact');
 const reportName = computed(() => text(reportInfo.value.reportName));
@@ -76,17 +76,22 @@ const isProducer = computed(() => {
   return producer != null && String(producer) === currentUserId.value;
 });
 
-/** 只有「待审核」且非产出人本人才能审核（服务端也会再校验一次） */
-const canReview = computed(() => report.value?.status === 'PENDING_REVIEW' && !isProducer.value);
+/** 允许审核的状态：40 报告待审核 / 41 报告审核中（与后端 REVIEWABLE_STATUS 一致），且非产出人本人 */
+const REVIEWABLE_STATUS = [40, 41];
+
+/** 只有「待审核 / 审核中」且非产出人本人才能审核（服务端也会再校验一次） */
+const canReview = computed(
+  () => REVIEWABLE_STATUS.includes(Number(report.value?.reportStatus)) && !isProducer.value
+);
 
 /** 不能审核时的原因提示；为空表示可审核 */
 const reviewHint = computed(() => {
-  const status = report.value?.status;
+  const status = report.value?.reportStatus;
   if (!status) {
     return '';
   }
-  if (status !== 'PENDING_REVIEW') {
-    return `当前状态「${statusTag.value.label}」不可审核：只有「待审核」的报告能通过/驳回（请在「报告预览」先提交审核）。`;
+  if (!REVIEWABLE_STATUS.includes(Number(status))) {
+    return `当前状态「${statusTag.value.label}」不可审核：只有「报告待审核 / 报告审核中」的报告能通过/驳回（请在「报告预览」先提交解读）。`;
   }
   if (isProducer.value) {
     return '产出人不能审核自己的报告。';
