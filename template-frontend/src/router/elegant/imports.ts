@@ -37,6 +37,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   "qc_wet-lab": () => import("@/views/qc/wet-lab/index.vue"),
   report_interpretation: () => import("@/views/report/interpretation/index.vue"),
   "report_mail-config": () => import("@/views/report/mail-config/index.vue"),
+  "report_sample-flow": () => import("@/views/report/sample-flow/index.vue"),
   "report_sample-info": () => import("@/views/report/sample-info/index.vue"),
   report_template: () => import("@/views/report/template/index.vue"),
   "report_variant-history": () => import("@/views/report/variant-history/index.vue"),

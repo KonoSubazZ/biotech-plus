@@ -192,6 +192,7 @@ const routeMap: RouteMap = {
   "report": "/report",
   "report_interpretation": "/report/interpretation",
   "report_mail-config": "/report/mail-config",
+  "report_sample-flow": "/report/sample-flow",
   "report_sample-info": "/report/sample-info",
   "report_template": "/report/template",
   "report_variant-history": "/report/variant-history",

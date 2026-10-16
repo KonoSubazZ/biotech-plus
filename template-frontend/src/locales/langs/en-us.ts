@@ -290,6 +290,7 @@ const local: App.I18n.Schema = {
     'report_template': 'Template Config',
     'report_variant-history': 'Variant History',
     'report_mail-config': 'Mail Config',
+    'report_sample-flow': 'Sample Flow',
     compliance: 'Compliance Management',
     'compliance_dev-log': 'Development Log',
     'compliance_validation-records': '3Q Validation Records',

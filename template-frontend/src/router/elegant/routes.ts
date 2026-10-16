@@ -257,6 +257,15 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'report_sample-flow',
+        path: '/report/sample-flow',
+        component: 'view.report_sample-flow',
+        meta: {
+          title: 'report_sample-flow',
+          i18nKey: 'route.report_sample-flow'
+        }
+      },
+      {
         name: 'report_sample-info',
         path: '/report/sample-info',
         component: 'view.report_sample-info',
