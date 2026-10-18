@@ -30,6 +30,9 @@ public class InterpretationPreviewBo implements Serializable {
     @NotNull(message = "报告ID不能为空")
     private Long reportId;
 
+    /** 仅在允许生成的状态下忽略旧制品，重新预览修改后的参数。 */
+    private boolean realtime;
+
     /**
      * 模板ID（可空）：一个产品配了多个模板时人工选择；
      * 不传用该产品的默认模板（见 ReportTemplateDataService.requireTemplateByProduct）。

@@ -15,6 +15,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * 集群驱动调用器：起一个 {@code scanner.py} 子进程驱动**单个文件**，把脚本 JSON 结果解析出来。
@@ -50,28 +52,72 @@ public class ClusterDriverInvoker {
      */
     public DriverInvokeResult invokeFile(String filePath) {
         requireConfigured();
+        return invoke(filePath);
+    }
+
+    public DriverInvokeResult invokeBatch(String analysisDate, String product, String subbarcode) {
+        requireBatchEnabled();
+        if (analysisDate == null || !analysisDate.matches("[0-9]{8}")) {
+            throw new ServiceException("分析日期必须为八位日期");
+        }
+        requirePathPart(product);
+        requirePathPart(subbarcode);
+        return invoke(analysisDate + "/" + product + "/" + subbarcode);
+    }
+
+    public void requireBatchEnabled() {
+        requireConfigured();
+        if (!properties.isBatchEnabled()) {
+            throw new ServiceException("批次重新解读尚未开放，需完成 scanner 表结构兼容联调后开启 driver.batch-enabled");
+        }
+    }
+
+    private void requirePathPart(String value) {
+        if (value == null || value.isBlank() || value.contains("/") || value.contains("\\")
+            || value.equals(".") || value.equals("..")) {
+            throw new ServiceException("驱动路径中的产品或样本编号不合法");
+        }
+    }
+
+    private DriverInvokeResult invoke(String filePath) {
         List<String> command = List.of(properties.getPython(), properties.getScannerPath(),
             filePath, properties.getRootDir());
         log.info("调用集群驱动：{}", String.join(" ", command));
-        Process process;
+        Process process = null;
+        Path outputFile = null;
         try {
-            process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            outputFile = Files.createTempFile("report-scanner-", ".log");
+            process = new ProcessBuilder(command).redirectErrorStream(true)
+                .redirectOutput(outputFile.toFile()).start();
+            if (!process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS)) {
+                throw new ServiceException("驱动脚本执行超时：" + filePath);
+            }
+            String output = Files.readString(outputFile, StandardCharsets.UTF_8);
+            if (process.exitValue() != 0) {
+                throw new ServiceException("驱动脚本执行失败：" + truncate(output));
+            }
+            return parse(output);
         } catch (IOException e) {
             throw new ServiceException("驱动脚本启动失败：" + e.getMessage());
-        }
-        String output;
-        try {
-            if (!process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS)) {
-                process.destroyForcibly();
-                throw new ServiceException("驱动脚本执行超时（" + properties.getTimeoutSeconds() + " 秒）：" + filePath);
-            }
-            output = readOutput(process.getInputStream());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            process.destroyForcibly();
             throw new ServiceException("驱动脚本执行被中断：" + filePath);
+        } finally {
+            cleanup(process, outputFile);
         }
-        return parse(output);
+    }
+
+    private void cleanup(Process process, Path outputFile) {
+        if (process != null && process.isAlive()) {
+            process.destroyForcibly();
+        }
+        try {
+            if (outputFile != null) {
+                Files.deleteIfExists(outputFile);
+            }
+        } catch (IOException e) {
+            log.warn("临时驱动日志保留：{}", outputFile, e);
+        }
     }
 
     /** 脚本没配好就别猜：直接报清楚缺什么 */
@@ -101,8 +147,11 @@ public class ClusterDriverInvoker {
     private DriverInvokeResult parse(String output) {
         String text = output == null ? "" : output;
         int jsonStart = text.lastIndexOf("\n{");
+        if (text.stripLeading().startsWith("{")) {
+            jsonStart = text.indexOf('{') - 1;
+        }
         DriverInvokeResult result = new DriverInvokeResult();
-        if (jsonStart < 0) {
+        if (jsonStart < 0 && !text.stripLeading().startsWith("{")) {
             result.setStatus("failed");
             result.setMessage("驱动脚本没有返回结果，请查看服务端日志");
             result.setRawOutput(truncate(text));
@@ -113,6 +162,7 @@ public class ClusterDriverInvoker {
             JsonNode node = MAPPER.readTree(text.substring(jsonStart + 1));
             result.setStatus(node.path("status").asText("failed"));
             result.setMessage(node.path("message").asText(""));
+            result.setFileCount(node.path("data").path("file_count").asInt(0));
             return result;
         } catch (IOException e) {
             result.setStatus("failed");

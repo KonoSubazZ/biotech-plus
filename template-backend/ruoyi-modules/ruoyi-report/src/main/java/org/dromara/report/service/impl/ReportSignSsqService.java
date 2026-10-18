@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.dromara.report.service.impl.revision.ReportOperationLock;
 
 /**
  * 报告签名：真实上上签通道（`report.sign.provider=ssq`）。
@@ -49,6 +50,7 @@ public class ReportSignSsqService implements IReportSignService {
     private static final String SSQ_COMPLETE = "COMPLETE";
 
     private final InterpretationMapper interpretationMapper;
+    private final ReportOperationLock operationLock;
 
     private final ISsqSignService ssqSignService;
 
@@ -66,6 +68,10 @@ public class ReportSignSsqService implements IReportSignService {
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public String submit(Long reportId) {
+        return operationLock.call(reportId, () -> submitLocked(reportId));
+    }
+
+    private String submitLocked(Long reportId) {
         Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
         if (report == null) {
             throw new ServiceException("报告不存在或已删除：reportId=" + reportId);
@@ -96,6 +102,11 @@ public class ReportSignSsqService implements IReportSignService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handleCallback(String flowNo, String signedPdfUrl) {
+        Map<String, Object> row = requireReportByFlowNo(flowNo);
+        operationLock.run(toLong(row.get("reportId")), () -> handleCallbackLocked(flowNo, signedPdfUrl));
+    }
+
+    private void handleCallbackLocked(String flowNo, String signedPdfUrl) {
         Map<String, Object> report = requireReportByFlowNo(flowNo);
         Long reportId = toLong(report.get("reportId"));
         // 上上签回调与手动「刷新签名」同一套逻辑：查状态 → 完成则下载签名件落盘并转 60
@@ -105,10 +116,16 @@ public class ReportSignSsqService implements IReportSignService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handleFailure(String flowNo, String reason) {
+        Map<String, Object> row = requireReportByFlowNo(flowNo);
+        operationLock.run(toLong(row.get("reportId")), () -> handleFailureLocked(flowNo, reason));
+    }
+
+    private void handleFailureLocked(String flowNo, String reason) {
         Map<String, Object> report = requireReportByFlowNo(flowNo);
         Long reportId = toLong(report.get("reportId"));
         String failReason = StringUtils.hasText(reason) ? reason : "签名通道返回失败";
-        int affected = interpretationMapper.updateReportSignResult(reportId, ReportStatus.SIGN_FAILED, null, failReason);
+        int affected = interpretationMapper.updateReportSignResultIfCurrent(
+            reportId, flowNo, ReportStatus.SIGN_FAILED, null, failReason);
         if (affected == 0) {
             throw new ServiceException("报告不在「签名中」，无法标记签名失败：reportId=" + reportId);
         }
@@ -165,6 +182,15 @@ public class ReportSignSsqService implements IReportSignService {
 
     /** 同步单个报告的签署状态：查通道 → 完成则下载签名件落盘并转 60；异常抛给调用方处理 */
     private void syncOne(Long reportId, String flowNo) {
+        operationLock.run(reportId, () -> syncOneLocked(reportId, flowNo));
+    }
+
+    private void syncOneLocked(Long reportId, String flowNo) {
+        Map<String, Object> current = interpretationMapper.selectReportRow(reportId);
+        if (current == null || toInt(current.get("status")) != ReportStatus.SIGNING
+            || !flowNo.equals(text(current.get("signFlowNo")))) {
+            throw new ServiceException("签名合同已失效或报告已完成签名，请刷新");
+        }
         if (!StringUtils.hasText(flowNo)) {
             throw new ServiceException("该报告没有签名合同号，无法查询签署状态：reportId=" + reportId);
         }
@@ -176,11 +202,17 @@ public class ReportSignSsqService implements IReportSignService {
 
         Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
         String reportName = report == null ? null : text(report.get("reportName"));
-        String fileBase = (StringUtils.hasText(reportName) ? reportName : "report-" + reportId) + "-signed";
+        String fileBase = StringUtils.hasText(reportName) ? reportName : "report-" + reportId;
         Path signedDir = ReportArtifactPaths.signedDir(artifactRoot, ReportArtifactPaths.REPORT, LocalDate.now());
+        if (report.get("reportVersion") != null) {
+            Path pdf = Path.of(text(report.get("reportFilePath")));
+            signedDir = pdf.getParent().getParent().resolve("signed");
+            String pdfName = pdf.getFileName().toString();
+            fileBase = pdfName.substring(0, pdfName.length() - 4);
+        }
         Path signed = ssqSignService.downloadSignedPdf(flowNo, signedDir, fileBase);
 
-        int affected = interpretationMapper.updateReportSignResult(reportId, ReportStatus.PENDING_SEND,
+        int affected = interpretationMapper.updateReportSignResultIfCurrent(reportId, flowNo, ReportStatus.PENDING_SEND,
             signed.toString(), null);
         if (affected == 0) {
             throw new ServiceException("报告不在「签名中」，无法确认签名成功：reportId=" + reportId);

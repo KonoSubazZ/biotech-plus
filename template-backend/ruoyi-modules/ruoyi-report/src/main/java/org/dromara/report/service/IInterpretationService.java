@@ -22,6 +22,9 @@ import java.util.Map;
  */
 public interface IInterpretationService {
 
+    /** 仅供已校验整批重扫结果的重新解读服务调用。 */
+    AnalysisReportVo enterAfterRescan(Long analysisId, Long sourceReportId);
+
     /**
      * 分页查询报告解读列表
      *

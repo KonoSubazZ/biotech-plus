@@ -28,6 +28,8 @@ import org.mockito.Mockito;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import org.dromara.report.mapper.ReportRevisionMapper;
+import org.dromara.report.service.impl.revision.ReportVersionAllocator;
 
 /**
  * 报告发送单测（不连库、不发信：Mapper / 配置服务 / 发信器全部 mock）。
@@ -71,7 +73,8 @@ public class ReportMailSendServiceTest {
         mailConfigService = Mockito.mock(IReportMailConfigService.class);
         mailSender = Mockito.mock(ReportMailSender.class);
         service = new ReportMailSendService(interpretationMapper, analysisReportMapper, emailLogMapper,
-            reportFileService, mailConfigService, mailSender);
+            reportFileService, mailConfigService, mailSender, ReportTestLocks.direct(),
+            Mockito.mock(ReportVersionAllocator.class), Mockito.mock(ReportRevisionMapper.class));
 
         Mockito.when(mailConfigService.loadForSend(Mockito.any())).thenReturn(config());
     }

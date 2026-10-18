@@ -19,6 +19,7 @@ import org.dromara.report.service.IReportSignService;
 import org.dromara.report.service.ISampleFlowService;
 import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Service;
+import org.dromara.report.service.impl.revision.ReportOperationLock;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -72,6 +73,7 @@ public class SampleFlowServiceImpl implements ISampleFlowService {
     );
 
     private final SampleFlowMapper sampleFlowMapper;
+    private final ReportOperationLock operationLock;
 
     private final IInterpretationService interpretationService;
 
@@ -212,6 +214,17 @@ public class SampleFlowServiceImpl implements ISampleFlowService {
 
     /** 报告待审核 40 → 41：认领人写 report_review_claimed_by；自己产出的报告不能认领 */
     private SampleFlowHandleVo claimReview(Map<String, Object> report, SampleFlowHandleVo vo) {
+        Long reportId = requireReport(report);
+        return operationLock.call(reportId, () -> {
+            Map<String, Object> latest = sampleFlowMapper.selectLatestReport(vo.getAnalysisId());
+            if (!reportId.equals(requireReport(latest))) {
+                throw new ServiceException("报告记录已更新，请刷新列表");
+            }
+            return claimReviewLocked(latest, vo);
+        });
+    }
+
+    private SampleFlowHandleVo claimReviewLocked(Map<String, Object> report, SampleFlowHandleVo vo) {
         Long reportId = requireReport(report);
         int status = toInt(report.get("reportStatus"));
         if (status != ReportStatus.PENDING_REVIEW) {

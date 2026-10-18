@@ -115,6 +115,10 @@ public class ReportTemplateData implements Serializable {
     @Data
     public static class ReportInfo implements Serializable {
 
+        /** 报告业务版本，与模板版本独立。 */
+        private Integer reportVersion;
+        private Integer generationNo;
+
         @Serial
         private static final long serialVersionUID = 1L;
 

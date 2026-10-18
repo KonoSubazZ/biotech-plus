@@ -292,6 +292,8 @@ report:
 
 driver:
   enabled: true
+  # 外部 scanner 的租户/analysis_id/驱动状态兼容联调完成后才开启。
+  batch-enabled: ${DRIVER_BATCH_ENABLED:false}
   python: python3
   scanner-path: /app/report-driver/scanner.py
   root-dir: /tmp/rp-upload

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.satoken.utils.LoginHelper;
+import org.dromara.common.satoken.utils.TenantContext;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationReviewBo;
 import org.dromara.report.mapper.InterpretationMapper;
@@ -21,6 +22,11 @@ import java.util.Map;
 
 import static org.dromara.report.service.impl.PreviewSupport.asString;
 import org.dromara.report.service.impl.preview.PreviewContextBuilder;
+import org.dromara.report.mapper.ReportRevisionMapper;
+import org.dromara.report.service.impl.revision.ReportArtifactStore;
+import org.dromara.report.service.impl.revision.ReportOperationLock;
+import org.dromara.report.service.impl.revision.ReportRevisionPolicy;
+import org.dromara.report.domain.vo.ReportTemplateData;
 
 /**
  * 报告审核：状态流转 + 提交审核时冻结匹配历史。
@@ -31,7 +37,7 @@ import org.dromara.report.service.impl.preview.PreviewContextBuilder;
  * <p>
  * 状态机（数字码见 {@link ReportStatus}）：
  * <pre>
- * 31/32/33 --提交解读--> 40 报告待审核 --审核通过--> 43 报告审核成功（随后自动送签）
+ * 32 --首次提交--> 40 报告待审核（复审提交直接分配原审核人，进入 41） --审核通过--> 43 报告审核成功（随后自动送签）
  *                                    \--审核不通过--> 回退 31 报告解读中（同一条记录，带回退原因）
  * </pre>
  * 「认领」（30→31、40→41）由样本流转/详情页的动作接口负责，这里只管审核动作本身。
@@ -42,13 +48,6 @@ import org.dromara.report.service.impl.preview.PreviewContextBuilder;
 @Component
 @RequiredArgsConstructor
 public class InterpretationReviewService {
-
-    /** 允许「提交解读」的来源状态：解读中 / 生成成功 / 生成失败（都还能再提交一次） */
-    private static final List<Integer> SUBMITTABLE_STATUS =
-        List.of(ReportStatus.INTERPRETING, ReportStatus.GENERATED, ReportStatus.GENERATE_FAILED);
-
-    /** 提交解读后的报告状态：报告待审核 */
-    private static final int STATUS_PENDING_REVIEW = ReportStatus.PENDING_REVIEW;
 
     /** 允许「审核通过 / 审核不通过」的来源状态：待审核（未认领也能审）、审核中（认领后审） */
     private static final List<Integer> REVIEWABLE_STATUS =
@@ -68,6 +67,10 @@ public class InterpretationReviewService {
 
     /** 报告签名通道（上上签未对接期间是假实现：只落状态链，见 ReportSignStubService） */
     private final IReportSignService reportSignService;
+    private final ReportRevisionMapper revisionMapper;
+    private final ReportArtifactStore artifactStore;
+    private final ReportOperationLock operationLock;
+    private final ReportFileService reportFileService;
 
     /**
      * 提交解读：先冻结匹配历史，再把报告状态置为 40（报告待审核）。
@@ -81,11 +84,21 @@ public class InterpretationReviewService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void submit(InterpretationPreviewBo bo) {
+        operationLock.run(bo.getReportId(), () -> submitLocked(bo));
+    }
+
+    private void submitLocked(InterpretationPreviewBo bo) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
         int status = currentStatus(report);
-        if (!SUBMITTABLE_STATUS.contains(status)) {
+        if (status != ReportStatus.GENERATED) {
             throw new ServiceException("当前状态（" + ReportStatus.label(status)
                 + "）不允许提交解读：reportId=" + bo.getReportId());
+        }
+
+        reportFileService.loadReportFile(bo.getReportId(), bo.getAnalysisId());
+        Long reviewerId = optionalLong(report.get("reportReviewerId"));
+        if (reviewerId != null) {
+            requireAvailableReviewer(report, reviewerId);
         }
         String reportFile = StringUtils.hasText(asString(report.get("reportFilePath")))
             ? asString(report.get("reportFilePath")) : asString(report.get("reportFileRawPath"));
@@ -93,10 +106,9 @@ public class InterpretationReviewService {
             throw new ServiceException("报告尚未生成，请先在「报告预览」生成报告：reportId=" + bo.getReportId());
         }
 
-        previewService.freezeHistory(bo);
+        previewService.freezeHistory(generatedParameters(bo, report));
 
-        int affected = interpretationMapper.updateReportStatusIfIn(
-            bo.getReportId(), STATUS_PENDING_REVIEW, SUBMITTABLE_STATUS);
+        int affected = revisionMapper.submitReview(bo.getReportId(), reviewerId);
         if (affected == 0) {
             throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + bo.getReportId());
         }
@@ -113,6 +125,10 @@ public class InterpretationReviewService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void approve(InterpretationPreviewBo bo) {
+        operationLock.run(bo.getReportId(), () -> approveLocked(bo));
+    }
+
+    private void approveLocked(InterpretationPreviewBo bo) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
         int status = currentStatus(report);
         if (STATUS_APPROVED == status) {
@@ -170,6 +186,10 @@ public class InterpretationReviewService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void reject(InterpretationReviewBo bo) {
+        operationLock.run(bo.getReportId(), () -> rejectLocked(bo));
+    }
+
+    private void rejectLocked(InterpretationReviewBo bo) {
         if (!StringUtils.hasText(bo.getReason())) {
             throw new ServiceException("驳回原因不能为空");
         }
@@ -180,6 +200,10 @@ public class InterpretationReviewService {
                 + "）不允许驳回：reportId=" + bo.getReportId());
         }
         assertNotProducer(report);
+
+        report.put("rejectedBy", LoginHelper.getUserId());
+        report.put("rejectedAt", java.time.LocalDateTime.now().toString());
+        artifactStore.rejected(report, bo.getReason().trim());
 
         // 审核不通过：同一条报告回退到「报告解读中」，来源状态与原因留在回退字段里
         // （样本流转「报告解读中」页签用它打「审核失败回退」标签，与正常认领区分）
@@ -207,10 +231,44 @@ public class InterpretationReviewService {
 
     /** 产出人不能审核自己的报告（report_generated_by 存的是用户ID字符串，与当前登录用户同口径比较） */
     private void assertNotProducer(Map<String, Object> report) {
-        String producer = asString(report.get("reportGeneratedBy"));
-        if (producer != null && producer.equals(currentUserId())) {
-            throw new ServiceException("产出人不能审核自己的报告：reportId=" + asString(report.get("reportId")));
+        Long reviewer = optionalLong(report.get("reportReviewerId"));
+        if (reviewer == null) {
+            reviewer = optionalLong(report.get("reportReviewClaimedBy"));
         }
+        ReportRevisionPolicy.requireReviewer(LoginHelper.getUserId(),
+            optionalLong(report.get("reportGeneratedBy")), reviewer);
+    }
+
+    private void requireAvailableReviewer(Map<String, Object> report, Long reviewerId) {
+        if (reviewerId.equals(optionalLong(report.get("reportGeneratedBy")))) {
+            throw new ServiceException("原审核人是本次产出人，不能提交定向复审");
+        }
+        int available = TenantContext.withoutTenant(() ->
+            revisionMapper.countReviewer(reviewerId, asString(report.get("tenantId"))));
+        if (available == 0) {
+            throw new ServiceException("原审核人已停用或无审核权限，请联系管理员恢复审核资格");
+        }
+    }
+
+    private Long optionalLong(Object value) {
+        if (value == null) {
+            return null; // 原始公共待审核报告尚无指定审核人。
+        }
+        return Long.valueOf(value.toString());
+    }
+
+    private InterpretationPreviewBo generatedParameters(InterpretationPreviewBo requested, Map<String, Object> report) {
+        ReportTemplateData frozen = artifactStore.generated(report);
+        InterpretationPreviewBo parameters = new InterpretationPreviewBo();
+        parameters.setAnalysisId(requested.getAnalysisId());
+        parameters.setReportId(requested.getReportId());
+        parameters.setTemplateId(optionalLong(report.get("templateId")));
+        parameters.setDisease(frozen.getSampleInfo() == null ? null : frozen.getSampleInfo().getDisease());
+        if (frozen.getReportInfo() != null) {
+            parameters.setReportDate(frozen.getReportInfo().getReportDate());
+            parameters.setAnalyzer(frozen.getReportInfo().getAnalyzer());
+        }
+        return parameters;
     }
 
     /** 当前登录用户ID（字符串口径，与 report_generated_by / report_checked_by 一致） */

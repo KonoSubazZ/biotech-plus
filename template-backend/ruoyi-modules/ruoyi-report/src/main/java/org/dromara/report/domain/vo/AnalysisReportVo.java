@@ -27,6 +27,13 @@ public class AnalysisReportVo implements Serializable {
     /** 报告ID */
     private Long reportId;
 
+    private Integer reportVersion;
+    private Integer reportGenerationNo;
+    private Long reportReviewerId;
+    private Long sourceReportId;
+    private Long reportReviewClaimedBy;
+    private String reportName;
+
     /** 所属分析批次 */
     private Long analysisId;
 

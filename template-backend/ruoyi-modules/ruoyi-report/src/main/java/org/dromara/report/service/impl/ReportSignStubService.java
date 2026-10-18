@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
+import org.dromara.report.service.impl.revision.ReportOperationLock;
 
 /**
  * 报告签名的**假实现**：上上签未对接期间顶替签名通道（`report.sign.provider=stub`，缺省就是它）。
@@ -36,6 +37,7 @@ import java.util.Map;
 public class ReportSignStubService implements IReportSignService {
 
     private final InterpretationMapper interpretationMapper;
+    private final ReportOperationLock operationLock;
 
     /**
      * 送签。
@@ -47,6 +49,10 @@ public class ReportSignStubService implements IReportSignService {
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public String submit(Long reportId) {
+        return operationLock.call(reportId, () -> submitLocked(reportId));
+    }
+
+    private String submitLocked(Long reportId) {
         Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
         if (report == null) {
             throw new ServiceException("报告不存在或已删除：reportId=" + reportId);
@@ -56,7 +62,7 @@ public class ReportSignStubService implements IReportSignService {
             throw new ServiceException("当前状态（" + ReportStatus.label(status) + "）不允许送签：reportId=" + reportId);
         }
 
-        String flowNo = "FAKE-SIGN-" + reportId + "-" + System.currentTimeMillis();
+        String flowNo = "FAKE-SIGN-" + reportId + "-" + java.util.UUID.randomUUID();
         int affected = interpretationMapper.updateReportSigning(reportId, flowNo);
         if (affected == 0) {
             throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + reportId);
@@ -68,10 +74,16 @@ public class ReportSignStubService implements IReportSignService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handleCallback(String flowNo, String signedPdfUrl) {
+        Map<String, Object> row = requireReportByFlowNo(flowNo);
+        operationLock.run(toLong(row.get("reportId")), () -> handleCallbackLocked(flowNo, signedPdfUrl));
+    }
+
+    private void handleCallbackLocked(String flowNo, String signedPdfUrl) {
         Map<String, Object> report = requireReportByFlowNo(flowNo);
         Long reportId = toLong(report.get("reportId"));
         // 未对接期没有真正的签名后 PDF：签名件路径留空（页面按「signed → pdf → docx」回退取文件）
-        int affected = interpretationMapper.updateReportSignResult(reportId, ReportStatus.PENDING_SEND, null, null);
+        int affected = interpretationMapper.updateReportSignResultIfCurrent(
+            reportId, flowNo, ReportStatus.PENDING_SEND, null, null);
         if (affected == 0) {
             throw new ServiceException("报告不在「签名中」，无法确认签名成功：reportId=" + reportId);
         }
@@ -82,12 +94,17 @@ public class ReportSignStubService implements IReportSignService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handleFailure(String flowNo, String reason) {
+        Map<String, Object> row = requireReportByFlowNo(flowNo);
+        operationLock.run(toLong(row.get("reportId")), () -> handleFailureLocked(flowNo, reason));
+    }
+
+    private void handleFailureLocked(String flowNo, String reason) {
         Map<String, Object> report = requireReportByFlowNo(flowNo);
         Long reportId = toLong(report.get("reportId"));
         String failReason = StringUtils.hasText(reason) ? reason : "签名通道返回失败";
         // 状态落 52 报告签名失败（带原因）；来源状态允许 43（送签即失败）与 50（回调失败）
-        int affected = interpretationMapper.updateReportSignResult(
-            reportId, ReportStatus.SIGN_FAILED, null, failReason);
+        int affected = interpretationMapper.updateReportSignResultIfCurrent(
+            reportId, flowNo, ReportStatus.SIGN_FAILED, null, failReason);
         if (affected == 0) {
             throw new ServiceException("报告不在「签名中」，无法标记签名失败：reportId=" + reportId);
         }

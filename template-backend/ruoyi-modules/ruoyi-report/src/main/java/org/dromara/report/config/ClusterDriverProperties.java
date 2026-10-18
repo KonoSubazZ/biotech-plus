@@ -24,6 +24,9 @@ public class ClusterDriverProperties {
     /** 是否启用「重新驱动」能力 */
     private boolean enabled = false;
 
+    /** 外部驱动完成当前表结构兼容联调后才能开启。 */
+    private boolean batchEnabled = false;
+
     /** python 解释器（后端容器里通常是 python3） */
     private String python = "python3";
 

@@ -20,6 +20,10 @@ import java.util.Map;
  */
 public interface InterpretationMapper {
 
+    int updateReportSignResultIfCurrent(@Param("reportId") Long reportId, @Param("flowNo") String flowNo,
+        @Param("status") int status, @Param("signedFilePath") String signedFilePath,
+        @Param("failReason") String failReason);
+
     /**
      * 分页查询「报告解读」列表：analysis_data ⟕ 该批次最新一份 analysis_report。
      *

@@ -1,5 +1,7 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.common.core.exception.ServiceException;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -149,14 +151,31 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     @Transactional(rollbackFor = Exception.class)
     public InterpretationPreviewVo preview(InterpretationPreviewBo bo) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
+        int status = Integer.parseInt(String.valueOf(report.get("status")));
+        boolean frozen = status >= 40 && status != 52;
+        Long templateId = bo.getTemplateId();
+        if (templateId == null) {
+            templateId = asLong(report.get("templateId"));
+        }
+        if (frozen || report.get("reportVersion") != null) {
+            templateId = asLong(report.get("templateId"));
+        }
         ReportTemplateVo template = reportTemplateDataService.requireTemplateByProduct(
-            asLong(report.get("productId")), asString(report.get("product")), bo.getTemplateId());
-        Optional<InterpretationPreviewVo> generated = readGeneratedArtifact(report, template);
+            asLong(report.get("productId")), asString(report.get("product")), templateId);
+        boolean editable = status == 31 || status == 32 || status == 33 || status == 52;
+        Optional<InterpretationPreviewVo> generated = Optional.empty();
+        if ((!bo.isRealtime() || !editable) && status != 31 && status != 33 && status != 52) {
+            generated = readGeneratedArtifact(report, template);
+        }
         if (generated.isPresent()) {
             return generated.get();
         }
+        if (frozen) {
+            throw new ServiceException("已送审报告的冻结 JSON 不可用，请联系管理员检查制品，不能改用实时预览");
+        }
         InterpretationPreviewVo vo = new InterpretationPreviewVo();
         vo.setSource(SOURCE_REALTIME);
+        bo.setTemplateId(template.getTemplateId());
         vo.setData(buildPreview(bo));
         return vo;
     }

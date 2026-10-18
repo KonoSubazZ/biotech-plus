@@ -35,7 +35,7 @@ public final class ReportNameResolver {
 
     /** report_template.report_name 为空时的默认拼接规则（业务口径，改这里等于改默认命名） */
     public static final String DEFAULT_PATTERN =
-        "{{subbarcode}}{{client}}{{templateName}}{{reportId}}";
+        "{{client}}_{{subbarcode}}_{{templateName}}";
 
     private static final Set<String> ALLOWED = new LinkedHashSet<>(ALLOWED_VARIABLES);
 

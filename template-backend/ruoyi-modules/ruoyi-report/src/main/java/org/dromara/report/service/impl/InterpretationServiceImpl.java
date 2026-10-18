@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.dromara.report.service.impl.revision.ReportOperationLock;
 
 /**
  * 报告解读 业务层处理
@@ -73,6 +74,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
 
     /** 集群驱动调用器（重新驱动单个文件，能力组件） */
     private final ClusterDriverInvoker clusterDriverInvoker;
+    private final ReportOperationLock operationLock;
 
     @Override
     public TableDataInfo<InterpretationRowVo> selectPageList(InterpretationQueryBo bo, PageQuery pageQuery) {
@@ -86,6 +88,19 @@ public class InterpretationServiceImpl implements IInterpretationService {
         if (analysisId == null) {
             throw new ServiceException("分析数据ID不能为空");
         }
+        return operationLock.call(-analysisId, () -> enterLocked(analysisId, null));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AnalysisReportVo enterAfterRescan(Long analysisId, Long sourceReportId) {
+        return operationLock.call(-analysisId, () -> enterLocked(analysisId, sourceReportId));
+    }
+
+    private AnalysisReportVo enterLocked(Long analysisId, Long sourceReportId) {
+        if (analysisId == null) {
+            throw new ServiceException("分析数据ID不能为空");
+        }
         AnalysisSnapshotVo snapshot = interpretationMapper.selectAnalysisSnapshot(analysisId);
         if (snapshot == null) {
             throw new ServiceException("分析数据不存在或已删除：analysisId=" + analysisId);
@@ -94,13 +109,24 @@ public class InterpretationServiceImpl implements IInterpretationService {
         // 同一个批次只维护一份报告：只要它还「未完成」（report_status ≠ 62）就复用它，
         // 只有报告已发送成功（完成）后再点「解读」才新建（用户 2026-10-16 口径）
         AnalysisReport existing = selectReusableReport(analysisId);
-        if (existing != null) {
+        if (existing != null && !Integer.valueOf(ReportStatus.COMPLETED).equals(existing.getReportStatus())) {
             // 老报告（本功能上线前建的）癌种/产品ID 可能为空：点「解读」时补齐，不覆盖已有值
             ensureReportSnapshot(existing);
             return analysisReportMapper.selectVoById(existing.getReportId());
         }
+        if (existing != null && (sourceReportId == null || !sourceReportId.equals(existing.getReportId()))) {
+            throw new ServiceException("报告已发送，请使用「重新解读」完成整批重扫后创建新报告");
+        }
+        if (sourceReportId != null && existing == null) {
+            throw new ServiceException("重新解读来源报告不存在");
+        }
 
         AnalysisReport report = new AnalysisReport();
+        report.setSourceReportId(sourceReportId);
+        if (sourceReportId != null) {
+            report.setTemplateId(existing.getTemplateId());
+            report.setTemplate(existing.getTemplate());
+        }
         report.setAnalysisId(snapshot.getAnalysisId());
         report.setAnalysisDate(snapshot.getAnalysisDate());
         report.setSubbarcode(snapshot.getSubbarcode());
@@ -452,7 +478,6 @@ public class InterpretationServiceImpl implements IInterpretationService {
     private AnalysisReport selectReusableReport(Long analysisId) {
         LambdaQueryWrapper<AnalysisReport> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(AnalysisReport::getAnalysisId, analysisId);
-        wrapper.ne(AnalysisReport::getReportStatus, ReportStatus.COMPLETED);
         wrapper.orderByDesc(AnalysisReport::getReportId);
         wrapper.last("LIMIT 1");
         return analysisReportMapper.selectOne(wrapper);

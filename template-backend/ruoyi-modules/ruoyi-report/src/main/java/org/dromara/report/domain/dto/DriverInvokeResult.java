@@ -22,6 +22,8 @@ public class DriverInvokeResult {
     /** 没解析出 JSON 时的原始输出片段（排错用，最长 500 字） */
     private String rawOutput;
 
+    private int fileCount;
+
     /** 脚本是否报告成功 */
     public boolean isSuccess() {
         return "success".equals(status);

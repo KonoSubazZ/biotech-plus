@@ -31,6 +31,14 @@ public class AnalysisReport extends BaseEntity {
     @TableId(value = "report_id")
     private Long reportId;
 
+    private Integer reportVersion;
+    private Long reportSequenceId;
+    private Integer reportGenerationNo;
+    private Long reportReviewerId;
+    private Long sourceReportId;
+    private Long reportReviewClaimedBy;
+    private String reportName;
+
     /** 所属分析批次 */
     private Long analysisId;
 

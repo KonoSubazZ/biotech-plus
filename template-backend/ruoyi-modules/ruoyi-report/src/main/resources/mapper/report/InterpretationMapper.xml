@@ -9,6 +9,15 @@
 -->
 <mapper namespace="org.dromara.report.mapper.InterpretationMapper">
 
+    <update id="updateReportSignResultIfCurrent">
+        UPDATE analysis_report SET report_status = #{status}, report_signed_file_path = #{signedFilePath},
+            report_sign_fail_reason = #{failReason},
+            report_sign_time = CASE WHEN #{status} = 60 THEN NOW() ELSE report_sign_time END,
+            update_time = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0' AND report_status = 50
+          AND report_sign_flow_no = #{flowNo}
+    </update>
+
     <select id="selectInterpretationPage" resultType="org.dromara.report.domain.vo.InterpretationRowVo">
         SELECT
             d.analysis_id         AS analysisId,
@@ -21,6 +30,7 @@
             d.drive_status        AS driveStatus,
             d.drive_executed_at   AS driveExecutedAt,
             r.report_id           AS reportId,
+            r.report_version      AS reportVersion,
             r.report_status       AS reportStatus,
             r.analysis_disease    AS analysisDisease,
             r.template_id         AS templateId,
@@ -429,6 +439,16 @@
     <!-- 预览用：报告 + 模板 + 分析行 -->
     <select id="selectReportRow" resultType="java.util.LinkedHashMap">
         SELECT r.report_id        AS reportId,
+               r.tenant_id        AS tenantId,
+               r.report_version   AS reportVersion,
+               r.report_sequence_id AS reportSequenceId,
+               r.report_generation_no AS reportGenerationNo,
+               r.report_reviewer_id AS reportReviewerId,
+               r.report_review_claimed_by AS reportReviewClaimedBy,
+               r.report_checked_by AS reportCheckedBy,
+               r.report_checked_at AS reportCheckedAt,
+               r.report_sign_flow_no AS signFlowNo,
+               r.source_report_id AS sourceReportId,
                r.report_name      AS reportName,
                r.analysis_id      AS analysisId,
                r.subbarcode       AS subbarcode,

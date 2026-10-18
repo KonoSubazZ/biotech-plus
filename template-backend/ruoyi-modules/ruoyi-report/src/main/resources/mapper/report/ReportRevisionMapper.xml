@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.report.mapper.ReportRevisionMapper">
+    <select id="lockSequenceById" resultType="java.util.LinkedHashMap">
+        SELECT base_name AS baseName, active_report_id AS activeReportId FROM report_version_sequence
+        WHERE id = #{id} FOR UPDATE
+    </select>
+    <update id="rememberBaseName">
+        UPDATE report_version_sequence SET base_name = #{baseName}, update_time = NOW()
+        WHERE id = #{id} AND base_name IS NULL
+    </update>
+    <select id="countUnconfirmedSend" resultType="int">
+        SELECT COUNT(*) FROM analysis_report_email_log WHERE report_id = #{reportId} AND status = 'SENDING'
+    </select>
+    <insert id="ensureSequence">
+        INSERT INTO report_version_sequence (tenant_id, client, subbarcode, template_id, create_time, update_time)
+        VALUES (#{row.tenantId}, #{row.client}, #{row.subbarcode}, #{row.templateId}, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE id = id
+    </insert>
+    <select id="lockSequence" resultType="java.util.LinkedHashMap">
+        SELECT id, sent_version AS sentVersion, active_report_id AS activeReportId
+        FROM report_version_sequence
+        WHERE tenant_id = #{row.tenantId} AND client = #{row.client}
+          AND subbarcode = #{row.subbarcode} AND template_id = #{row.templateId}
+        FOR UPDATE
+    </select>
+    <update id="claimSequence">
+        UPDATE report_version_sequence SET active_report_id = #{reportId}, update_time = NOW()
+        WHERE id = #{id} AND (active_report_id IS NULL OR active_report_id = #{reportId})
+    </update>
+    <update id="startGeneration">
+        UPDATE analysis_report
+        SET report_version = #{row.reportVersion}, report_sequence_id = #{row.sequenceId},
+            template_id = #{row.templateId}, report_generation_no = report_generation_no + 1,
+            report_reviewer_id = COALESCE(report_reviewer_id, report_checked_by),
+            report_checked_by = NULL, report_checked_at = NULL,
+            report_review_claimed_by = NULL, report_review_claimed_at = NULL,
+            report_sign_flow_no = NULL, report_sign_started_at = NULL, report_sign_time = NULL,
+            report_signed_file_path = NULL, report_sign_fail_reason = NULL,
+            report_gen_fail_reason = NULL, report_status = 31, update_time = NOW()
+        WHERE report_id = #{row.reportId} AND del_flag = '0' AND report_status IN (31, 32, 33, 52)
+    </update>
+    <update id="completeVersion">
+        UPDATE report_version_sequence s
+        JOIN analysis_report r ON r.report_sequence_id = s.id AND r.tenant_id = s.tenant_id
+        SET s.sent_version = r.report_version, s.active_report_id = NULL, s.update_time = NOW()
+        WHERE r.report_id = #{reportId} AND s.active_report_id = r.report_id
+          AND r.report_version = s.sent_version + 1 AND r.report_status IN (60, 61)
+    </update>
+    <update id="markSent">
+        UPDATE analysis_report SET report_status = 62, report_sent_by = #{userId},
+            report_sent_at = NOW(), update_time = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0' AND report_status IN (60, 61)
+    </update>
+    <update id="submitReview">
+        UPDATE analysis_report
+        SET report_status = CASE WHEN #{reviewerId} IS NULL THEN 40 ELSE 41 END,
+            report_review_claimed_by = #{reviewerId},
+            report_review_claimed_at = CASE WHEN #{reviewerId} IS NULL THEN NULL ELSE NOW() END,
+            update_time = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0' AND report_status = 32
+    </update>
+    <select id="countReviewer" resultType="int">
+        SELECT COUNT(DISTINCT u.user_id) FROM sys_user u
+        LEFT JOIN sys_user_role ur ON ur.user_id = u.user_id
+        LEFT JOIN sys_role role ON role.role_id = ur.role_id AND role.status = '0' AND role.del_flag = '0'
+        LEFT JOIN sys_role_menu rm ON rm.role_id = role.role_id
+        LEFT JOIN sys_menu m ON m.menu_id = rm.menu_id
+        WHERE u.user_id = #{userId} AND u.status = '0' AND u.del_flag = '0'
+          AND (u.tenant_id = #{tenantId} OR u.tenant_id = '000000')
+          AND (u.user_id = 1 OR role.role_key = 'superadmin' OR m.perms = 'report:interpretation:review')
+    </select>
+    <select id="countBadFiles" resultType="int">
+        SELECT COUNT(*) FROM data_file_status
+        WHERE analysis_id = #{analysisId} AND del_flag = '0' AND (status IS NULL OR status != 'Loaded')
+    </select>
+    <select id="countFiles" resultType="int">
+        SELECT COUNT(*) FROM data_file_status WHERE analysis_id = #{analysisId} AND del_flag = '0'
+    </select>
+    <select id="selectChild" resultType="long">
+        SELECT report_id FROM analysis_report WHERE source_report_id = #{sourceReportId} AND del_flag = '0'
+        ORDER BY report_id DESC LIMIT 1
+    </select>
+</mapper>

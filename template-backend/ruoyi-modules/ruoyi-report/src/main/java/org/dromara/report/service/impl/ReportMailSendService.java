@@ -25,6 +25,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.dromara.report.mapper.ReportRevisionMapper;
+import org.dromara.report.service.impl.revision.ReportOperationLock;
+import org.dromara.report.service.impl.revision.ReportVersionAllocator;
 
 /**
  * 报告发送：把「待发送」的报告（签名成功后 60）作为附件发出，并留审计痕、把报告置 62 完成。
@@ -69,6 +72,9 @@ public class ReportMailSendService {
     private final IReportMailConfigService mailConfigService;
 
     private final ReportMailSender mailSender;
+    private final ReportOperationLock operationLock;
+    private final ReportVersionAllocator versionAllocator;
+    private final ReportRevisionMapper revisionMapper;
 
     /**
      * 发送报告邮件。
@@ -77,19 +83,24 @@ public class ReportMailSendService {
      * @return {traceId, messageId, recipientCount, fromEmail}
      */
     public Map<String, Object> send(InterpretationSendBo bo) {
+        return operationLock.call(bo.getReportId(), () -> sendLocked(bo));
+    }
+
+    private Map<String, Object> sendLocked(InterpretationSendBo bo) {
         Map<String, Object> report = loadReport(bo.getReportId(), bo.getAnalysisId());
         requireSendable(report);
+        if (revisionMapper.countUnconfirmedSend(bo.getReportId()) > 0) {
+            throw new ServiceException("存在结果待核对的发送记录，请先核对邮箱和发送日志，勿直接重发");
+        }
         // 先取发件邮箱：配置有问题（没配/停用/缺密码）要在这里就拦掉，不要先落一条 SENDING 日志
         ReportMailConfig config = mailConfigService.loadForSend(bo.getConfigId());
 
         List<String> recipients = splitAddresses(bo.getTo());
         AnalysisReportEmailLog logRow = insertSendingLog(bo, recipients);
+        String messageId;
         try {
-            String messageId = mailSender.send(config, bo.getTo(), bo.getCc(), bo.getSubject(),
+            messageId = mailSender.send(config, bo.getTo(), bo.getCc(), bo.getSubject(),
                 toHtml(bo.getContent()), resolveAttachments(bo));
-            markSuccess(logRow.getId(), messageId);
-            markReportSent(bo.getReportId());
-            return buildResult(logRow.getTraceId(), messageId, recipients.size(), config.getFromEmail());
         } catch (RuntimeException e) {
             markFailed(logRow.getId(), e.getMessage());
             markReportSendFailed(bo.getReportId());
@@ -97,6 +108,14 @@ public class ReportMailSendService {
                 ? serviceException
                 : new ServiceException("邮件发送失败：" + e.getMessage());
         }
+        // SMTP 已成功后的登记异常不能改成「发送失败」；保留 SENDING 以阻止盲目重发。
+        if (report.get("reportVersion") != null) {
+            versionAllocator.sent(bo.getReportId(), LoginHelper.getUserId(), true);
+        } else {
+            markReportSent(bo.getReportId());
+        }
+        markSuccess(logRow.getId(), messageId);
+        return buildResult(logRow.getTraceId(), messageId, recipients.size(), config.getFromEmail());
     }
 
     /** 取报告行并校验属于该分析批次 */
