@@ -7,6 +7,7 @@ import java.util.List;
 /** 表名和可定位列只能来自此服务端白名单。 */
 @Getter
 public enum AuditSource {
+    TENANT("sys_tenant", "id", "tenant_id"),
     SAMPLE("sample_file", "id", "subbarcode"),
     WET_QC("wet_lab_qc", "id", "subbarcode"),
     BIO_QC("bioinfo_qc", "id", "subbarcode"),

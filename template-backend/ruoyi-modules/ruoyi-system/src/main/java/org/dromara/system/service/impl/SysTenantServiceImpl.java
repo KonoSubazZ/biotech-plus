@@ -2,6 +2,9 @@ package org.dromara.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.dromara.audit.domain.dto.AuditSource;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.service.impl.AuditRecorder;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.service.TenantService;
 import org.dromara.common.mybatis.core.page.PageQuery;
@@ -21,6 +24,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class SysTenantServiceImpl implements TenantService {
+    private final AuditRecorder auditRecorder;
     private final SysTenantMapper mapper;
     private final SysUserMapper userMapper;
     private final DataSource dataSource;
@@ -54,6 +58,12 @@ public class SysTenantServiceImpl implements TenantService {
     }
 
     public int create(SysTenant tenant) {
+        return auditRecorder.execute("药企新增",
+            List.of(AuditTarget.rows(AuditSource.TENANT, "tenant_id", tenant.getTenantId())),
+            () -> createPersisted(tenant));
+    }
+
+    private int createPersisted(SysTenant tenant) {
         if (TenantContext.PLATFORM_LOG_TENANT_ID.equals(tenant.getTenantId())) {
             throw new ServiceException("该租户编号为系统保留标识");
         }
@@ -65,6 +75,12 @@ public class SysTenantServiceImpl implements TenantService {
     }
 
     public int update(SysTenant tenant) {
+        return auditRecorder.execute("药企修改",
+            List.of(AuditTarget.rows(AuditSource.TENANT, "id", tenant.getId())),
+            () -> updatePersisted(tenant));
+    }
+
+    private int updatePersisted(SysTenant tenant) {
         if (tenant.getId() == null) throw new ServiceException("租户ID不能为空");
         SysTenant original = detail(tenant.getId());
         if (!original.getTenantId().equals(tenant.getTenantId())) throw new ServiceException("租户编号创建后不能修改");
@@ -76,9 +92,15 @@ public class SysTenantServiceImpl implements TenantService {
 
     @Transactional(rollbackFor = Exception.class)
     public int delete(List<Long> ids) {
+        return auditRecorder.execute("药企删除", List.of(AuditTarget.ids(AuditSource.TENANT, "id", ids)),
+            () -> deletePersisted(ids));
+    }
+
+    private int deletePersisted(List<Long> ids) {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         List<String> tables = jdbc.queryForList("SELECT TABLE_NAME FROM information_schema.COLUMNS "
-            + "WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'tenant_id' AND TABLE_NAME <> 'sys_tenant'", String.class);
+            + "WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'tenant_id' "
+            + "AND TABLE_NAME NOT IN ('sys_tenant', 'audit_event', 'audit_change')", String.class);
         for (Long id : ids) {
             SysTenant tenant = detail(id);
             if (TenantContext.DEFAULT_TENANT_ID.equals(tenant.getTenantId())) throw new ServiceException("默认租户不能删除");

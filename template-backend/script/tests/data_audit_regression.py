@@ -121,6 +121,41 @@ def fixture_row(table, values):
     return int(mysql(sql))
 
 
+def verify_tenant_changes(admin, tenant_id):
+    key = int(mysql('SELECT id FROM sys_tenant WHERE tenant_id=' + quote(tenant_id)))
+    body = {'id': key, 'tenantId': tenant_id, 'tenantName': '审计验收药企0', 'status': '0'}
+    for status, previous in [('1', '0'), ('0', '1')]:
+        body['status'] = status
+        success(call('PUT', '/system/tenant', admin, json=body), 'change audited tenant status to ' + status)
+        events = call('GET', '/compliance/dataAudit/list', admin,
+                      params={'action': '药企修改', 'auditScope': 'NON_SAMPLE'})['rows']
+        event = next(row for row in events if row['tenantId'] == tenant_id)
+        check(event.get('subbarcode') is None and event.get('analysisId') is None,
+              'tenant audit is non-sample with actual ownership')
+        detail = success(call('GET', '/compliance/dataAudit/' + str(event['id']), admin), 'read tenant status audit detail')
+        fields = json.loads(detail['changes'][0]['changedFieldsJson'])
+        check(detail['changes'][0]['tableName'] == 'sys_tenant'
+              and any(item['field'] == 'status' and item['before'] == previous
+                      and item['after'] == status for item in fields), 'actual tenant status before and after values')
+    body['tenantName'] = '审计验收药企已更新'
+    success(call('PUT', '/system/tenant', admin, json=body), 'edit audited tenant name')
+    check(mysql("SELECT COUNT(*) FROM audit_event e JOIN audit_change c ON c.event_id=e.id "
+                "WHERE e.tenant_id=" + quote(tenant_id) + " AND c.changed_fields_json LIKE '%tenant_name%';") == '2',
+          'tenant creation and name edit both retain changes')
+    return body
+
+
+def verify_empty_tenant_deletion(admin, suffix):
+    tenant_id = 'aud_empty_' + suffix
+    success(call('POST', '/system/tenant', admin,
+            json={'tenantId': tenant_id, 'tenantName': '审计删除验收', 'status': '0'}), 'create audited empty tenant')
+    key = int(mysql('SELECT id FROM sys_tenant WHERE tenant_id=' + quote(tenant_id)))
+    success(call('DELETE', '/system/tenant/' + str(key), admin), 'delete empty tenant despite its audit history')
+    check(mysql('SELECT COUNT(*) FROM sys_tenant WHERE id=' + str(key)) == '0', 'empty tenant actually deleted')
+    check(mysql('SELECT COUNT(*) FROM audit_event WHERE tenant_id=' + quote(tenant_id)) == '2',
+          'tenant creation and deletion audit history survives deletion')
+
+
 def run_api(password):
     admin = login('admin', password)
     suffix = secrets.token_hex(3)
@@ -128,6 +163,8 @@ def run_api(password):
     for index, tenant in enumerate(tenants):
         success(call('POST', '/system/tenant', admin, json={'tenantId': tenant,
                 'tenantName': '审计验收药企' + str(index), 'status': '0'}), 'create isolated tenant')
+    tenant_body = verify_tenant_changes(admin, tenants[0])
+    verify_empty_tenant_deletion(admin, suffix)
     menu_ids = [int(value) for value in mysql("SELECT menu_id FROM sys_menu WHERE menu_type IN ('C','F');").splitlines()]
     role_key = 'audit_test_' + suffix
     success(call('POST', '/system/role', admin, json={'roleName': '审计验收角色', 'roleKey': role_key,
@@ -140,6 +177,10 @@ def run_api(password):
                 'tenantId': tenant, 'password': password, 'roleIds': [role_id], 'status': '0', 'sex': '0'}),
                 'create audited user and role relation')
         tokens.append(login(name, password))
+    denied = call('PUT', '/system/tenant', tokens[0], json=dict(tenant_body, status='1'))
+    check(denied.get('code') != 200, 'ordinary tenant user cannot change tenant status')
+    check(mysql('SELECT status FROM sys_tenant WHERE tenant_id=' + quote(tenants[0])) == '0',
+          'denied tenant update leaves status unchanged')
     sample = 'AUDIT-SAMPLE-' + suffix
     second_sample = 'AUDIT-OTHER-' + suffix
     for code, tenant, token in zip([sample, second_sample], tenants, tokens):
@@ -219,6 +260,11 @@ def run_api(password):
         check(mysql('SELECT COUNT(*) FROM sample_file WHERE subbarcode=' + quote('AUDIT-ROLLBACK-' + suffix)) == '0',
               'audit failure rolls back actual business row')
         check(mysql('SELECT COUNT(*) FROM audit_event;') == before, 'audit failure rolls back parent event as well')
+        failed = call('PUT', '/system/tenant', admin, json=dict(tenant_body, status='1'))
+        check(failed.get('code') != 200, 'tenant status request fails when audit persistence fails')
+        check(mysql('SELECT status FROM sys_tenant WHERE tenant_id=' + quote(tenants[0])) == '0',
+              'audit persistence failure rolls back tenant status')
+        check(mysql('SELECT COUNT(*) FROM audit_event;') == before, 'failed tenant update leaves no partial audit event')
     finally:
         mysql('DROP TRIGGER qa_audit_fail;')
     check(call('POST', '/compliance/dataAudit', admin, json={}).get('code') != 200, 'no public audit write endpoint')

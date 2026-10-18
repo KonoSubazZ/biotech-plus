@@ -172,4 +172,27 @@ class AuditWriterTest {
         assertEquals(List.of("S001", "S002"), event.getAllValues().stream().map(DataAudit::getSubbarcode).toList());
         assertTrue(event.getAllValues().stream().allMatch(value -> "NO_CHANGE".equals(value.getOutcome())));
     }
+
+    @Test
+    void tenantStatusChangeBelongsToTargetTenantWithoutSampleIdentity() throws Exception {
+        AuditTarget target = AuditTarget.rows(AuditSource.TENANT, "id", 8L);
+        AuditCapture capture = capture();
+        capture.getBefore().put(target, List.of(Map.of("id", 8L, "tenant_id", "company_a",
+            "tenant_name", "药企A", "status", "0")));
+        after(Map.of(target, List.of(Map.of("id", 8L, "tenant_id", "company_a",
+            "tenant_name", "药企A", "status", "1"))));
+        writer.write(capture);
+        ArgumentCaptor<DataAudit> event = ArgumentCaptor.forClass(DataAudit.class);
+        verify(events).insert(event.capture());
+        assertEquals("company_a", event.getValue().getTenantId());
+        assertEquals("NON_SAMPLE", event.getValue().getAuditScope());
+        assertNull(event.getValue().getSubbarcode());
+        ArgumentCaptor<AuditChange> change = ArgumentCaptor.forClass(AuditChange.class);
+        verify(changes).insert(change.capture());
+        var field = new ObjectMapper().readTree(change.getValue().getChangedFieldsJson()).get(0);
+        assertEquals("sys_tenant", change.getValue().getTableName());
+        assertEquals("status", field.get("field").asText());
+        assertEquals("0", field.get("before").asText());
+        assertEquals("1", field.get("after").asText());
+    }
 }
