@@ -1,5 +1,9 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import java.util.List;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +34,6 @@ import org.dromara.report.service.impl.revision.ReportArtifactStore;
 import org.dromara.report.service.impl.revision.ReportOperationLock;
 import org.dromara.report.service.impl.revision.ReportRevisionPolicy;
 import org.dromara.report.service.impl.revision.ReportVersionAllocator;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /** 报告生成：预留版本、临时渲染、整轮发布与事务登记；失败保留原制品并归档。 */
 @Slf4j
@@ -38,10 +41,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 public class ReportGenerationService {
 
+    private final AuditRecorder auditRecorder;
+
     private final ReportArtifactStore artifactStore;
     private final ReportOperationLock operationLock;
     private final ReportVersionAllocator versionAllocator;
-    private final TransactionTemplate transactions;
 
 
     private final IInterpretationPreviewService previewService;
@@ -116,10 +120,11 @@ public class ReportGenerationService {
 
     private void registerPublished(InterpretationPreviewBo bo, ReportTemplateData data,
                                    ReportArtifactAttempt attempt, String reportName) {
-        transactions.executeWithoutResult(status -> {
+        auditRecorder.execute("报告生成成功", AuditTarget.report(bo.getReportId()), () -> {
             updateArtifact(bo, data, attempt.published("json", ".json"), attempt.published("docx", ".docx"),
                 attempt.published("pdf", ".pdf"), reportName);
             markGenerated(bo.getReportId());
+            return null; // 只登记已经完成的文件与状态，不跨文件渲染事务。
         });
     }
 
@@ -137,11 +142,25 @@ public class ReportGenerationService {
 
     /** 生成成功：状态转 32，并清空上一次的失败原因 */
     private void markGenerated(Long reportId) {
+        auditRecorder.execute("报告生成成功", AuditTarget.report(reportId), () -> {
+            markGeneratedPersisted(reportId);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void markGeneratedPersisted(Long reportId) {
         interpretationMapper.updateReportGenerated(reportId, ReportStatus.GENERATED, null);
     }
 
     /** 生成失败：状态落 33 并记原因（下次生成成功会自动清掉） */
     private void markGenerateFailed(Long reportId, String reason) {
+        auditRecorder.execute("报告生成失败", AuditTarget.report(reportId), () -> {
+            markGenerateFailedPersisted(reportId, reason);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void markGenerateFailedPersisted(Long reportId, String reason) {
         interpretationMapper.updateReportGenerated(reportId, ReportStatus.GENERATE_FAILED, reason);
         log.warn("报告生成失败：reportId={} 原因={}", reportId, reason);
     }

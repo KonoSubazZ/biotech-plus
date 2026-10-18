@@ -1,6 +1,9 @@
 package org.dromara.report.service.impl.preview;
 
 import lombok.RequiredArgsConstructor;
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.vo.PreviewDrugVo;
@@ -51,6 +54,7 @@ import org.dromara.report.service.impl.PreviewSupport;
 @Component
 @RequiredArgsConstructor
 public class VariantMatcher {
+    private final AuditRecorder auditRecorder;
 
     /** 五级临床意义标签（1~5） */
     private static final Map<Integer, String> SIGNIFICANCE_LABEL = Map.of(
@@ -130,6 +134,11 @@ public class VariantMatcher {
                                   boolean persistHistory) {
         String matchKey = matchKey(pc, item);
         boolean germline = "CR_ALL".equals(item.getSourceType());
+        if (persistHistory) {
+            AuditSource source = germline ? AuditSource.GERMLINE_HISTORY : AuditSource.SOMATIC_HISTORY;
+            auditRecorder.watch(List.of(AuditTarget.rows(source, "match_key", matchKey),
+                AuditTarget.rows(AuditSource.REUSE_HISTORY, "analysis_id", pc.getAnalysisId())));
+        }
         Map<String, Object> history = germline
             ? interpretationMapper.selectGermlineHistory(matchKey)
             : interpretationMapper.selectSomaticHistory(matchKey);

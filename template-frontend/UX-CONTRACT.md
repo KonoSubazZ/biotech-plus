@@ -30,3 +30,13 @@ Business source: the current user request and `../template-backend/script/sql/up
 - Changed parameters show a realtime preview and require regeneration before submitting. Submitted reports show the frozen generated JSON; missing artifacts are an explicit error.
 - Business versions display as V1/V2, independently of template versions and internal generation attempts. Generation success refreshes the report header and artifact preview.
 - Resubmission targets the original reviewer’s personal “报告审核中” queue. UI visibility follows the server assignment; authorization is always checked again by the server.
+
+## Data audit
+
+- 合规管理 > 数据审计 contains change records and sample history; both read the same immutable evidence.
+- The server enforces tenant scope for lists and detail. Detail additionally requires compliance:dataAudit:query.
+- Sample history requires a sample number, sorts by operation time plus event ID, and can include common sample events.
+- Search uses the existing NForm/NSelect components; table pagination and column settings use the shared table hook.
+- A failed detail load shows retry; an obsolete detail response cannot replace a newly selected event.
+- Pending list queries disable search inputs and view switches; resetting sample history returns to the sample-number prompt.
+- Passwords, hashes, tokens and keys never appear in evidence. The page has no edit/delete/restore action.

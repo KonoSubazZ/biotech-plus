@@ -124,7 +124,22 @@
             <artifactId>ruoyi-compliance</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-audit</artifactId>
+        </dependency>
+
     </dependencies>
+
+    <!-- 本地验收使用独立文件名，避免覆盖正在运行的开发服务。 -->
+    <profiles>
+        <profile>
+            <id>audit-verification</id>
+            <build>
+                <finalName>ruoyi-admin-audit-verification</finalName>
+            </build>
+        </profile>
+    </profiles>
 
     <build>
         <finalName>${project.artifactId}</finalName>

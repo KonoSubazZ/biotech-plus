@@ -1,5 +1,7 @@
 package org.dromara.test.report;
 
+import org.dromara.test.audit.AuditTestSupport;
+
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
@@ -28,7 +30,8 @@ class InterpretationRevisionReviewTest {
     private final IInterpretationPreviewService preview = Mockito.mock(IInterpretationPreviewService.class);
     private final ReportRevisionMapper revisions = Mockito.mock(ReportRevisionMapper.class);
     private final ReportArtifactStore store = Mockito.mock(ReportArtifactStore.class);
-    private final InterpretationReviewService service = new InterpretationReviewService(mapper, context, preview,
+    private final InterpretationReviewService service = new InterpretationReviewService(AuditTestSupport.recorder(),
+        mapper, context, preview,
         Mockito.mock(IReportSignService.class), revisions, store, ReportTestLocks.direct(),
         Mockito.mock(ReportFileService.class));
 

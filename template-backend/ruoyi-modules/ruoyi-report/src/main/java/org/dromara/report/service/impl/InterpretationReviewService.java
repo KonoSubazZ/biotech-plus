@@ -1,5 +1,8 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
@@ -49,6 +52,8 @@ import org.dromara.report.domain.vo.ReportTemplateData;
 @RequiredArgsConstructor
 public class InterpretationReviewService {
 
+    private final AuditRecorder auditRecorder;
+
     /** 允许「审核通过 / 审核不通过」的来源状态：待审核（未认领也能审）、审核中（认领后审） */
     private static final List<Integer> REVIEWABLE_STATUS =
         List.of(ReportStatus.PENDING_REVIEW, ReportStatus.REVIEWING);
@@ -84,6 +89,13 @@ public class InterpretationReviewService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void submit(InterpretationPreviewBo bo) {
+        auditRecorder.execute("报告提交审核", AuditTarget.report(bo.getReportId()), () -> {
+            submitPersisted(bo);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void submitPersisted(InterpretationPreviewBo bo) {
         operationLock.run(bo.getReportId(), () -> submitLocked(bo));
     }
 
@@ -125,6 +137,13 @@ public class InterpretationReviewService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void approve(InterpretationPreviewBo bo) {
+        auditRecorder.execute("报告审核通过", AuditTarget.report(bo.getReportId()), () -> {
+            approvePersisted(bo);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void approvePersisted(InterpretationPreviewBo bo) {
         operationLock.run(bo.getReportId(), () -> approveLocked(bo));
     }
 
@@ -172,7 +191,8 @@ public class InterpretationReviewService {
             reportSignService.submit(reportId);
         } catch (RuntimeException e) {
             log.warn("审核通过后自动送签失败，状态落 52 报告签名失败：reportId={} 原因={}", reportId, e.getMessage());
-            interpretationMapper.updateReportSignResult(reportId, ReportStatus.SIGN_FAILED, null, e.getMessage());
+            auditRecorder.executeNew("自动送签失败", AuditTarget.report(reportId),
+                () -> interpretationMapper.updateReportSignResult(reportId, ReportStatus.SIGN_FAILED, null, e.getMessage()));
         }
     }
 
@@ -186,6 +206,13 @@ public class InterpretationReviewService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void reject(InterpretationReviewBo bo) {
+        auditRecorder.execute("报告审核退回", AuditTarget.report(bo.getReportId()), () -> {
+            rejectPersisted(bo);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void rejectPersisted(InterpretationReviewBo bo) {
         operationLock.run(bo.getReportId(), () -> rejectLocked(bo));
     }
 

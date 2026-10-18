@@ -1,5 +1,7 @@
 package org.dromara.test;
 
+import org.dromara.test.audit.AuditTestSupport;
+
 import org.apache.ibatis.reflection.SystemMetaObject;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.service.TenantService;
@@ -56,7 +58,8 @@ class TenantOwnershipTest {
         SysUserRoleMapper relations = mock(SysUserRoleMapper.class);
         when(service.getUserTenantId(10L)).thenReturn("tenant-a");
         when(service.getUserTenantId(20L)).thenThrow(new ServiceException("无权访问"));
-        var roles = new SysRoleServiceImpl(mock(SysRoleMapper.class), mock(SysRoleMenuMapper.class), relations, service);
+        var roles = new SysRoleServiceImpl(AuditTestSupport.recorder(),
+            mock(SysRoleMapper.class), mock(SysRoleMenuMapper.class), relations, service);
         assertThrows(ServiceException.class, () -> roles.deleteAuthUsers(2L, new Long[]{10L, 20L}));
         verifyNoInteractions(relations);
     }

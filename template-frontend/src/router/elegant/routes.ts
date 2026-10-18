@@ -60,6 +60,15 @@ export const generatedRoutes: GeneratedRoute[] = [
     },
     children: [
       {
+        name: 'compliance_data-audit',
+        path: '/compliance/data-audit',
+        component: 'view.compliance_data-audit',
+        meta: {
+          title: 'compliance_data-audit',
+          i18nKey: 'route.compliance_data-audit'
+        }
+      },
+      {
         name: 'compliance_dev-log',
         path: '/compliance/dev-log',
         component: 'view.compliance_dev-log',

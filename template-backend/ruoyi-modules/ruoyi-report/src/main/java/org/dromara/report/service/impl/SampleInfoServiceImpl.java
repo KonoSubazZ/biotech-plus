@@ -1,5 +1,9 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -42,6 +46,8 @@ import java.util.Map;
 @Service
 public class SampleInfoServiceImpl implements ISampleInfoService {
 
+    private final AuditRecorder auditRecorder;
+
     private final SampleInfoMapper baseMapper;
 
     @Override
@@ -63,6 +69,12 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean insertByBo(SampleInfoBo bo) {
+        return auditRecorder.execute("样本信息新增",
+            List.of(AuditTarget.rows(AuditSource.SAMPLE, "subbarcode", bo.getSubbarcode())),
+            () -> insertByBoPersisted(bo));
+    }
+
+    private Boolean insertByBoPersisted(SampleInfoBo bo) {
         assertSubbarcodeUsable(bo.getSubbarcode(), null);
         SampleInfo entity = MapstructUtils.convert(bo, SampleInfo.class);
         return baseMapper.insert(entity) > 0;
@@ -71,6 +83,12 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean updateByBo(SampleInfoBo bo) {
+        return auditRecorder.execute("样本信息修改",
+            List.of(AuditTarget.rows(AuditSource.SAMPLE, "id", bo.getId())),
+            () -> updateByBoPersisted(bo));
+    }
+
+    private Boolean updateByBoPersisted(SampleInfoBo bo) {
         if (bo.getId() == null) {
             throw new ServiceException("修改样本信息必须提供主键");
         }
@@ -84,6 +102,12 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean deleteByIds(List<Long> ids) {
+        return auditRecorder.execute("样本信息删除",
+            List.of(AuditTarget.ids(AuditSource.SAMPLE, "id", ids)),
+            () -> deleteByIdsPersisted(ids));
+    }
+
+    private Boolean deleteByIdsPersisted(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             throw new ServiceException("请选择要删除的样本信息");
         }
@@ -162,6 +186,12 @@ public class SampleInfoServiceImpl implements ISampleInfoService {
      * 因此「含已删行」的取 id 走手写 SQL。
      */
     private boolean saveOrUpdateBySubbarcode(SampleInfoExcelRow row, String subbarcode) {
+        return auditRecorder.execute("样本信息导入",
+            List.of(AuditTarget.rows(AuditSource.SAMPLE, "subbarcode", subbarcode)),
+            () -> saveOrUpdateBySubbarcodePersisted(row, subbarcode));
+    }
+
+    private boolean saveOrUpdateBySubbarcodePersisted(SampleInfoExcelRow row, String subbarcode) {
         SampleInfo entity = MapstructUtils.convert(row, SampleInfo.class);
         entity.setSubbarcode(subbarcode);
 

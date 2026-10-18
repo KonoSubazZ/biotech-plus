@@ -1,5 +1,9 @@
 package org.dromara.system.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
+
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.bean.BeanUtil;
@@ -46,6 +50,8 @@ import java.util.*;
 @RequiredArgsConstructor
 @Service
 public class SysRoleServiceImpl implements ISysRoleService, RoleService {
+
+    private final AuditRecorder auditRecorder;
 
     private final SysRoleMapper baseMapper;
     private final SysRoleMenuMapper roleMenuMapper;
@@ -262,10 +268,17 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int insertRole(SysRoleBo bo) {
+        return auditRecorder.execute("角色新增",
+            List.of(AuditTarget.rows(AuditSource.ROLE, "role_key", bo.getRoleKey())),
+            () -> insertRolePersisted(bo));
+    }
+
+    private int insertRolePersisted(SysRoleBo bo) {
         SysRole role = MapstructUtils.convert(bo, SysRole.class);
         // 新增角色信息
         baseMapper.insert(role);
         bo.setRoleId(role.getRoleId());
+        auditRecorder.watch(List.of(AuditTarget.rows(AuditSource.ROLE_MENU, "role_id", role.getRoleId())));
         return insertRoleMenu(bo);
     }
 
@@ -278,6 +291,12 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int updateRole(SysRoleBo bo) {
+        return auditRecorder.execute("角色及菜单权限修改",
+            AuditTarget.roles(java.util.Collections.singletonList(bo.getRoleId())),
+            () -> updateRolePersisted(bo));
+    }
+
+    private int updateRolePersisted(SysRoleBo bo) {
         SysRole role = MapstructUtils.convert(bo, SysRole.class);
 
         if (SystemConstants.DISABLE.equals(role.getStatus()) && this.countUserRoleByRoleId(role.getRoleId()) > 0) {
@@ -299,6 +318,12 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
      */
     @Override
     public int updateRoleStatus(Long roleId, String status) {
+        return auditRecorder.execute("角色状态修改",
+            AuditTarget.roles(java.util.Collections.singletonList(roleId)),
+            () -> updateRoleStatusPersisted(roleId, status));
+    }
+
+    private int updateRoleStatusPersisted(Long roleId, String status) {
         if (SystemConstants.DISABLE.equals(status) && this.countUserRoleByRoleId(roleId) > 0) {
             throw new ServiceException("角色已分配，不能禁用!");
         }
@@ -338,6 +363,12 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int deleteRoleById(Long roleId) {
+        return auditRecorder.execute("角色删除",
+            AuditTarget.roles(java.util.Collections.singletonList(roleId)),
+            () -> deleteRoleByIdPersisted(roleId));
+    }
+
+    private int deleteRoleByIdPersisted(Long roleId) {
         // 删除角色与菜单关联
         roleMenuMapper.delete(new LambdaQueryWrapper<SysRoleMenu>().eq(SysRoleMenu::getRoleId, roleId));
         return baseMapper.deleteById(roleId);
@@ -352,6 +383,10 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int deleteRoleByIds(List<Long> roleIds) {
+        return auditRecorder.execute("角色批量删除", AuditTarget.roles(roleIds), () -> deleteRoleByIdsPersisted(roleIds));
+    }
+
+    private int deleteRoleByIdsPersisted(List<Long> roleIds) {
         List<SysRole> roles = baseMapper.selectByIds(roleIds);
         for (SysRole role : roles) {
             checkRoleAllowed(BeanUtil.toBean(role, SysRoleBo.class));
@@ -372,6 +407,12 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
      */
     @Override
     public int deleteAuthUser(SysUserRole userRole) {
+        return auditRecorder.execute("用户角色撤权",
+            AuditTarget.users(java.util.Collections.singletonList(userRole.getUserId())),
+            () -> deleteAuthUserPersisted(userRole));
+    }
+
+    private int deleteAuthUserPersisted(SysUserRole userRole) {
         tenantService.getUserTenantId(userRole.getUserId());
         if (LoginHelper.getUserId().equals(userRole.getUserId())) {
             throw new ServiceException("不允许修改当前用户角色!");
@@ -395,6 +436,12 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int deleteAuthUsers(Long roleId, Long[] userIds) {
+        return auditRecorder.execute("用户角色批量撤权",
+            AuditTarget.users(java.util.Arrays.asList(userIds)),
+            () -> deleteAuthUsersPersisted(roleId, userIds));
+    }
+
+    private int deleteAuthUsersPersisted(Long roleId, Long[] userIds) {
         for (Long userId : userIds) tenantService.getUserTenantId(userId);
         List<Long> ids = List.of(userIds);
         if (ids.contains(LoginHelper.getUserId())) {
@@ -419,6 +466,12 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int insertAuthUsers(Long roleId, Long[] userIds) {
+        return auditRecorder.execute("用户角色批量授权",
+            AuditTarget.users(java.util.Arrays.asList(userIds)),
+            () -> insertAuthUsersPersisted(roleId, userIds));
+    }
+
+    private int insertAuthUsersPersisted(Long roleId, Long[] userIds) {
         for (Long userId : userIds) tenantService.getUserTenantId(userId);
         // 新增用户与角色管理
         int rows = 1;
@@ -477,7 +530,9 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
             if (loginUser.getRoles().stream().anyMatch(r -> r.getRoleId().equals(roleId))) {
                 try {
                     StpUtil.logoutByTokenValue(token);
-                } catch (NotLoginException ignored) {
+                } catch (NotLoginException exception) {
+                    org.slf4j.LoggerFactory.getLogger(SysRoleServiceImpl.class)
+                        .debug("撤销角色时会话已经失效", exception);
                 }
             }
         });
@@ -513,7 +568,9 @@ public class SysRoleServiceImpl implements ISysRoleService, RoleService {
             if (userIds.contains(loginUser.getUserId())) {
                 try {
                     StpUtil.logoutByTokenValue(token);
-                } catch (NotLoginException ignored) {
+                } catch (NotLoginException exception) {
+                    org.slf4j.LoggerFactory.getLogger(SysRoleServiceImpl.class)
+                        .debug("撤销用户权限时会话已经失效", exception);
                 }
             }
         });

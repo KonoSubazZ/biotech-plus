@@ -295,6 +295,7 @@ const local: App.I18n.Schema = {
     'compliance_dev-log': 'Development Log',
     'compliance_validation-records': '3Q Validation Records',
     compliance_documents: '3Q Documents',
+    'compliance_data-audit': 'Data Audit',
     system_user: 'User Management',
     system_role: 'Role Management',
     system_menu: 'Menu Management',

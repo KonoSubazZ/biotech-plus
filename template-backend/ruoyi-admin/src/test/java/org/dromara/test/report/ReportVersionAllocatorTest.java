@@ -1,5 +1,7 @@
 package org.dromara.test.report;
 
+import org.dromara.test.audit.AuditTestSupport;
+
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.mapper.ReportRevisionMapper;
@@ -14,7 +16,7 @@ import java.util.Map;
 @Tag("local")
 class ReportVersionAllocatorTest {
     private final ReportRevisionMapper mapper = Mockito.mock(ReportRevisionMapper.class);
-    private final ReportVersionAllocator allocator = new ReportVersionAllocator(mapper);
+    private final ReportVersionAllocator allocator = new ReportVersionAllocator(AuditTestSupport.recorder(), mapper);
 
     private Map<String, Object> report() {
         return Map.of("reportId", 7L, "tenantId", "tenant-a", "subbarcode", "sample");

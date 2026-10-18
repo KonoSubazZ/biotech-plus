@@ -1,5 +1,9 @@
 package org.dromara.system.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
+
 import org.dromara.common.core.service.TenantService;
 import org.dromara.common.satoken.utils.TenantContext;
 import cn.hutool.core.bean.BeanUtil;
@@ -48,6 +52,8 @@ import java.util.*;
 @RequiredArgsConstructor
 @Service
 public class SysUserServiceImpl implements ISysUserService, UserService {
+
+    private final AuditRecorder auditRecorder;
 
     private void validateUserTenant(SysUserBo user, boolean edit) {
         tenantService.checkTenant(user.getTenantId());
@@ -291,6 +297,12 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int insertUser(SysUserBo user) {
+        return auditRecorder.execute("用户新增",
+            List.of(AuditTarget.rows(AuditSource.USER, "user_name", user.getUserName())),
+            () -> insertUserPersisted(user));
+    }
+
+    private int insertUserPersisted(SysUserBo user) {
         validateUserTenant(user, false);
         if (!checkUserNameUnique(user)) throw new ServiceException("登录账号已存在");
         SysUser sysUser = MapstructUtils.convert(user, SysUser.class);
@@ -298,6 +310,7 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
         int rows = baseMapper.insert(sysUser);
         user.setUserId(sysUser.getUserId());
         // 新增用户与角色管理
+        auditRecorder.watch(List.of(AuditTarget.rows(AuditSource.USER_ROLE, "user_id", user.getUserId())));
         insertUserRole(user, false);
         return rows;
     }
@@ -323,6 +336,12 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
     @CacheEvict(cacheNames = {CacheNames.SYS_NICKNAME, CacheNames.SYS_USER_NAME}, allEntries = true)
     @Transactional(rollbackFor = Exception.class)
     public int updateUser(SysUserBo user) {
+        return auditRecorder.execute("用户修改及角色绑定",
+            AuditTarget.users(java.util.Collections.singletonList(user.getUserId())),
+            () -> updateUserPersisted(user));
+    }
+
+    private int updateUserPersisted(SysUserBo user) {
         checkUserAllowed(user.getUserId());
         validateUserTenant(user, true);
         // 新增用户与角色管理
@@ -345,6 +364,13 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void insertUserAuth(Long userId, Long[] roleIds) {
+        auditRecorder.execute("用户角色授权", AuditTarget.users(java.util.Collections.singletonList(userId)), () -> {
+            insertUserAuthPersisted(userId, roleIds);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void insertUserAuthPersisted(Long userId, Long[] roleIds) {
         checkUserAllowed(userId);
         insertUserRole(userId, roleIds, true);
     }
@@ -358,6 +384,12 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
      */
     @Override
     public int updateUserStatus(Long userId, String status) {
+        return auditRecorder.execute("用户状态修改",
+            AuditTarget.users(java.util.Collections.singletonList(userId)),
+            () -> updateUserStatusPersisted(userId, status));
+    }
+
+    private int updateUserStatusPersisted(Long userId, String status) {
         return baseMapper.update(null,
             new LambdaUpdateWrapper<SysUser>()
                 .set(SysUser::getStatus, status)
@@ -373,6 +405,12 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
     @CacheEvict(cacheNames = CacheNames.SYS_NICKNAME, allEntries = true)
     @Override
     public int updateUserProfile(SysUserBo user) {
+        return auditRecorder.execute("用户资料修改",
+            AuditTarget.users(java.util.Collections.singletonList(user.getUserId())),
+            () -> updateUserProfilePersisted(user));
+    }
+
+    private int updateUserProfilePersisted(SysUserBo user) {
         return baseMapper.update(null,
             new LambdaUpdateWrapper<SysUser>()
                 .set(ObjectUtil.isNotNull(user.getNickName()), SysUser::getNickName, user.getNickName())
@@ -391,6 +429,12 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
      */
     @Override
     public boolean updateUserAvatar(Long userId, Long avatar) {
+        return auditRecorder.execute("用户头像修改",
+            AuditTarget.users(java.util.Collections.singletonList(userId)),
+            () -> updateUserAvatarPersisted(userId, avatar));
+    }
+
+    private boolean updateUserAvatarPersisted(Long userId, Long avatar) {
         return baseMapper.update(null,
             new LambdaUpdateWrapper<SysUser>()
                 .set(SysUser::getAvatar, avatar)
@@ -406,6 +450,12 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
      */
     @Override
     public int resetUserPwd(Long userId, String password) {
+        return auditRecorder.execute("用户密码重置",
+            AuditTarget.users(java.util.Collections.singletonList(userId)),
+            () -> resetUserPwdPersisted(userId, password));
+    }
+
+    private int resetUserPwdPersisted(Long userId, String password) {
         return baseMapper.update(null,
             new LambdaUpdateWrapper<SysUser>()
                 .set(SysUser::getPassword, password)
@@ -477,6 +527,12 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(cacheNames = {CacheNames.SYS_NICKNAME, CacheNames.SYS_USER_NAME}, allEntries = true)
     public int deleteUserById(Long userId) {
+        return auditRecorder.execute("用户删除",
+            AuditTarget.users(java.util.Collections.singletonList(userId)),
+            () -> deleteUserByIdPersisted(userId));
+    }
+
+    private int deleteUserByIdPersisted(Long userId) {
         // 删除用户与角色关联
         userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId));
         // 防止更新失败导致的数据删除
@@ -497,6 +553,12 @@ public class SysUserServiceImpl implements ISysUserService, UserService {
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(cacheNames = {CacheNames.SYS_NICKNAME, CacheNames.SYS_USER_NAME}, allEntries = true)
     public int deleteUserByIds(Long[] userIds) {
+        return auditRecorder.execute("用户批量删除",
+            AuditTarget.users(java.util.Arrays.asList(userIds)),
+            () -> deleteUserByIdsPersisted(userIds));
+    }
+
+    private int deleteUserByIdsPersisted(Long[] userIds) {
         for (Long userId : userIds) {
             checkUserAllowed(userId);
         }

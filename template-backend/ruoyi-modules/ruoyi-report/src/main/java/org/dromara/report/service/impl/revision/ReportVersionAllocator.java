@@ -1,5 +1,9 @@
 package org.dromara.report.service.impl.revision;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import java.util.List;
+
 import lombok.RequiredArgsConstructor;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.domain.vo.ReportTemplateVo;
@@ -14,11 +18,19 @@ import java.util.Objects;
 @Component
 @RequiredArgsConstructor
 public class ReportVersionAllocator {
+
+    private final AuditRecorder auditRecorder;
     private final ReportRevisionMapper mapper;
 
     /** 事务只覆盖占号及清除旧有效引用，不跨 Python/文件转换。 */
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> begin(Map<String, Object> report, ReportTemplateVo template) {
+        return auditRecorder.execute("报告版本占用与生成发起",
+            AuditTarget.report(Long.valueOf(String.valueOf(report.get("reportId")))),
+            () -> beginPersisted(report, template));
+    }
+
+    private Map<String, Object> beginPersisted(Map<String, Object> report, ReportTemplateVo template) {
         if (report.get("reportVersion") != null
             && !Objects.equals(number(report.get("templateId")), template.getTemplateId())) {
             throw new ServiceException("已占用业务版本的报告不能切换模板");
@@ -54,6 +66,13 @@ public class ReportVersionAllocator {
 
     @Transactional(rollbackFor = Exception.class)
     public void sent(Long reportId, Long userId, boolean versioned) {
+        auditRecorder.execute("报告发送成功及版本确认", AuditTarget.report(reportId), () -> {
+            sentPersisted(reportId, userId, versioned);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void sentPersisted(Long reportId, Long userId, boolean versioned) {
         if (versioned && mapper.completeVersion(reportId) != 1) {
             throw new ServiceException("报告版本登记冲突，邮件可能已发出，请核对发送日志，勿直接重发");
         }
@@ -72,6 +91,12 @@ public class ReportVersionAllocator {
     /** 名称主体按序列固化，模板配置变化不改变已占号报告或其后续版本的文件名。 */
     @Transactional(rollbackFor = Exception.class)
     public String name(Map<String, Object> report, String proposed) {
+        return auditRecorder.execute("报告版本名称登记",
+            AuditTarget.report(Long.valueOf(String.valueOf(report.get("reportId")))),
+            () -> namePersisted(report, proposed));
+    }
+
+    private String namePersisted(Map<String, Object> report, String proposed) {
         Long sequenceId = number(report.get("reportSequenceId"));
         Map<String, Object> sequence = mapper.lockSequenceById(sequenceId);
         if (sequence == null || !Objects.equals(number(report.get("reportId")),

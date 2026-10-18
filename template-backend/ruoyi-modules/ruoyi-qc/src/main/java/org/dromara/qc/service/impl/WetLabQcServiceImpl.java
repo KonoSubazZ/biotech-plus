@@ -1,5 +1,9 @@
 package org.dromara.qc.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.collection.CollUtil;
@@ -45,6 +49,8 @@ import java.util.Map;
 @Service
 public class WetLabQcServiceImpl implements IWetLabQcService {
 
+    private final AuditRecorder auditRecorder;
+
     /** 质控状态：全部判定项达标 */
     private static final String STATUS_PASSED = "passed";
     /** 质控状态：至少一项越界 */
@@ -78,6 +84,12 @@ public class WetLabQcServiceImpl implements IWetLabQcService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean updateByBo(WetLabQcBo bo) {
+        return auditRecorder.execute("质控记录修改",
+            List.of(AuditTarget.rows(AuditSource.WET_QC, "id", bo.getId())),
+            () -> updateByBoPersisted(bo));
+    }
+
+    private Boolean updateByBoPersisted(WetLabQcBo bo) {
         if (bo.getId() == null) {
             throw new ServiceException("修改湿实验质控记录必须提供主键");
         }
@@ -97,6 +109,12 @@ public class WetLabQcServiceImpl implements IWetLabQcService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean deleteByIds(List<Long> ids) {
+        return auditRecorder.execute("质控记录删除",
+            List.of(AuditTarget.ids(AuditSource.WET_QC, "id", ids)),
+            () -> deleteByIdsPersisted(ids));
+    }
+
+    private Boolean deleteByIdsPersisted(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             throw new ServiceException("请选择要删除的湿实验质控记录");
         }
@@ -183,6 +201,12 @@ public class WetLabQcServiceImpl implements IWetLabQcService {
      * @return 落库结果（新增/覆盖）
      */
     private SaveOutcome saveOne(WetLabQcBo item, String subbarcode) {
+        return auditRecorder.execute("湿实验质控导入",
+            List.of(AuditTarget.rows(AuditSource.WET_QC, "subbarcode", subbarcode)),
+            () -> saveOnePersisted(item, subbarcode));
+    }
+
+    private SaveOutcome saveOnePersisted(WetLabQcBo item, String subbarcode) {
         WetLabQc row = MapstructUtils.convert(item, WetLabQc.class);
         row.setSubbarcode(subbarcode);
         row.setId(null);

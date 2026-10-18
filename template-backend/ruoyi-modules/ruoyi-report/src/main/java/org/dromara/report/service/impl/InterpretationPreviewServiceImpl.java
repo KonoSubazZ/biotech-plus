@@ -1,5 +1,8 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+
 import org.dromara.common.core.exception.ServiceException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -71,6 +74,8 @@ import org.dromara.report.service.template.ReportTemplateDataService;
 @Service
 @RequiredArgsConstructor
 public class InterpretationPreviewServiceImpl implements IInterpretationPreviewService {
+
+    private final AuditRecorder auditRecorder;
 
     /** 预览来源：读已生成的 JSON 制品 */
     private static final String SOURCE_ARTIFACT = "artifact";
@@ -254,6 +259,13 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void freezeHistory(InterpretationPreviewBo bo) {
+        auditRecorder.execute("解读历史冻结", AuditTarget.report(bo.getReportId()), () -> {
+            freezeHistoryPersisted(bo);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void freezeHistoryPersisted(InterpretationPreviewBo bo) {
         assemble(bo, true);
     }
 
@@ -340,6 +352,15 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateVariantTarget(InterpretationTargetBo bo) {
+        auditRecorder.execute("解读位点改靶",
+            AuditTarget.reportVariant(bo.getReportId(), bo.getAnalysisId(), bo.getSourceType(), bo.getSourceId()),
+            () -> {
+            updateVariantTargetPersisted(bo);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void updateVariantTargetPersisted(InterpretationTargetBo bo) {
         variantEditService.updateVariantTarget(bo);
     }
 

@@ -1,6 +1,9 @@
 package org.dromara.report.service.impl.preview;
 
 import lombok.RequiredArgsConstructor;
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
@@ -39,6 +42,7 @@ import org.dromara.report.service.impl.NkbDrugMatcher;
 @Component
 @RequiredArgsConstructor
 public class VariantEditService {
+    private final AuditRecorder auditRecorder;
 
     private final InterpretationMapper interpretationMapper;
 
@@ -82,7 +86,11 @@ public class VariantEditService {
         // 必须带上人工父级：它参与匹配键，漏了会把改靶后的确认写到旧键上（实测踩到）
         item.setParentMutationIds(ParentMutationIds.parse(row.get("parentMutationId")));
         item.setMutationType("G");
-        int affected = interpretationMapper.updateGermlineSignificance(variantMatcher.matchKey(pc, item), significance);
+        String matchKey = variantMatcher.matchKey(pc, item);
+        List<AuditTarget> targets = new java.util.ArrayList<>(AuditTarget.report(bo.getReportId()));
+        targets.add(AuditTarget.rows(AuditSource.GERMLINE_HISTORY, "match_key", matchKey));
+        int affected = auditRecorder.execute("胚系临床意义确认", targets,
+            () -> interpretationMapper.updateGermlineSignificance(matchKey, significance));
         if (affected == 0) {
             throw new ServiceException("该位点还没有匹配历史，请先预览一次再确认临床意义");
         }

@@ -1,5 +1,9 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
+
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +51,8 @@ import org.dromara.report.service.impl.revision.ReportVersionAllocator;
 @Service
 @RequiredArgsConstructor
 public class ReportMailSendService {
+
+    private final AuditRecorder auditRecorder;
 
     /** 允许发送的报告状态：待发送（60）/ 发送失败可重发（61）；43 在签名流程落地前放行 */
     private static final List<Integer> SENDABLE_STATUS =
@@ -149,6 +155,12 @@ public class ReportMailSendService {
 
     /** 写一条 SENDING 日志（必须在发信之前，发信失败的痕迹才有落点） */
     private AnalysisReportEmailLog insertSendingLog(InterpretationSendBo bo, List<String> recipients) {
+        return auditRecorder.execute("报告发送发起",
+            AuditTarget.report(bo.getReportId()),
+            () -> insertSendingLogPersisted(bo, recipients));
+    }
+
+    private AnalysisReportEmailLog insertSendingLogPersisted(InterpretationSendBo bo, List<String> recipients) {
         AnalysisReportEmailLog row = new AnalysisReportEmailLog();
         row.setTraceId(UUID.randomUUID().toString().replace("-", ""));
         row.setAnalysisId(bo.getAnalysisId());
@@ -164,6 +176,13 @@ public class ReportMailSendService {
     }
 
     private void markSuccess(Long logId, String messageId) {
+        auditRecorder.execute("邮件服务商接受发送", List.of(AuditTarget.rows(AuditSource.EMAIL, "id", logId)), () -> {
+            markSuccessPersisted(logId, messageId);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void markSuccessPersisted(Long logId, String messageId) {
         emailLogMapper.update(null, Wrappers.<AnalysisReportEmailLog>lambdaUpdate()
             .eq(AnalysisReportEmailLog::getId, logId)
             .set(AnalysisReportEmailLog::getStatus, "SUCCESS")
@@ -172,6 +191,13 @@ public class ReportMailSendService {
     }
 
     private void markFailed(Long logId, String reason) {
+        auditRecorder.execute("邮件发送失败", List.of(AuditTarget.rows(AuditSource.EMAIL, "id", logId)), () -> {
+            markFailedPersisted(logId, reason);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void markFailedPersisted(Long logId, String reason) {
         emailLogMapper.update(null, Wrappers.<AnalysisReportEmailLog>lambdaUpdate()
             .eq(AnalysisReportEmailLog::getId, logId)
             .set(AnalysisReportEmailLog::getStatus, "FAILED")
@@ -197,6 +223,13 @@ public class ReportMailSendService {
 
     /** 发送失败（网络异常/收件地址错等）：报告置 61，页面可修改后重发；失败原因在邮件审计日志里 */
     private void markReportSendFailed(Long reportId) {
+        auditRecorder.execute("报告发送状态失败", AuditTarget.report(reportId), () -> {
+            markReportSendFailedPersisted(reportId);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void markReportSendFailedPersisted(Long reportId) {
         analysisReportMapper.update(null, Wrappers.<AnalysisReport>lambdaUpdate()
             .eq(AnalysisReport::getReportId, reportId)
             .set(AnalysisReport::getReportStatus, ReportStatus.SEND_FAILED)

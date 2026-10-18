@@ -26,6 +26,7 @@ declare module "@elegant-router/types" {
     "500": "/500";
     "about": "/about";
     "compliance": "/compliance";
+    "compliance_data-audit": "/compliance/data-audit";
     "compliance_dev-log": "/compliance/dev-log";
     "compliance_documents": "/compliance/documents";
     "compliance_validation-records": "/compliance/validation-records";
@@ -141,6 +142,7 @@ declare module "@elegant-router/types" {
     | "social-callback"
     | "user-center"
     | "about"
+    | "compliance_data-audit"
     | "compliance_dev-log"
     | "compliance_documents"
     | "compliance_validation-records"

@@ -1,5 +1,9 @@
 package org.dromara.qc.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.collection.CollUtil;
@@ -44,6 +48,8 @@ import java.util.Map;
 @Service
 public class BioinfoQcServiceImpl implements IBioinfoQcService {
 
+    private final AuditRecorder auditRecorder;
+
     /** 质控状态：全部判定项达标 */
     private static final String STATUS_PASSED = "passed";
     /** 质控状态：至少一项越界 */
@@ -77,6 +83,12 @@ public class BioinfoQcServiceImpl implements IBioinfoQcService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean updateByBo(BioinfoQcBo bo) {
+        return auditRecorder.execute("质控记录修改",
+            List.of(AuditTarget.rows(AuditSource.BIO_QC, "id", bo.getId())),
+            () -> updateByBoPersisted(bo));
+    }
+
+    private Boolean updateByBoPersisted(BioinfoQcBo bo) {
         if (bo.getId() == null) {
             throw new ServiceException("修改生信质控记录必须提供主键");
         }
@@ -97,6 +109,12 @@ public class BioinfoQcServiceImpl implements IBioinfoQcService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean deleteByIds(List<Long> ids) {
+        return auditRecorder.execute("质控记录删除",
+            List.of(AuditTarget.ids(AuditSource.BIO_QC, "id", ids)),
+            () -> deleteByIdsPersisted(ids));
+    }
+
+    private Boolean deleteByIdsPersisted(List<Long> ids) {
         if (CollUtil.isEmpty(ids)) {
             throw new ServiceException("请选择要删除的生信质控记录");
         }
@@ -176,6 +194,12 @@ public class BioinfoQcServiceImpl implements IBioinfoQcService {
      * @return true = 新增，false = 覆盖更新
      */
     private boolean saveOne(BioinfoQcBo item, String subbarcode) {
+        return auditRecorder.execute("生信质控导入",
+            List.of(AuditTarget.rows(AuditSource.BIO_QC, "subbarcode", subbarcode)),
+            () -> saveOnePersisted(item, subbarcode));
+    }
+
+    private boolean saveOnePersisted(BioinfoQcBo item, String subbarcode) {
         BioinfoQc entity = MapstructUtils.convert(item, BioinfoQc.class);
         entity.setSubbarcode(subbarcode);
         entity.setStatus(judgeStatus(entity));

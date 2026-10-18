@@ -291,6 +291,7 @@ const local: App.I18n.Schema = {
     'compliance_dev-log': '开发记录',
     'compliance_validation-records': '3Q 验证记录',
     compliance_documents: '3Q 文档管理',
+    'compliance_data-audit': '数据审计',
     system_user: '用户管理',
     system_role: '角色管理',
     system_menu: '菜单管理',

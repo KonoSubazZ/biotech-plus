@@ -172,6 +172,7 @@ const routeMap: RouteMap = {
   "500": "/500",
   "about": "/about",
   "compliance": "/compliance",
+  "compliance_data-audit": "/compliance/data-audit",
   "compliance_dev-log": "/compliance/dev-log",
   "compliance_documents": "/compliance/documents",
   "compliance_validation-records": "/compliance/validation-records",

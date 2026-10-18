@@ -1,5 +1,10 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
+import java.util.List;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
@@ -36,6 +41,8 @@ import org.dromara.report.service.impl.revision.ReportOperationLock;
 @ConditionalOnProperty(name = "report.sign.provider", havingValue = "stub", matchIfMissing = true)
 public class ReportSignStubService implements IReportSignService {
 
+    private final AuditRecorder auditRecorder;
+
     private final InterpretationMapper interpretationMapper;
     private final ReportOperationLock operationLock;
 
@@ -49,6 +56,10 @@ public class ReportSignStubService implements IReportSignService {
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public String submit(Long reportId) {
+        return auditRecorder.execute("报告送签", AuditTarget.report(reportId), () -> submitPersisted(reportId));
+    }
+
+    private String submitPersisted(Long reportId) {
         return operationLock.call(reportId, () -> submitLocked(reportId));
     }
 
@@ -74,6 +85,15 @@ public class ReportSignStubService implements IReportSignService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handleCallback(String flowNo, String signedPdfUrl) {
+        auditRecorder.execute("报告签署回调成功",
+            List.of(AuditTarget.rows(AuditSource.REPORT, "report_sign_flow_no", flowNo)),
+            () -> {
+            handleCallbackPersisted(flowNo, signedPdfUrl);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void handleCallbackPersisted(String flowNo, String signedPdfUrl) {
         Map<String, Object> row = requireReportByFlowNo(flowNo);
         operationLock.run(toLong(row.get("reportId")), () -> handleCallbackLocked(flowNo, signedPdfUrl));
     }
@@ -94,6 +114,15 @@ public class ReportSignStubService implements IReportSignService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handleFailure(String flowNo, String reason) {
+        auditRecorder.execute("报告签署失败",
+            List.of(AuditTarget.rows(AuditSource.REPORT, "report_sign_flow_no", flowNo)),
+            () -> {
+            handleFailurePersisted(flowNo, reason);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void handleFailurePersisted(String flowNo, String reason) {
         Map<String, Object> row = requireReportByFlowNo(flowNo);
         operationLock.run(toLong(row.get("reportId")), () -> handleFailureLocked(flowNo, reason));
     }

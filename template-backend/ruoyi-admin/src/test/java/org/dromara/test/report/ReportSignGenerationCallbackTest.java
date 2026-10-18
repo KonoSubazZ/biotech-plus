@@ -1,5 +1,7 @@
 package org.dromara.test.report;
 
+import org.dromara.test.audit.AuditTestSupport;
+
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.impl.ReportSignStubService;
@@ -12,7 +14,8 @@ import java.util.Map;
 @Tag("local")
 class ReportSignGenerationCallbackTest {
     private final InterpretationMapper mapper = Mockito.mock(InterpretationMapper.class);
-    private final ReportSignStubService service = new ReportSignStubService(mapper, ReportTestLocks.direct());
+    private final ReportSignStubService service = new ReportSignStubService(AuditTestSupport.recorder(),
+        mapper, ReportTestLocks.direct());
 
     @Test
     void obsoleteContractNeverUpdatesNewGeneration() {

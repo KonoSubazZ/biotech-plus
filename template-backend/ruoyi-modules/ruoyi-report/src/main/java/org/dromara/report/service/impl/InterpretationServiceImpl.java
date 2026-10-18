@@ -1,5 +1,9 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+import org.dromara.audit.domain.dto.AuditSource;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -61,6 +65,8 @@ import org.dromara.report.service.impl.revision.ReportOperationLock;
 @Service
 public class InterpretationServiceImpl implements IInterpretationService {
 
+    private final AuditRecorder auditRecorder;
+
     /** 单个文件内容最多返回的字符数（超大文件在库里 LEFT() 截断，避免整个 LONGTEXT 进内存/浏览器） */
     private static final int MAX_FILE_TEXT_LENGTH = 200_000;
 
@@ -85,6 +91,10 @@ public class InterpretationServiceImpl implements IInterpretationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AnalysisReportVo enter(Long analysisId) {
+        return auditRecorder.execute("进入生信解读", AuditTarget.analysis(analysisId), () -> enterPersisted(analysisId));
+    }
+
+    private AnalysisReportVo enterPersisted(Long analysisId) {
         if (analysisId == null) {
             throw new ServiceException("分析数据ID不能为空");
         }
@@ -94,6 +104,12 @@ public class InterpretationServiceImpl implements IInterpretationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AnalysisReportVo enterAfterRescan(Long analysisId, Long sourceReportId) {
+        return auditRecorder.execute("重扫后重新解读",
+            AuditTarget.analysis(analysisId),
+            () -> enterAfterRescanPersisted(analysisId, sourceReportId));
+    }
+
+    private AnalysisReportVo enterAfterRescanPersisted(Long analysisId, Long sourceReportId) {
         return operationLock.call(-analysisId, () -> enterLocked(analysisId, sourceReportId));
     }
 
@@ -192,6 +208,12 @@ public class InterpretationServiceImpl implements IInterpretationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Integer finishBioinfoView(Long analysisId, Long reportId) {
+        return auditRecorder.execute("生信看点完成",
+            AuditTarget.report(reportId),
+            () -> finishBioinfoViewPersisted(analysisId, reportId));
+    }
+
+    private Integer finishBioinfoViewPersisted(Long analysisId, Long reportId) {
         if (analysisId == null || reportId == null) {
             throw new ServiceException("analysisId 与 reportId 不能为空");
         }
@@ -216,6 +238,12 @@ public class InterpretationServiceImpl implements IInterpretationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Integer finishBioinfoReview(Long analysisId, Long reportId) {
+        return auditRecorder.execute("生信复核完成",
+            AuditTarget.report(reportId),
+            () -> finishBioinfoReviewPersisted(analysisId, reportId));
+    }
+
+    private Integer finishBioinfoReviewPersisted(Long analysisId, Long reportId) {
         if (analysisId == null || reportId == null) {
             throw new ServiceException("analysisId 与 reportId 不能为空");
         }
@@ -256,7 +284,17 @@ public class InterpretationServiceImpl implements IInterpretationService {
         }
 
         // 驱动脚本负责写库（文件级状态 + 按「所有文件都 Loaded」重算的样本级驱动状态）
-        DriverInvokeResult result = clusterDriverInvoker.invokeFile(filePath);
+        List<AuditTarget> auditTargets = List.of(AuditTarget.rows(AuditSource.ANALYSIS, "analysis_id", analysisId));
+        auditRecorder.process("文件重新驱动发起 fileId=" + fileId, "STARTED", auditTargets);
+        DriverInvokeResult result;
+        try {
+            result = clusterDriverInvoker.invokeFile(filePath);
+        } catch (RuntimeException exception) {
+            auditRecorder.process("文件重新驱动失败 fileId=" + fileId, "FAILED", auditTargets);
+            throw exception;
+        }
+        String outcome = result.isSuccess() ? "SUCCESS" : "FAILED";
+        auditRecorder.process("文件重新驱动返回 fileId=" + fileId, outcome, auditTargets);
         log.info("重新驱动完成：fileId={}，status={}，message={}", fileId, result.getStatus(), result.getMessage());
 
         // 把脚本写回的最新状态读回来（脚本是唯一写入口，这里不重复实现口径）
@@ -282,6 +320,15 @@ public class InterpretationServiceImpl implements IInterpretationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateVariantReportStatus(InterpretationVariantStatusBo bo) {
+        auditRecorder.execute("位点报出选择修改",
+            AuditTarget.variant(bo.getAnalysisId(), bo.getSourceType(), bo.getSourceId()),
+            () -> {
+            updateVariantReportStatusPersisted(bo);
+            return null; // void 业务动作无返回值。
+        });
+    }
+
+    private void updateVariantReportStatusPersisted(InterpretationVariantStatusBo bo) {
         assertAnalysisExists(bo.getAnalysisId());
         assertSourceType(bo.getSourceType());
         Integer isReported = bo.getIsReported();

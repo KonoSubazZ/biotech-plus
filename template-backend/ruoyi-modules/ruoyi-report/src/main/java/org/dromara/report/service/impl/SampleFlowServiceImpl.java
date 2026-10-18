@@ -1,5 +1,8 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
+
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +47,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class SampleFlowServiceImpl implements ISampleFlowService {
+
+    private final AuditRecorder auditRecorder;
 
     /** 跳转类页签 → 报告解读详情页的页签名（不在此表里的页签不跳转） */
     private static final Map<String, String> JUMP_TABS = Map.of(
@@ -198,6 +203,12 @@ public class SampleFlowServiceImpl implements ISampleFlowService {
 
     /** 报告待解读 30 → 31：认领人写 report_interpreted_by，数据随即出现在「报告解读中」页签 */
     private SampleFlowHandleVo claimInterpret(Map<String, Object> report, SampleFlowHandleVo vo) {
+        return auditRecorder.execute("领取报告解读",
+            AuditTarget.report(vo.getReportId()),
+            () -> claimInterpretPersisted(report, vo));
+    }
+
+    private SampleFlowHandleVo claimInterpretPersisted(Map<String, Object> report, SampleFlowHandleVo vo) {
         Long reportId = requireReport(report);
         int status = toInt(report.get("reportStatus"));
         if (status != ReportStatus.PENDING_INTERPRET) {
@@ -214,6 +225,12 @@ public class SampleFlowServiceImpl implements ISampleFlowService {
 
     /** 报告待审核 40 → 41：认领人写 report_review_claimed_by；自己产出的报告不能认领 */
     private SampleFlowHandleVo claimReview(Map<String, Object> report, SampleFlowHandleVo vo) {
+        return auditRecorder.execute("领取报告审核",
+            AuditTarget.report(vo.getReportId()),
+            () -> claimReviewPersisted(report, vo));
+    }
+
+    private SampleFlowHandleVo claimReviewPersisted(Map<String, Object> report, SampleFlowHandleVo vo) {
         Long reportId = requireReport(report);
         return operationLock.call(reportId, () -> {
             Map<String, Object> latest = sampleFlowMapper.selectLatestReport(vo.getAnalysisId());

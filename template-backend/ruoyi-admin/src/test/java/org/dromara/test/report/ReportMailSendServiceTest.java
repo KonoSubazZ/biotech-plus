@@ -1,5 +1,7 @@
 package org.dromara.test.report;
 
+import org.dromara.test.audit.AuditTestSupport;
+
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -72,7 +74,8 @@ public class ReportMailSendServiceTest {
         reportFileService = Mockito.mock(ReportFileService.class);
         mailConfigService = Mockito.mock(IReportMailConfigService.class);
         mailSender = Mockito.mock(ReportMailSender.class);
-        service = new ReportMailSendService(interpretationMapper, analysisReportMapper, emailLogMapper,
+        service = new ReportMailSendService(AuditTestSupport.recorder(),
+            interpretationMapper, analysisReportMapper, emailLogMapper,
             reportFileService, mailConfigService, mailSender, ReportTestLocks.direct(),
             Mockito.mock(ReportVersionAllocator.class), Mockito.mock(ReportRevisionMapper.class));
 

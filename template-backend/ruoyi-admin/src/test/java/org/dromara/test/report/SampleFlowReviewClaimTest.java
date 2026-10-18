@@ -1,5 +1,7 @@
 package org.dromara.test.report;
 
+import org.dromara.test.audit.AuditTestSupport;
+
 import cn.dev33.satoken.stp.StpUtil;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.domain.bo.SampleFlowHandleBo;
@@ -21,7 +23,7 @@ class SampleFlowReviewClaimTest {
     void claimRereadsStateInsideTheSharedReportLock() {
         SampleFlowMapper mapper = Mockito.mock(SampleFlowMapper.class);
         ReportOperationLock lock = ReportTestLocks.direct();
-        SampleFlowServiceImpl service = new SampleFlowServiceImpl(mapper, lock,
+        SampleFlowServiceImpl service = new SampleFlowServiceImpl(AuditTestSupport.recorder(), mapper, lock,
             Mockito.mock(IInterpretationService.class), Mockito.mock(IReportSignService.class));
         Mockito.when(mapper.selectLatestReport(1L)).thenReturn(
             Map.of("reportId", 7L, "reportStatus", 40),

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.audit.mapper.AuditSourceMapper">
+    <!-- 标识符仅由 AuditSource / AuditTarget 白名单生成；值必须使用绑定参数。 -->
+    <select id="snapshot" resultType="java.util.LinkedHashMap">
+        SELECT t.*
+        <if test="target.source.name() == 'EMAIL'">
+            , (SELECT r.subbarcode FROM analysis_report r
+                WHERE r.report_id = t.report_id AND r.tenant_id = t.tenant_id) AS _audit_subbarcode
+        </if>
+        FROM `${target.tableName}` t
+        WHERE
+        <choose>
+            <when test="target.source.name() == 'SEQUENCE' and target.keys.size() > 0">
+                t.subbarcode IN (SELECT r.subbarcode FROM analysis_report r WHERE r.report_id IN
+                <foreach collection="target.keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+                <if test="restricted">AND r.tenant_id = #{tenantId}</if>)
+            </when>
+            <when test="target.keys.size() > 0">
+                t.`${target.keyColumn}` IN
+                <foreach collection="target.keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+            </when>
+            <otherwise>1 = 0</otherwise>
+        </choose>
+        <if test="restricted and target.source.name() != 'ROLE' and target.source.name() != 'ROLE_MENU'">
+            AND t.tenant_id = #{tenantId}
+        </if>
+        FOR UPDATE
+    </select>
+</mapper>

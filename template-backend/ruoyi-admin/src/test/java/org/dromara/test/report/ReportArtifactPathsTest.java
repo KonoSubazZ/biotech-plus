@@ -25,26 +25,26 @@ public class ReportArtifactPathsTest {
     @Test
     @DisplayName("报告：docx/pdf/signed 按日期分目录，json 平铺")
     void reportDirs() {
-        Assertions.assertEquals("/app/reports/report/docx/20261012",
+        Assertions.assertEquals(Paths.get("/app/reports/report/docx/20261012").toString(),
             ReportArtifactPaths.docxDir(ROOT, ReportArtifactPaths.REPORT, DAY).toString());
-        Assertions.assertEquals("/app/reports/report/pdf/20261012",
+        Assertions.assertEquals(Paths.get("/app/reports/report/pdf/20261012").toString(),
             ReportArtifactPaths.pdfDir(ROOT, ReportArtifactPaths.REPORT, DAY).toString());
-        Assertions.assertEquals("/app/reports/report/signed/20261012",
+        Assertions.assertEquals(Paths.get("/app/reports/report/signed/20261012").toString(),
             ReportArtifactPaths.signedDir(ROOT, ReportArtifactPaths.REPORT, DAY).toString());
-        Assertions.assertEquals("/app/reports/report/json",
+        Assertions.assertEquals(Paths.get("/app/reports/report/json").toString(),
             ReportArtifactPaths.jsonDir(ROOT, ReportArtifactPaths.REPORT).toString());
     }
 
     @Test
     @DisplayName("通知：与报告完全同构")
     void notifyMirrorsReport() {
-        Assertions.assertEquals("/app/reports/notify/docx/20261012",
+        Assertions.assertEquals(Paths.get("/app/reports/notify/docx/20261012").toString(),
             ReportArtifactPaths.docxDir(ROOT, ReportArtifactPaths.NOTIFY, DAY).toString());
-        Assertions.assertEquals("/app/reports/notify/pdf/20261012",
+        Assertions.assertEquals(Paths.get("/app/reports/notify/pdf/20261012").toString(),
             ReportArtifactPaths.pdfDir(ROOT, ReportArtifactPaths.NOTIFY, DAY).toString());
-        Assertions.assertEquals("/app/reports/notify/signed/20261012",
+        Assertions.assertEquals(Paths.get("/app/reports/notify/signed/20261012").toString(),
             ReportArtifactPaths.signedDir(ROOT, ReportArtifactPaths.NOTIFY, DAY).toString());
-        Assertions.assertEquals("/app/reports/notify/json",
+        Assertions.assertEquals(Paths.get("/app/reports/notify/json").toString(),
             ReportArtifactPaths.jsonDir(ROOT, ReportArtifactPaths.NOTIFY).toString());
         // 一条规则：<root>/<type>/<stage>/<yyyyMMdd>
         Assertions.assertEquals(ReportArtifactPaths.stageDir(ROOT, "notify", "pdf", DAY),

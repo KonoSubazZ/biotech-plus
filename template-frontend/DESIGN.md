@@ -42,3 +42,9 @@ Show business labels, preserve failed form input, confirm deletion, disable dupl
 
 ## Report interpretation workflow
 Report regeneration extends the existing table, detail tabs, NSelect parameter controls, status tags and application messages. Keep the current layout and tokens. Display report business versions separately from template versions; use “重新解读” for the action that rescans a sent report and creates its next record. Busy state disables input without replacing edited values.
+
+## Data audit
+
+Data audit reuses the compliance search/table shell and read-only detail drawer.
+The sample number and analysis/report identifiers remain selectable. Change history defaults newest first;
+sample history requires a complete sample number and orders oldest first. No create/delete/restore controls.

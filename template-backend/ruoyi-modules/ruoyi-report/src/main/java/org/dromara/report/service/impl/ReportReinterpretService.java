@@ -1,6 +1,8 @@
 package org.dromara.report.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.dromara.audit.service.impl.AuditRecorder;
+import org.dromara.audit.domain.dto.AuditTarget;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.satoken.utils.TenantContext;
 import org.dromara.report.domain.bo.InterpretationReinterpretBo;
@@ -19,6 +21,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class ReportReinterpretService {
+    private final AuditRecorder auditRecorder;
     private final InterpretationMapper interpretationMapper;
     private final AnalysisReportMapper reportMapper;
     private final ReportRevisionMapper revisionMapper;
@@ -44,8 +47,17 @@ public class ReportReinterpretService {
             return reportMapper.selectVoById(childId);
         }
         driver.requireBatchEnabled();
-        DriverInvokeResult result = driver.invokeBatch(source.get("analysisDate").toString(),
-            source.get("product").toString(), source.get("subbarcode").toString());
+        auditRecorder.process("重新解读扫描发起", "STARTED", AuditTarget.report(bo.getReportId()));
+        DriverInvokeResult result;
+        try {
+            result = driver.invokeBatch(source.get("analysisDate").toString(),
+                source.get("product").toString(), source.get("subbarcode").toString());
+        } catch (RuntimeException exception) {
+            auditRecorder.process("重新解读扫描失败", "FAILED", AuditTarget.report(bo.getReportId()));
+            throw exception;
+        }
+        String outcome = result.isSuccess() ? "SUCCESS" : "FAILED";
+        auditRecorder.process("重新解读扫描返回", outcome, AuditTarget.report(bo.getReportId()));
         if (!result.isSuccess() || result.getFileCount() <= 0
             || revisionMapper.countFiles(bo.getAnalysisId()) == 0
             || revisionMapper.countBadFiles(bo.getAnalysisId()) > 0

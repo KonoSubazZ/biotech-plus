@@ -1,5 +1,7 @@
 package org.dromara.test.report;
 
+import org.dromara.test.audit.AuditTestSupport;
+
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.domain.bo.InterpretationReinterpretBo;
 import org.dromara.report.domain.dto.DriverInvokeResult;
@@ -28,7 +30,8 @@ class ReportReinterpretServiceTest {
     private final ReportRevisionMapper revisions = Mockito.mock(ReportRevisionMapper.class);
     private final IInterpretationService interpretations = Mockito.mock(IInterpretationService.class);
     private final ClusterDriverInvoker driver = Mockito.mock(ClusterDriverInvoker.class);
-    private final ReportReinterpretService service = new ReportReinterpretService(mapper, reports, revisions,
+    private final ReportReinterpretService service = new ReportReinterpretService(AuditTestSupport.recorder(),
+        mapper, reports, revisions,
         interpretations, driver, ReportTestLocks.direct());
 
     private InterpretationReinterpretBo bo() {
@@ -113,7 +116,7 @@ class ReportReinterpretServiceTest {
             return 1;
         });
         Mockito.when(reports.selectVoById(8L)).thenReturn(new AnalysisReportVo());
-        InterpretationServiceImpl entry = new InterpretationServiceImpl(mapper, reports,
+        InterpretationServiceImpl entry = new InterpretationServiceImpl(AuditTestSupport.recorder(), mapper, reports,
             Mockito.mock(SampleInfoMapper.class), Mockito.mock(ReportTemplateMapper.class), driver,
             ReportTestLocks.direct());
         Assertions.assertNotNull(entry.enterAfterRescan(1L, 7L));
