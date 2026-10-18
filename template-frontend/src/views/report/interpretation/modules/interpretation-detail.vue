@@ -27,7 +27,7 @@ interface Props {
   initialTab?: string;
 }
 
-const props = withDefaults(defineProps<Props>(), { initialTab: '' });
+const props = withDefaults(defineProps<Props>(), { initialTab: '', reportId: null });
 
 interface Emits {
   (e: 'back'): void;
@@ -113,6 +113,7 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
             </span>
             <NTag v-if="noReport" type="warning">未建报告</NTag>
             <NTag v-else :type="reportStatus.type">{{ reportStatus.label }}</NTag>
+            <NTag v-if="context?.report.reportVersion" type="info">V{{ context.report.reportVersion }}</NTag>
             <span class="text-13px op-60">分析批次 {{ props.analysisId }}</span>
           </NSpace>
           <NButton @click="emit('back')">
@@ -183,6 +184,8 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
             <InterpretationTabPreview
               :analysis-id="props.analysisId"
               :report-id="props.reportId ?? 0"
+              :template-id="context?.report.templateId"
+              :report-version="context?.report.reportVersion"
               :report-status="context?.report.reportStatus ?? null"
               @changed="loadContext"
             />

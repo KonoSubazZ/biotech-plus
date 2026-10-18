@@ -3,7 +3,11 @@ import { computed, ref } from 'vue';
 import dayjs from 'dayjs';
 import { NButton, NTag } from 'naive-ui';
 import { useRoute } from 'vue-router';
-import { fetchEnterInterpretation, fetchGetInterpretationList } from '@/service/api/report/interpretation';
+import {
+  fetchEnterInterpretation,
+  fetchGetInterpretationList,
+  fetchReinterpretReport
+} from '@/service/api/report/interpretation';
 import { useAppStore } from '@/store/modules/app';
 import { useAuth } from '@/hooks/business/auth';
 import { useRouterPush } from '@/hooks/common/router';
@@ -67,6 +71,13 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     },
     columns: () => [
       { key: 'reportId', title: '报告ID', align: 'center', minWidth: 100, render: row => row.reportId ?? '-' },
+      {
+        key: 'reportVersion',
+        title: '报告版本',
+        align: 'center',
+        width: 100,
+        render: row => (row.reportVersion ? `V${row.reportVersion}` : '-')
+      },
       { key: 'subbarcode', title: '样本编号', align: 'center', minWidth: 150 },
       { key: 'barcode', title: '患者编号', align: 'center', minWidth: 140 },
       { key: 'product', title: '产品', align: 'center', minWidth: 160 },
@@ -116,8 +127,8 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         render: row =>
           // 带文字的按钮（不用纯图标）：第一次交付要让用户一眼看到入口
           canInterpret.value ? (
-            <NButton text type="primary" loading={entering.value} onClick={() => handleEnter(row.analysisId)}>
-              解读
+            <NButton text type="primary" loading={entering.value} onClick={() => handleEnter(row)}>
+              {Number(row.reportStatus) === 62 ? '重新解读' : '解读'}
             </NButton>
           ) : (
             <span>-</span>
@@ -127,13 +138,16 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
   });
 
 /** 进入解读：创建/复用报告记录 → 带上 reportId / analysisId 回本页，由详情组件接管渲染 */
-async function handleEnter(analysisId: number) {
+async function handleEnter(row: Api.Report.InterpretationRow) {
   if (entering.value) {
     return;
   }
   entering.value = true;
   try {
-    const { data: report, error } = await fetchEnterInterpretation({ analysisId });
+    const request = Number(row.reportStatus) === 62 && row.reportId
+      ? fetchReinterpretReport({ analysisId: row.analysisId, reportId: row.reportId })
+      : fetchEnterInterpretation({ analysisId: row.analysisId });
+    const { data: report, error } = await request;
     if (error) {
       return;
     }

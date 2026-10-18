@@ -24,6 +24,8 @@ interface Props {
   /** 报告当前状态（详情页 context 给的，用来判断能不能生成报告 / 提交解读；可空 = 还没加载出来） */
   /** 报告状态（后端返回 int 码，这里数组/字符串都收，内部统一 Number() 比较） */
   reportStatus?: number | string | null;
+  templateId?: number | null;
+  reportVersion?: number | null;
 }
 
 const props = defineProps<Props>();
@@ -96,6 +98,8 @@ const previewJson = computed(() => JSON.stringify(preview.value ?? {}, null, 2))
 /** 预览数据来源：artifact = 后端读「已生成的 JSON 制品」，realtime = 实时重新匹配组装 */
 const previewSource = ref<'artifact' | 'realtime' | ''>('');
 const previewArtifactTime = ref<string | null>(null);
+const paramsChanged = ref(false);
+let previewRequestNo = 0;
 
 /** 报告生成参数小组件（模板 / 解读癌种 / 报告日期 / 解读人，各自带默认值） */
 const generateParamsRef = ref<InstanceType<typeof ReportGenerateParams> | null>(null);
@@ -104,20 +108,24 @@ async function loadPreview() {
   if (!props.analysisId || !props.reportId) {
     return;
   }
+  const requestNo = ++previewRequestNo;
   editing.value = true;
   try {
     const { data, error } = await fetchBuildInterpretationPreview({
       analysisId: props.analysisId,
       reportId: props.reportId,
-      ...(generateParamsRef.value?.params ?? {})
+      realtime: paramsChanged.value,
+      ...generateParamsRef.value?.params
     });
-    if (!error) {
+    if (!error && requestNo === previewRequestNo) {
       preview.value = data?.data ?? null;
       previewSource.value = data?.source ?? '';
       previewArtifactTime.value = data?.artifactGeneratedAt ?? null;
     }
   } finally {
-    editing.value = false;
+    if (requestNo === previewRequestNo) {
+      editing.value = false;
+    }
   }
 }
 
@@ -139,20 +147,25 @@ const hasReportFile = computed(() => previewSource.value === 'artifact');
  * 成功后重新预览 —— 来源变成「已生成报告」，参数随之锁定，并出现下载入口。
  */
 async function handleGenerate() {
+  previewRequestNo += 1;
+  editing.value = false;
   generating.value = true;
   try {
     const { data, error } = await fetchGenerateReport({
       analysisId: props.analysisId,
       reportId: props.reportId,
-      ...(generateParamsRef.value?.params ?? {})
+      ...generateParamsRef.value?.params
     });
     if (!error) {
       const fileName = data?.docxFileName as string | undefined;
       window.$message?.success(fileName ? `报告已生成：${fileName}` : '报告已生成');
+      paramsChanged.value = false;
+      emit('changed');
       await loadPreview();
     }
   } finally {
     generating.value = false;
+    emit('changed');
   }
 }
 
@@ -164,17 +177,18 @@ function handleDownload() {
   zip(fetchGetReportFileUrl(props.reportId, props.analysisId), '');
 }
 
-/** 允许提交解读的报告状态（与后端 InterpretationReviewService.SUBMITTABLE_STATUS 一致：31/32/33） */
-const SUBMITTABLE_STATUS = [31, 32, 33];
+/** 仅本轮生成成功（32）的有效制品允许提交解读 */
+const SUBMITTABLE_STATUS = [32];
 
-/** 允许「生成报告」的报告状态：31 报告解读中 / 32 生成成功 / 33 生成失败（与后端一致） */
-const GENERATABLE_STATUS = [31, 32, 33];
+/** 允许生成报告：31 解读中 / 32 生成成功 / 33 生成失败或驳回 / 52 签名失败 */
+const GENERATABLE_STATUS = [31, 32, 33, 52];
 
 /** 生成报告按钮：解读中阶段才出现（已提交审核的报告不能再生成，后端也会拦） */
 const canGenerate = computed(() => GENERATABLE_STATUS.includes(Number(props.reportStatus)));
 
 /** 提交解读按钮：已生成报告（有成品文件）+ 状态允许提交时才出现 */
-const canSubmitReview = computed(() => hasReportFile.value && SUBMITTABLE_STATUS.includes(Number(props.reportStatus)));
+const canSubmitReview = computed(() => hasReportFile.value && !paramsChanged.value
+  && SUBMITTABLE_STATUS.includes(Number(props.reportStatus)));
 
 const submitting = ref(false);
 
@@ -188,10 +202,10 @@ async function handleSubmitReview() {
     const { error } = await fetchSubmitReview({
       analysisId: props.analysisId,
       reportId: props.reportId,
-      ...(generateParamsRef.value?.params ?? {})
+      ...generateParamsRef.value?.params
     });
     if (!error) {
-      window.$message?.success('已提交解读，报告流转到「报告待审核」');
+      window.$message?.success('已提交审核；复审报告会直接进入原审核人的待办');
       emit('changed');
     }
   } finally {
@@ -661,11 +675,14 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         ref="generateParamsRef"
         :analysis-id="props.analysisId"
         :report-id="props.reportId"
+        :preset-template-id="props.templateId"
+        :template-locked="Boolean(props.reportVersion)"
         :preset-disease="(preview?.sampleInfo?.disease as string | null) ?? null"
         :preset-report-date="(preview?.reportInfo?.reportDate as string | null) ?? null"
         :preset-analyzer="(preview?.reportInfo?.analyzer as string | null) ?? null"
-        :locked="previewSource === 'artifact'"
-        @change="() => loadPreview()"
+        :locked="!canGenerate"
+        :busy="generating || submitting"
+        @change="() => { paramsChanged = true; loadPreview(); }"
       />
       <NAlert v-if="preview?.warnings?.length" type="warning" :bordered="false" class="mt-12px">
         <div v-for="item in preview.warnings" :key="item">{{ item }}</div>

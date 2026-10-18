@@ -78,10 +78,15 @@ const isProducer = computed(() => {
 
 /** 允许审核的状态：40 报告待审核 / 41 报告审核中（与后端 REVIEWABLE_STATUS 一致），且非产出人本人 */
 const REVIEWABLE_STATUS = [40, 41];
+const isAssignedReviewer = computed(() => {
+  const reviewerId = report.value?.reportReviewerId ?? report.value?.reportReviewClaimedBy;
+  return reviewerId === null || reviewerId === undefined || String(reviewerId) === currentUserId.value;
+});
 
 /** 只有「待审核 / 审核中」且非产出人本人才能审核（服务端也会再校验一次） */
 const canReview = computed(
   () => REVIEWABLE_STATUS.includes(Number(report.value?.reportStatus)) && !isProducer.value
+    && isAssignedReviewer.value
 );
 
 /** 不能审核时的原因提示；为空表示可审核 */

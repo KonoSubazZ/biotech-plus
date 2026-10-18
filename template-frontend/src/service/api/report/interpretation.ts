@@ -1,5 +1,15 @@
 import { request } from '@/service/request';
 
+/** 已发送报告整批重扫后进入新的生信看点记录。 */
+export function fetchReinterpretReport(data: { analysisId: number; reportId: number }) {
+  return request<Api.Report.InterpretationReport>({
+    url: '/report/interpretation/reinterpret',
+    method: 'post',
+    data,
+    timeout: 360000
+  });
+}
+
 /**
  * 报告解读接口层（报告管理 › 报告解读）
  * <p>
@@ -124,6 +134,7 @@ export function fetchGetInterpretationTemplateOptions(params: { analysisId: numb
  * 否则实时组装。只返回、不落库。
  */
 export function fetchBuildInterpretationPreview(data: {
+  realtime?: boolean;
   analysisId: number;
   reportId: number;
   /** 报告生成参数：模板 / 解读癌种 / 报告日期 / 解读人（都不传就用默认值） */

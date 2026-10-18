@@ -36,6 +36,9 @@ interface Props {
   presetAnalyzer?: string | null;
   /** 已生成报告（预览来自 JSON 制品）：四个参数按生成时那份固定，控件置灰不可改 */
   locked?: boolean;
+  templateLocked?: boolean;
+  presetTemplateId?: number | null;
+  busy?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -55,7 +58,7 @@ const reportDate = ref<string | null>(null);
 const analyzer = ref<string | null>(null);
 
 /** 用户是否动过某个控件：动过就不再用报告自带值回填（避免手选被重新预览冲掉） */
-const touched = ref({ disease: false, reportDate: false });
+const touched = ref({ disease: false, reportDate: false, analyzer: false, template: false });
 
 const templateOptions = ref<{ label: string; value: number }[]>([]);
 const diseaseOptions = ref<{ label: string; value: string }[]>([]);
@@ -85,7 +88,8 @@ async function loadTemplates() {
     label: row.defaultTemplate ? `${row.templateName}（默认）` : row.templateName,
     value: row.templateId
   }));
-  const preset = rows.find(row => row.defaultTemplate) ?? rows[0];
+  const preset = rows.find(row => row.templateId === props.presetTemplateId)
+    ?? rows.find(row => row.defaultTemplate) ?? rows[0];
   templateId.value = preset ? preset.templateId : null;
 }
 
@@ -107,7 +111,7 @@ async function loadAnalyzers() {
   const rows = data ?? [];
   analyzerOptions.value = rows.map(row => ({ label: `${row.nickName}（${row.userName}）`, value: row.userName }));
   // 已生成报告：解读人固定为生成时那位，不跟随当前登录用户
-  if (props.locked && props.presetAnalyzer) {
+  if (props.presetAnalyzer && !touched.value.analyzer) {
     analyzer.value = props.presetAnalyzer;
     return;
   }
@@ -137,6 +141,18 @@ watch(
   },
   { immediate: true }
 );
+
+watch(() => props.presetAnalyzer, value => {
+  if (value && !touched.value.analyzer) {
+    analyzer.value = value;
+  }
+});
+
+watch(() => props.presetTemplateId, value => {
+  if (value && (props.templateLocked || !touched.value.template)) {
+    templateId.value = value;
+  }
+});
 
 /** 已生成报告：四个参数一律回填成生成时那份（制品的实际值），页面上的改动不再生效 */
 watch(
@@ -173,11 +189,11 @@ onMounted(() => {
         <NSelect
           v-model:value="templateId"
           size="small"
-          :disabled="locked"
+          :disabled="locked || templateLocked || busy"
           :options="templateOptions"
           :consistent-menu-width="false"
           placeholder="请选择模板"
-          @update:value="emit('change')"
+          @update:value="() => { touched.template = true; emit('change'); }"
         />
       </NFormItem>
       <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/4" label="解读癌种">
@@ -186,7 +202,7 @@ onMounted(() => {
           size="small"
           filterable
           clearable
-          :disabled="locked"
+          :disabled="locked || busy"
           :options="diseaseOptions"
           :consistent-menu-width="false"
           placeholder="请选择解读癌种"
@@ -206,7 +222,7 @@ onMounted(() => {
           type="date"
           value-format="yyyy-MM-dd"
           clearable
-          :disabled="locked"
+          :disabled="locked || busy"
           @update:formatted-value="
             () => {
               touched.reportDate = true;
@@ -220,11 +236,11 @@ onMounted(() => {
           v-model:value="analyzer"
           size="small"
           filterable
-          :disabled="locked"
+          :disabled="locked || busy"
           :options="analyzerOptions"
           :consistent-menu-width="false"
           placeholder="请选择解读人"
-          @update:value="emit('change')"
+          @update:value="() => { touched.analyzer = true; emit('change'); }"
         />
       </NFormItem>
     </div>

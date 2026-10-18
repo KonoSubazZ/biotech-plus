@@ -33,6 +33,7 @@ declare namespace Api {
       driveExecutedAt: string | null;
       /** 报告ID（为空 = 该批次还没点过「解读」） */
       reportId: number | null;
+      reportVersion?: number | null;
       /** 报告状态（int 码：20/21/30/31/32/33/40/41/42/43/50/52/53/60/61/62，见后端 utils/ReportStatus） */
       reportStatus: string | null;
       /** 解读癌种 */
@@ -80,6 +81,12 @@ declare namespace Api {
     /** 报告头信息（= 后端 AnalysisReportVo，进详情页要用 reportId） */
     interface InterpretationReport {
       reportId: number;
+      reportVersion?: number | null;
+      reportGenerationNo?: number | null;
+      reportReviewerId?: number | null;
+      reportReviewClaimedBy?: number | null;
+      sourceReportId?: number | null;
+      reportName?: string | null;
       analysisId: number;
       analysisDate: string | null;
       subbarcode: string | null;
