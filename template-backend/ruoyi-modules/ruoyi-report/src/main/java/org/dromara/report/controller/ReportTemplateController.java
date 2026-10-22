@@ -75,6 +75,19 @@ public class ReportTemplateController extends BaseController {
     }
 
     /**
+     * 项目下拉选项（模板表单的「项目」与列表搜索用）。
+     * <p>
+     * 口径：模板必须先选项目、再选产品（同一项目下同一产品只能绑定一个模板）。
+     *
+     * @return 项目列表（id / projectNo / projectName / customer）
+     */
+    @SaCheckPermission("report:template:query")
+    @GetMapping("/projectOptions")
+    public R<List<Map<String, Object>>> projectOptions() {
+        return R.ok(reportTemplateService.selectProjectOptions());
+    }
+
+    /**
      * 报告命名可用变量（模板表单的「报告命名」提示与试算用）。
      * <p>
      * catalog = 可用字段变量；sample = 样例值；defaultPattern = report_name 为空时的默认拼接规则。

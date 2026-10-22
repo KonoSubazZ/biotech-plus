@@ -69,4 +69,11 @@ public interface IReportTemplateService {
      * @return 每行含 id / name / code / status
      */
     List<Map<String, Object>> selectProductOptions();
+
+    /**
+     * 项目下拉选项（模板表单与列表搜索共用；数据来自 project_config，跨模块只读）。
+     *
+     * @return 每行含 id / projectNo / projectName / customer
+     */
+    List<Map<String, Object>> selectProjectOptions();
 }

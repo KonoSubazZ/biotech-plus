@@ -38,9 +38,14 @@
         ORDER BY sort_order, id
     </select>
 
-    <!-- 批量取模板关联的产品（列表展示 productNames + 编辑回填 productIds） -->
+    <!-- 批量取模板关联的产品（列表展示关联产品、编辑回填 productIds）
+         列表要显示「product_bio 换行 product_code」，所以三个标识一起取回来，前端不自己拼 -->
     <select id="selectProductRelationsByTemplateIds" resultType="java.util.LinkedHashMap">
-        SELECT pt.template_id AS templateId, pt.product_id AS productId, pc.product_name AS productName
+        SELECT pt.template_id   AS templateId,
+               pt.product_id    AS productId,
+               pc.product_bio   AS productBio,
+               pc.product_name  AS productName,
+               pc.product_code  AS productCode
         FROM product_template pt
         JOIN product_config pc ON pc.id = pt.product_id AND pc.del_flag = '0'
         WHERE pt.del_flag = '0'
@@ -90,6 +95,49 @@
         FROM product_config
         WHERE del_flag = '0'
         ORDER BY id
+    </select>
+
+    <!-- 项目下拉选项（project_config 跨模块只读，不引 Maven 依赖）
+         2026-10-22 起模板必须先选项目：选项按项目编号排序，停用的项目配置不出现 -->
+    <select id="selectProjectOptions" resultType="java.util.LinkedHashMap">
+        SELECT id AS id, project_no AS projectNo, project_name AS projectName, customer AS customer
+        FROM project_config
+        WHERE del_flag = '0'
+        ORDER BY project_no, id
+    </select>
+
+    <!-- 列表回填 projectNo / projectName（模板行只存 project_id） -->
+    <select id="selectProjectInfoByIds" resultType="java.util.LinkedHashMap">
+        SELECT id AS id, project_no AS projectNo, project_name AS projectName
+        FROM project_config
+        WHERE del_flag = '0'
+          AND id IN
+        <foreach collection="projectIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+        </foreach>
+    </select>
+
+    <!-- 「项目 + 产品」占用检查：同一项目下同一产品只允许一个启用模板
+         （停用的模板不算占用，因为它们不参与报告生成） -->
+    <select id="selectProjectProductConflicts" resultType="java.util.LinkedHashMap">
+        SELECT pt.product_id    AS productId,
+               pc.product_name  AS productName,
+               t.template_id    AS templateId,
+               t.template_name  AS templateName
+        FROM product_template pt
+        JOIN report_template t ON t.template_id = pt.template_id
+                              AND t.del_flag = '0' AND t.status = 'active'
+        JOIN product_config pc ON pc.id = pt.product_id AND pc.del_flag = '0'
+        WHERE pt.del_flag = '0' AND pt.enabled = 1
+          AND t.project_id = #{projectId}
+          AND pt.product_id IN
+        <foreach collection="productIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+        </foreach>
+        <if test="excludeTemplateId != null">
+            AND t.template_id != #{excludeTemplateId}
+        </if>
+        ORDER BY pt.product_id
     </select>
 
     <!-- 先整体置失效，再按传入集合逐条恢复/插入（唯一键不含 del_flag，必须「恢复」而非重插） -->

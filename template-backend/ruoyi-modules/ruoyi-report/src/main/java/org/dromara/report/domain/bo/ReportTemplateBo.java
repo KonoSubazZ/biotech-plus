@@ -2,6 +2,7 @@ package org.dromara.report.domain.bo;
 
 import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -50,6 +51,15 @@ public class ReportTemplateBo extends BaseEntity {
     /** 客户编码 */
     @Size(max = 120, message = "客户编码长度不能超过 120", groups = {AddGroup.class, EditGroup.class})
     private String customerCode;
+
+    /**
+     * 模板归属项目（project_config.id）。
+     * <p>
+     * 口径（2026-10-22）：模板必须先选项目、再选产品，「项目 + 产品」加起来才是唯一 ——
+     * 同一项目下同一产品只允许绑定一个模板（保存时由 Service 查重，冲突报 409）。
+     */
+    @NotNull(message = "请选择项目", groups = {AddGroup.class, EditGroup.class})
+    private Long projectId;
 
     /** 报告类型 */
     @NotBlank(message = "报告类型不能为空", groups = {AddGroup.class, EditGroup.class})

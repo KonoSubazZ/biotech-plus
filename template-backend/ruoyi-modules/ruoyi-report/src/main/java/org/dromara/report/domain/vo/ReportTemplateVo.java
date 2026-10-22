@@ -8,6 +8,7 @@ import org.dromara.report.domain.ReportTemplate;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 报告模板视图对象 report_template
@@ -34,6 +35,15 @@ public class ReportTemplateVo {
 
     /** 客户编码 */
     private String customerCode;
+
+    /** 模板归属项目（project_config.id） */
+    private Long projectId;
+
+    /** 项目编号（列表/搜索展示用，由 Service 批量回填） */
+    private String projectNo;
+
+    /** 项目名称（列表展示用） */
+    private String projectName;
 
     /** 报告类型 */
     private String reportType;
@@ -62,4 +72,12 @@ public class ReportTemplateVo {
 
     /** 关联产品名称集合（列表展示用） */
     private List<String> productNames;
+
+    /**
+     * 关联产品明细（列表展示用）：每项含 productId / productBio / productName / productCode。
+     * <p>
+     * 页面口径（2026-10-22）：关联产品列显示「生信编码 product_bio」换行「产品编码 product_code」，
+     * 所以后端把三个标识一起回填，前端不再自己拼 label。
+     */
+    private List<Map<String, Object>> products;
 }

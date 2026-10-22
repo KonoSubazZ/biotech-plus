@@ -102,6 +102,35 @@ public interface ReportTemplateMapper extends BaseMapperPlus<ReportTemplate, Rep
     List<Map<String, Object>> selectProductOptions();
 
     /**
+     * 项目下拉选项（project_config；跨模块只读，不走 Maven 依赖）。
+     *
+     * @return 每行含 id / projectNo / projectName / customer
+     */
+    List<Map<String, Object>> selectProjectOptions();
+
+    /**
+     * 批量取项目编号/名称，供列表页回填 projectNo / projectName（模板行上只存 project_id）。
+     *
+     * @param projectIds 项目主键集合（非空）
+     * @return 每行含 id / projectNo / projectName
+     */
+    List<Map<String, Object>> selectProjectInfoByIds(@Param("projectIds") List<Long> projectIds);
+
+    /**
+     * 「项目 + 产品」占用检查：同一项目下，这些产品是否已被别的启用模板绑走。
+     * <p>
+     * 只看 enabled=1 且 status='active' 的模板 —— 停用模板不参与报告生成，不占位。
+     *
+     * @param projectId         项目主键
+     * @param productIds        本次要绑定的产品集合（非空）
+     * @param excludeTemplateId 编辑时排除自身；新增传 null
+     * @return 每行含 productId / productName / templateId / templateName；空集合表示不冲突
+     */
+    List<Map<String, Object>> selectProjectProductConflicts(@Param("projectId") Long projectId,
+                                                            @Param("productIds") List<Long> productIds,
+                                                            @Param("excludeTemplateId") Long excludeTemplateId);
+
+    /**
      * 把一份模板下的全部产品关联置为失效（del_flag='1'）。
      * <p>
      * 同步关联时先置失效、再按传入集合逐条「恢复或插入」，避免唯一键冲突

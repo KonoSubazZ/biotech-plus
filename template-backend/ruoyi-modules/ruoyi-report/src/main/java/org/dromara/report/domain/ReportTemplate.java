@@ -40,6 +40,9 @@ public class ReportTemplate extends BaseEntity {
     /** 客户编码 */
     private String customerCode;
 
+    /** 逻辑关联 project_config.id：模板归属项目（一个项目下同一产品只能有一个模板） */
+    private Long projectId;
+
     /** 报告类型 */
     private String reportType;
 

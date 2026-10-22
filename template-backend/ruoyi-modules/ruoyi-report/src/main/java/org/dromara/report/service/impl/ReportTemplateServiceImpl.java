@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
         LambdaQueryWrapper<ReportTemplate> wrapper = buildQueryWrapper(bo);
         Page<ReportTemplateVo> page = baseMapper.selectVoPage(pageQuery.build(), wrapper);
         fillProductRelations(page.getRecords());
+        fillProjectInfo(page.getRecords());
         return TableDataInfo.build(page);
     }
 
@@ -64,6 +66,7 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
             throw new ServiceException("报告模板不存在：templateId=" + templateId);
         }
         vo.setProductIds(baseMapper.selectProductIds(templateId));
+        fillProjectInfo(List.of(vo));
         return vo;
     }
 
@@ -71,6 +74,7 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
     @Transactional(rollbackFor = Exception.class)
     public Boolean insertByBo(ReportTemplateBo bo) {
         reportNameVariables.validate(bo.getReportName());
+        assertProjectProductUnique(bo, null);
         ReportTemplate entity = MapstructUtils.convert(bo, ReportTemplate.class);
         // 编码列是 NOT NULL + 唯一键，而自增主键要 insert 之后才知道：先塞一个唯一临时值把行插进去，
         // 再回填成 tpl-000123。同一事务内完成，外部只会看到最终值。
@@ -96,6 +100,7 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
         }
         assertCodeUsable(bo.getTemplateCode(), bo.getTemplateId());
         reportNameVariables.validate(bo.getReportName());
+        assertProjectProductUnique(bo, bo.getTemplateId());
         ReportTemplate entity = MapstructUtils.convert(bo, ReportTemplate.class);
         baseMapper.updateById(entity);
         syncProductTemplates(bo.getTemplateId(), bo.getProductIds());
@@ -128,6 +133,11 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
         return baseMapper.selectProductOptions();
     }
 
+    @Override
+    public List<Map<String, Object>> selectProjectOptions() {
+        return baseMapper.selectProjectOptions();
+    }
+
     /** 组装查询条件：声明 Wrapper → 模糊条件 → 精确条件 → 排序 */
     private LambdaQueryWrapper<ReportTemplate> buildQueryWrapper(ReportTemplateBo bo) {
         LambdaQueryWrapper<ReportTemplate> wrapper = Wrappers.lambdaQuery();
@@ -135,10 +145,43 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
             ReportTemplate::getTemplateCode, bo.getTemplateCode());
         wrapper.like(StringUtils.isNotBlank(bo.getTemplateName()),
             ReportTemplate::getTemplateName, bo.getTemplateName());
+        wrapper.eq(bo.getProjectId() != null, ReportTemplate::getProjectId, bo.getProjectId());
         wrapper.eq(StringUtils.isNotBlank(bo.getReportType()), ReportTemplate::getReportType, bo.getReportType());
         wrapper.eq(StringUtils.isNotBlank(bo.getStatus()), ReportTemplate::getStatus, bo.getStatus());
         wrapper.orderByDesc(ReportTemplate::getTemplateId);
         return wrapper;
+    }
+
+    /**
+     * 「项目 + 产品」唯一校验（2026-10-22 口径）。
+     * <p>
+     * 同一项目下同一产品只允许绑定一个启用模板；模板本身仍可挂多个产品。
+     * 只看启用模板：停用模板不参与报告生成，不占位。冲突时把「产品 → 已占用模板」原样报给操作人，
+     * 让人知道该改哪个模板，而不是一句「已存在」。
+     */
+    private void assertProjectProductUnique(ReportTemplateBo bo, Long excludeTemplateId) {
+        if (bo.getProjectId() == null) {
+            throw new ServiceException("请先选择项目", 400);
+        }
+        List<Long> productIds = distinctIds(bo.getProductIds());
+        if (productIds.isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> conflicts =
+            baseMapper.selectProjectProductConflicts(bo.getProjectId(), productIds, excludeTemplateId);
+        if (conflicts.isEmpty()) {
+            return;
+        }
+        StringBuilder message = new StringBuilder("同一项目下同一产品只能绑定一个模板，冲突：");
+        for (int i = 0; i < conflicts.size(); i++) {
+            Map<String, Object> conflict = conflicts.get(i);
+            if (i > 0) {
+                message.append("；");
+            }
+            message.append("产品「").append(toText(conflict.get("productName")))
+                .append("」已被模板「").append(toText(conflict.get("templateName"))).append("」占用");
+        }
+        throw new ServiceException(message.toString(), 409);
     }
 
     /**
@@ -207,7 +250,10 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
         return new ArrayList<>(distinct);
     }
 
-    /** 列表页补充关联产品：一次批量查关系，再按模板分组回填 productIds 与 productNames */
+    /**
+     * 列表页补充关联产品：一次批量查关系，按模板分组后回填
+     * products（列表两行展示用）→ 再从它派生 productIds（编辑回填）与 productNames（兼容旧字段）。
+     */
     private void fillProductRelations(List<ReportTemplateVo> rows) {
         if (rows == null || rows.isEmpty()) {
             return;
@@ -216,26 +262,76 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
         for (ReportTemplateVo row : rows) {
             templateIds.add(row.getTemplateId());
         }
-        Map<Long, List<Long>> idsByTemplate = new HashMap<>();
-        Map<Long, List<String>> namesByTemplate = new HashMap<>();
+        Map<Long, List<Map<String, Object>>> productsByTemplate = new HashMap<>();
         for (Map<String, Object> relation : baseMapper.selectProductRelationsByTemplateIds(templateIds)) {
-            collectRelation(relation, idsByTemplate, namesByTemplate);
+            productsByTemplate
+                .computeIfAbsent(toLong(relation.get("templateId")), key -> new ArrayList<>())
+                .add(toProduct(relation));
         }
         for (ReportTemplateVo row : rows) {
-            row.setProductIds(idsByTemplate.getOrDefault(row.getTemplateId(), new ArrayList<>()));
-            row.setProductNames(namesByTemplate.getOrDefault(row.getTemplateId(), new ArrayList<>()));
+            List<Map<String, Object>> products =
+                productsByTemplate.getOrDefault(row.getTemplateId(), new ArrayList<>());
+            row.setProducts(products);
+            row.setProductIds(productIdsOf(products));
+            row.setProductNames(productNamesOf(products));
         }
     }
 
-    /** 把一行「模板-产品」关系按模板分组收集成 productIds / productNames */
-    private void collectRelation(Map<String, Object> relation,
-                                 Map<Long, List<Long>> idsByTemplate,
-                                 Map<Long, List<String>> namesByTemplate) {
-        Long templateId = toLong(relation.get("templateId"));
-        Long productId = toLong(relation.get("productId"));
-        String productName = toText(relation.get("productName"));
-        idsByTemplate.computeIfAbsent(templateId, key -> new ArrayList<>()).add(productId);
-        namesByTemplate.computeIfAbsent(templateId, key -> new ArrayList<>()).add(productName);
+    /** 一行「模板-产品」关系 → 列表展示用的产品明细（生信编码 / 产品名称 / 产品编码） */
+    private Map<String, Object> toProduct(Map<String, Object> relation) {
+        Map<String, Object> product = new LinkedHashMap<>();
+        product.put("productId", toLong(relation.get("productId")));
+        product.put("productBio", toText(relation.get("productBio")));
+        product.put("productName", toText(relation.get("productName")));
+        product.put("productCode", toText(relation.get("productCode")));
+        return product;
+    }
+
+    private List<Long> productIdsOf(List<Map<String, Object>> products) {
+        List<Long> ids = new ArrayList<>();
+        for (Map<String, Object> product : products) {
+            ids.add(toLong(product.get("productId")));
+        }
+        return ids;
+    }
+
+    private List<String> productNamesOf(List<Map<String, Object>> products) {
+        List<String> names = new ArrayList<>();
+        for (Map<String, Object> product : products) {
+            names.add(toText(product.get("productName")));
+        }
+        return names;
+    }
+
+    /**
+     * 补充项目编号 / 项目名称：report_template 只存 project_id，项目主数据在 project_config
+     * （跨模块只读查询，不引 Maven 依赖，做法与产品选项一致）。
+     */
+    private void fillProjectInfo(List<ReportTemplateVo> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        List<Long> projectIds = new ArrayList<>();
+        for (ReportTemplateVo row : rows) {
+            if (row.getProjectId() != null) {
+                projectIds.add(row.getProjectId());
+            }
+        }
+        if (projectIds.isEmpty()) {
+            return;
+        }
+        Map<Long, Map<String, Object>> infoById = new HashMap<>();
+        for (Map<String, Object> info : baseMapper.selectProjectInfoByIds(distinctIds(projectIds))) {
+            infoById.put(toLong(info.get("id")), info);
+        }
+        for (ReportTemplateVo row : rows) {
+            Map<String, Object> info = infoById.get(row.getProjectId());
+            if (info == null) {
+                continue;
+            }
+            row.setProjectNo(toText(info.get("projectNo")));
+            row.setProjectName(toText(info.get("projectName")));
+        }
     }
 
     private Long toLong(Object value) {
