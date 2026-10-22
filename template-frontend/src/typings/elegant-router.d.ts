@@ -39,7 +39,9 @@ declare module "@elegant-router/types" {
     "monitor_operlog": "/monitor/operlog";
     "project": "/project";
     "project_product-config": "/project/product-config";
+    "project_project-config": "/project/project-config";
     "project_qc-standard": "/project/qc-standard";
+    "project_template-config": "/project/template-config";
     "qc": "/qc";
     "qc_bioinfo": "/qc/bioinfo";
     "qc_wet-lab": "/qc/wet-lab";
@@ -48,7 +50,6 @@ declare module "@elegant-router/types" {
     "report_mail-config": "/report/mail-config";
     "report_sample-flow": "/report/sample-flow";
     "report_sample-info": "/report/sample-info";
-    "report_template": "/report/template";
     "report_variant-history": "/report/variant-history";
     "social-callback": "/social-callback";
     "system": "/system";
@@ -150,14 +151,15 @@ declare module "@elegant-router/types" {
     | "monitor_online"
     | "monitor_operlog"
     | "project_product-config"
+    | "project_project-config"
     | "project_qc-standard"
+    | "project_template-config"
     | "qc_bioinfo"
     | "qc_wet-lab"
     | "report_interpretation"
     | "report_mail-config"
     | "report_sample-flow"
     | "report_sample-info"
-    | "report_template"
     | "report_variant-history"
     | "system_client"
     | "system_config"

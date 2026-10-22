@@ -5,6 +5,7 @@ import {
   fetchCreateReportTemplate,
   fetchGetReportNameVars,
   fetchGetProductOptions,
+  fetchGetTemplateProjectOptions,
   fetchUpdateReportTemplate
 } from '@/service/api/report/template';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
@@ -47,12 +48,23 @@ const productSelectOptions = computed(() =>
   }))
 );
 
+/** 项目下拉：模板必须先选项目、再选产品（同一项目下同一产品只能绑一个模板） */
+const projectOptions = ref<Api.Report.ProjectOption[]>([]);
+
+const projectSelectOptions = computed(() =>
+  projectOptions.value.map(item => ({
+    label: `${item.projectNo} ${item.projectName}${item.customer ? `（${item.customer}）` : ''}`,
+    value: item.id
+  }))
+);
+
 /** 空的表单模型：moduleCode 留空 = 只输出公共字段；templateCode 不由前端维护（后端生成） */
 const EMPTY_FORM: Api.Report.ReportTemplateForm = {
   templateId: null,
   templateName: '',
   templateVersion: 'v1',
   customerCode: '',
+  projectId: null,
   reportType: 'SOMATIC',
   moduleCode: '',
   reportName: '',
@@ -65,6 +77,7 @@ const EMPTY_FORM: Api.Report.ReportTemplateForm = {
 const model = ref<Api.Report.ReportTemplateForm>(jsonClone(EMPTY_FORM));
 
 const rules = {
+  projectId: createRequiredRule('请先选择项目'),
   templateName: createRequiredRule('模板名称不能为空'),
   reportType: createRequiredRule('报告类型不能为空'),
   templatePath: createRequiredRule('模板文件路径不能为空'),
@@ -86,6 +99,7 @@ function handleUpdateModelWhenEdit() {
       templateName: row.templateName ?? '',
       templateVersion: row.templateVersion ?? 'v1',
       customerCode: row.customerCode ?? '',
+      projectId: row.projectId ?? null,
       reportType: row.reportType ?? 'SOMATIC',
       moduleCode: row.moduleCode ?? '',
       reportName: row.reportName ?? '',
@@ -131,6 +145,13 @@ async function loadProductOptions() {
   productOptions.value = options ?? [];
 }
 
+async function loadProjectOptions() {
+  if (projectOptions.value.length) return;
+  const { data: options, error } = await fetchGetTemplateProjectOptions();
+  if (error) return;
+  projectOptions.value = options ?? [];
+}
+
 function closeDrawer() {
   visible.value = false;
 }
@@ -163,6 +184,7 @@ watch(visible, () => {
   if (visible.value) {
     handleUpdateModelWhenEdit();
     restoreValidation();
+    loadProjectOptions();
     loadProductOptions();
     loadNameVars();
   }
@@ -173,6 +195,24 @@ watch(visible, () => {
   <NDrawer v-model:show="visible" :trap-focus="false" display-directive="show" :width="720" class="max-w-90%">
     <NDrawerContent :title="title" :native-scrollbar="false" closable>
       <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="130">
+        <NFormItem label="项目" path="projectId">
+          <NSelect
+            v-model:value="model.projectId"
+            :options="projectSelectOptions"
+            placeholder="先选项目，再选该项目的产品（同一项目下同一产品只能绑一个模板）"
+            filterable
+          />
+        </NFormItem>
+        <NFormItem label="关联产品" path="productIds">
+          <NSelect
+            v-model:value="model.productIds"
+            :options="productSelectOptions"
+            multiple
+            filterable
+            clearable
+            placeholder="选择该模板可用的产品（可多选）"
+          />
+        </NFormItem>
         <NFormItem label="模板名称" path="templateName">
           <NInput v-model:value="model.templateName" placeholder="如：圣域 1238 报告" clearable />
         </NFormItem>
@@ -192,16 +232,6 @@ watch(visible, () => {
         </NFormItem>
         <NFormItem label="客户编码" path="customerCode">
           <NInput v-model:value="model.customerCode" placeholder="可选；留空表示不限客户" clearable />
-        </NFormItem>
-        <NFormItem label="关联产品" path="productIds">
-          <NSelect
-            v-model:value="model.productIds"
-            :options="productSelectOptions"
-            multiple
-            filterable
-            clearable
-            placeholder="选择该模板可用的产品（可多选）"
-          />
         </NFormItem>
         <NFormItem label="输出范围" path="moduleCode">
           <NInput

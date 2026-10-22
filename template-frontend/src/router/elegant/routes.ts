@@ -190,12 +190,30 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'project_project-config',
+        path: '/project/project-config',
+        component: 'view.project_project-config',
+        meta: {
+          title: 'project_project-config',
+          i18nKey: 'route.project_project-config'
+        }
+      },
+      {
         name: 'project_qc-standard',
         path: '/project/qc-standard',
         component: 'view.project_qc-standard',
         meta: {
           title: 'project_qc-standard',
           i18nKey: 'route.project_qc-standard'
+        }
+      },
+      {
+        name: 'project_template-config',
+        path: '/project/template-config',
+        component: 'view.project_template-config',
+        meta: {
+          title: 'project_template-config',
+          i18nKey: 'route.project_template-config'
         }
       }
     ]
@@ -272,15 +290,6 @@ export const generatedRoutes: GeneratedRoute[] = [
         meta: {
           title: 'report_sample-info',
           i18nKey: 'route.report_sample-info'
-        }
-      },
-      {
-        name: 'report_template',
-        path: '/report/template',
-        component: 'view.report_template',
-        meta: {
-          title: 'report_template',
-          i18nKey: 'route.report_template'
         }
       },
       {

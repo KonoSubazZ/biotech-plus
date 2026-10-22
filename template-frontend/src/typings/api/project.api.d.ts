@@ -50,6 +50,50 @@ declare namespace Api {
       remark?: string | null;
     }
 
+    // ------------------------------------------------------------------ 项目配置
+
+    /** 项目配置（= 后端 ProjectConfigVo）：一个项目一行，存报告发送用的收件/抄送邮箱 */
+    interface ProjectConfig {
+      id: number;
+      /** 项目编号（同一租户内唯一） */
+      projectNo: string;
+      /** 项目名称 */
+      projectName: string;
+      /** 客户名称 */
+      customer: string;
+      /** 收件邮箱（多个用分号分隔） */
+      receiveEmail: string;
+      /** 抄送邮箱（多个用分号分隔） */
+      ccEmail?: string | null;
+      remark?: string | null;
+      /** 创建人 id */
+      createBy?: number | null;
+      /** 创建人姓名（后端 @Translation 换出的昵称） */
+      createByName?: string | null;
+      createTime?: string | null;
+      /** 更新人 id */
+      updateBy?: number | null;
+      /** 更新人姓名 */
+      updateByName?: string | null;
+      updateTime?: string | null;
+    }
+
+    /** 项目配置的搜索参数（搜索栏只有项目编号与客户名称） */
+    type ProjectConfigSearchParams = CommonType.RecordNullable<
+      Pick<ProjectConfig, 'projectNo' | 'customer'> & Common.CommonSearchParams
+    >;
+
+    /** 项目配置新增/编辑表单（= 后端 ProjectConfigBo） */
+    interface ProjectConfigForm {
+      id?: number | null;
+      projectNo: string;
+      projectName: string;
+      customer: string;
+      receiveEmail: string;
+      ccEmail?: string | null;
+      remark?: string | null;
+    }
+
     // ------------------------------------------------------------------ 产品关联基因
 
     /** 产品关联基因（= 后端 ProductGeneVo） */

@@ -32,6 +32,14 @@ export function fetchGetProductOptions() {
   });
 }
 
+/** 项目下拉选项（模板表单的「项目」与列表搜索用；数据来自项目配置） */
+export function fetchGetTemplateProjectOptions() {
+  return request<Api.Report.ProjectOption[]>({
+    url: '/report/template/projectOptions',
+    method: 'get'
+  });
+}
+
 /** 报告命名可用变量（模板表单的提示与试算用；同一份字典也是后端保存期校验口径） */
 export function fetchGetReportNameVars() {
   return request<Api.Report.ReportNameVars>({

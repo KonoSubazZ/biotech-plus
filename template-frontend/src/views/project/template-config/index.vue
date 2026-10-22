@@ -20,6 +20,7 @@ const { hasAuth } = useAuth();
 const searchParams = ref<Api.Report.ReportTemplateSearchParams>({
   pageNum: 1,
   pageSize: 10,
+  projectId: null,
   templateName: null,
   reportType: null,
   status: null,
@@ -36,6 +37,26 @@ const STATUS_META: Record<string, { label: string; type: 'success' | 'error' }> 
   inactive: { label: '停用', type: 'error' }
 };
 
+/**
+ * 关联产品：每个产品两行 —— 上行生信编码 product_bio、下行产品编码 product_code；
+ * 挂了多个产品就一条一条上下排（2026-10-22 用户口径）。
+ */
+function renderProducts(products?: Api.Report.TemplateProduct[] | null) {
+  if (!products?.length) {
+    return <span class="op-40">-</span>;
+  }
+  return (
+    <div class="flex-col items-center gap-4px">
+      {products.map(item => (
+        <div key={item.productId} class="flex-col items-center">
+          <span>{item.productBio || '-'}</span>
+          <span class="text-12px op-60">{item.productCode || ''}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagination, scrollX } =
   useNaivePaginatedTable({
     api: () => fetchGetReportTemplateList(searchParams.value),
@@ -46,16 +67,34 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     },
     columns: () => [
       { type: 'selection', align: 'center', width: 48 },
+      {
+        key: 'projectNo',
+        title: '项目',
+        align: 'center',
+        width: 170,
+        ellipsis: { tooltip: true },
+        // 项目编号 + 项目名称两行：模板必须先选项目、再选产品
+        render: row => {
+          if (!row.projectNo && !row.projectName) {
+            return <span class="op-40">未归属项目</span>;
+          }
+          return (
+            <div class="flex-col items-center">
+              <span>{row.projectNo ?? '-'}</span>
+              <span class="text-12px op-60">{row.projectName ?? ''}</span>
+            </div>
+          );
+        }
+      },
       { key: 'templateName', title: '模板名称', align: 'left', minWidth: 160 },
       { key: 'templateVersion', title: '版本', align: 'center', width: 80, render: row => row.templateVersion ?? '-' },
       { key: 'reportType', title: '报告类型', align: 'center', minWidth: 120, render: row => row.reportType ?? '-' },
       {
-        key: 'productNames',
+        key: 'products',
         title: '关联产品',
-        align: 'left',
+        align: 'center',
         minWidth: 200,
-        ellipsis: { tooltip: true },
-        render: row => (row.productNames?.length ? row.productNames.join('、') : '-')
+        render: row => renderProducts(row.products)
       },
       {
         key: 'moduleCode',

@@ -19,6 +19,12 @@ declare namespace Api {
       templateVersion: string | null;
       /** 客户编码 */
       customerCode: string | null;
+      /** 模板归属项目（project_config.id） */
+      projectId: number | null;
+      /** 项目编号（列表展示，后端批量回填） */
+      projectNo: string | null;
+      /** 项目名称（列表展示） */
+      projectName: string | null;
       /** 报告类型 */
       reportType: string | null;
       /** 有序个性化模块编码列表（分号分隔） */
@@ -37,11 +43,27 @@ declare namespace Api {
       productIds: number[] | null;
       /** 关联产品名称集合（列表展示） */
       productNames: string[] | null;
+      /**
+       * 关联产品明细（列表「关联产品」列用）：生信编码 productBio 换行产品编码 productCode，
+       * 多个产品就一条一条上下排
+       */
+      products: Api.Report.TemplateProduct[] | null;
+    }
+
+    /** 模板关联的一条产品（后端 ReportTemplateVo.products 的一项） */
+    interface TemplateProduct {
+      productId: number;
+      /** 生信编码（= 上传目录第 2 层 product） */
+      productBio: string;
+      /** 产品名称（对外展示） */
+      productName: string;
+      /** 产品编码 */
+      productCode: string;
     }
 
     /** 搜索参数 */
     type ReportTemplateSearchParams = CommonType.RecordNullable<
-      Pick<ReportTemplate, 'templateName' | 'reportType' | 'status'> & Common.CommonSearchParams
+      Pick<ReportTemplate, 'templateName' | 'reportType' | 'status' | 'projectId'> & Common.CommonSearchParams
     >;
 
     /** 新增/编辑表单（= 后端 ReportTemplateBo；templateCode 由后端生成，前端不传） */
@@ -50,6 +72,8 @@ declare namespace Api {
       templateName: string;
       templateVersion: string;
       customerCode: string;
+      /** 归属项目（必选）：模板先选项目、再选产品 */
+      projectId: number | null;
       reportType: string;
       moduleCode: string;
       reportName: string;
@@ -77,6 +101,17 @@ declare namespace Api {
       /** 产品编码 */
       productCode: string;
       status: string;
+    }
+
+    /** 项目下拉选项（project_config；模板必须先选项目再选产品） */
+    interface ProjectOption {
+      id: number;
+      /** 项目编号（同租户内唯一） */
+      projectNo: string;
+      /** 项目名称 */
+      projectName: string;
+      /** 客户名称 */
+      customer: string | null;
     }
   }
 }
