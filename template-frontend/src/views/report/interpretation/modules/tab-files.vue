@@ -69,7 +69,7 @@ async function handleRedrive(fileId: number) {
   }
 }
 
-/** 状态筛选项（data_file_status.status） */
+/** 状态筛选项（analysis_file_status.status） */
 const FILE_STATUS_OPTIONS = [
   { label: '已加载', value: 'Loaded' },
   { label: '处理中', value: 'Pending' },

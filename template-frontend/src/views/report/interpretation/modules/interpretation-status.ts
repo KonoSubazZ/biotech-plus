@@ -33,7 +33,7 @@ export const REPORT_STATUS_META: Record<string, StatusMeta> = {
   '62': { label: '报告发送成功', type: 'success' }
 };
 
-/** data_file_status.status 集群文件状态（Tab② 集群对接） */
+/** analysis_file_status.status 集群文件状态（Tab② 集群对接） */
 export const FILE_STATUS_META: Record<string, StatusMeta> = {
   Loaded: { label: '已加载', type: 'success' },
   Pending: { label: '处理中', type: 'warning' },

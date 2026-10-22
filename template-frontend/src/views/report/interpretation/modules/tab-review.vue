@@ -51,7 +51,7 @@ const context = ref<Api.Report.InterpretationContext | null>(null);
 const preview = ref<Api.Report.InterpretationPreview | null>(null);
 /** 预览来源：artifact = 报告已生成（成品文件在）；realtime = 只组装过、还没生成 */
 const previewSource = ref<'artifact' | 'realtime' | ''>('');
-/** 集群文件个数（与 Tab② 集群对接同源：data_file_status 该批次条数） */
+/** 集群文件个数（与 Tab② 集群对接同源：analysis_file_status 该批次条数） */
 const fileCount = ref<number | null>(null);
 const loading = ref(false);
 const acting = ref(false);
@@ -344,7 +344,7 @@ watch(() => [props.analysisId, props.reportId], loadAll, { immediate: true });
           <NDescriptionsItem label="报告ID">{{ text(report?.reportId) }}</NDescriptionsItem>
           <NDescriptionsItem label="样本编号">{{ text(report?.subbarcode ?? sampleInfo.sampleCode) }}</NDescriptionsItem>
           <NDescriptionsItem label="患者编号">{{ text(sampleInfo.participantNumber) }}</NDescriptionsItem>
-          <NDescriptionsItem label="产品">{{ text(report?.product) }}</NDescriptionsItem>
+          <NDescriptionsItem label="产品">{{ text(report?.productBio) }}</NDescriptionsItem>
           <NDescriptionsItem label="解读癌种">{{ text(report?.analysisDisease ?? sampleInfo.disease) }}</NDescriptionsItem>
           <NDescriptionsItem label="模板">{{ text(report?.template) }}</NDescriptionsItem>
           <NDescriptionsItem label="报告日期">{{ text(reportInfo.reportDate) }}</NDescriptionsItem>

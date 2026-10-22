@@ -90,8 +90,12 @@ declare namespace Api {
       analysisId: number;
       analysisDate: string | null;
       subbarcode: string | null;
-      product: string | null;
+      productBio: string | null;
       productId: number | null;
+      /** 项目编号（= sample_file.project_no） */
+      projectNo: string | null;
+      /** 上传批次目录名（= analysis_data.analysis_batch_date） */
+      analysisBatchDate: string | null;
       analysisDisease: string | null;
       templateId: number | null;
       template: string | null;
@@ -171,7 +175,7 @@ declare namespace Api {
       doctorEmail: string | null;
     }
 
-    /** 解读页 Tab② 集群对接：文件列表行（= 后端 InterpretationFileVo，data_file_status） */
+    /** 解读页 Tab② 集群对接：文件列表行（= 后端 InterpretationFileVo，analysis_file_status） */
     interface InterpretationFile {
       fileId: number;
       /** 文件类型：SNP / Indel / CNV / Fusion / CR_ALL / MSI / qc / Chem / Chemical_all */
