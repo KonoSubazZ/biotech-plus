@@ -77,7 +77,7 @@
     </select>
 
     <!-- 报告产品：product_id 为空时按产品名/编码定位 product_config.id
-         三列都试：生信名（analysis_data.product 写入的值）→ 对外产品名 → 产品编码 -->
+         三列都试：生信名（analysis_data.product_bio 写入的值）→ 对外产品名 → 产品编码 -->
     <select id="selectProductIdByName" resultType="java.lang.Long">
         SELECT id
         FROM product_config

@@ -294,7 +294,7 @@ drive:
   # 审计字段 create_by（sys_user.user_id）与执行人姓名（写 analysis_data.drive_executed_by）
   create-by: 1
   operator-name: tumor
-  # 明细批量插入每批行数 / data_file_status.file_text 最多保留字符数
+  # 明细批量插入每批行数 / analysis_file_status.file_text 最多保留字符数
   batch-insert-size: 500
   file-text-max-length: 1048576
 

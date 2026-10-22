@@ -30,7 +30,7 @@ public class ProductConfigBo extends BaseEntity {
     @Size(max = 60, message = "产品编码长度不能超过 60")
     private String productCode;
 
-    /** 生信编码（= 上传目录第 2 层 product，与 analysis_data.product 逐字相等） */
+    /** 生信编码（= 上传目录第 2 层 product，与 analysis_data.product_bio 逐字相等） */
     @NotBlank(message = "生信编码不能为空")
     @Size(max = 120, message = "生信编码长度不能超过 120")
     private String productBio;
