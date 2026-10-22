@@ -57,7 +57,7 @@ public class VariantMatcher {
         1, "致病", 2, "可能致病", 3, "未知临床意义", 4, "可能良性", 5, "良性");
 
     /** 复用键版本：v2 = 按「产品项目 + 位点 + 癌种 + 性别 + 人工改靶父级」冻结 */
-    private static final String MATCH_KEY_VERSION = "v3";
+    private static final String MATCH_KEY_VERSION = "v4";
 
     private final InterpretationMapper interpretationMapper;
 
@@ -303,16 +303,22 @@ public class VariantMatcher {
     }
 
     /**
-     * 匹配键：v3 口径 = {@code sha256(v3|项目编号|产品项目|癌种|性别|基因|位点|原始位点|人工改靶父级)}。
+     * 匹配键：v4 口径 = {@code sha256(v4|项目编号|产品项目|癌种|性别|基因|位点|原始位点)}。
      * <p>
-     * v3（2026-10-22 用户定）：在 v2「产品项目」基础上加 project_no —— 匹配到历史位点必须
+     * v3（2026-10-22）：在 v2「产品项目」基础上加 project_no —— 匹配到历史位点必须
      * {@code gene + variant + disease + gender + project_no + product_bio} 全一致，避免跨项目复用。
+     * <p>
+     * v4（2026-10-22 用户定，去掉改靶父级）：历史是**人工改靶**过的（人为加父级），而实时查知识库
+     * 算出的父级可能与历史不一致，带父级会导致该命中的历史命中不上。改靶父级仍写进
+     * {@code parent_mutation_id} 列供审计/查看，也仍参与"首次实时匹配"的用药计算，但**不进复用键**。
      * <p>
      * 冻结语义：同一键只写一次（INSERT IGNORE），此后一律复用，NKB 更新不刷新。
      * <p>
      * 不进键的维度（<b>列仍保留并继续填充，仅供查看/审计</b>）：
      * {@code customer}（医院）—— 复用边界是产品项目，不按医院；
      * {@code source_type} / {@code mutation_type} / {@code zygosity} —— 位点短名的派生或次要维度；
+     * {@code parent_mutation_id}（人工改靶）—— v4 起不进复用键（人工改过的历史必须能命中），
+     * 列仍填充、仍参与首次实时匹配的用药计算；
      * {@code source_analysis_id} / {@code source_report_id} / {@code source_variant_id} 只做审计。
      * <p>
      * 癌种用 NKB {@code disease_id}（抗改名）；{@code disease_id} 为空时才退回癌种中文名。
@@ -323,8 +329,7 @@ public class VariantMatcher {
             : "id:" + pc.getDiseaseId();
         String raw = String.join("|",
             MATCH_KEY_VERSION, nz(pc.getProjectNo()), nz(pc.getProjectCode()), diseaseKey, nz(pc.getGender()),
-            nz(item.getGene()), nz(item.getVariant()), nz(item.getOriVariant()),
-            ParentMutationIds.toKey(item.getParentMutationIds()));
+            nz(item.getGene()), nz(item.getVariant()), nz(item.getOriVariant()));
         return sha256(raw);
     }
 
