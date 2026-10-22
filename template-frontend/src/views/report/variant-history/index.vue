@@ -113,6 +113,7 @@ const searchParams = ref<Api.Report.VariantHistorySearchParams>({
   subbarcode: null,
   disease: null,
   product: null,
+  projectNo: null,
   client: null,
   params: {}
 });
@@ -127,6 +128,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     },
     columns: () => [
       { key: 'subbarcode', title: '样本编号', align: 'center', minWidth: 150 },
+      { key: 'projectNo', title: '项目编号', align: 'center', minWidth: 120 },
       { key: 'client', title: '客户', align: 'center', minWidth: 160, ellipsis: { tooltip: true } },
       { key: 'gene', title: '基因', align: 'center', minWidth: 110 },
       { key: 'oriVariant', title: '原始位点', align: 'center', minWidth: 260, ellipsis: { tooltip: true } },
