@@ -19,15 +19,16 @@
 SET NAMES utf8mb4;
 
 -- analysis_data
+-- 口径（2026-10-22）：批次身份 = 上传目录名 analysis_batch_date（YYYYMMDDHHMMSS），analysis_date 只做展示/按天搜索；
+-- 不加唯一键 —— 「同批次已驱动」由驱动接口判重拒绝，而「重新解读」需要允许三件套相同、analysis_id 不同的多行。
 CREATE TABLE IF NOT EXISTS `analysis_data` (
     `analysis_id` bigint NOT NULL AUTO_INCREMENT COMMENT '分析数据ID',
-    `analysis_date` VARCHAR(8) NOT NULL COMMENT '分析日期YYYYMMDD',
-    `subbarcode` VARCHAR(80) NOT NULL COMMENT '样本编号',
-    `product` VARCHAR(120) NOT NULL COMMENT '产品名称',
+    `analysis_batch_date` VARCHAR(14) NOT NULL COMMENT '上传批次目录名 YYYYMMDDHHMMSS（批次身份）',
+    `analysis_date` VARCHAR(8) NOT NULL COMMENT '分析日期YYYYMMDD（= LEFT(analysis_batch_date,8)）',
+    `subbarcode` VARCHAR(80) NOT NULL COMMENT '样本编号（上传目录第 3 层，不含结尾 T）',
+    `product_bio` VARCHAR(120) NOT NULL COMMENT '生信产品编码（= 上传目录第 2 层 = product_config.product_bio）',
     `product_id` bigint DEFAULT NULL COMMENT '逻辑关联product_config.id（本仓产品主数据表）',
-    `barcode` VARCHAR(80) DEFAULT NULL COMMENT '患者编号',
-    `analyzer` VARCHAR(80) DEFAULT NULL COMMENT '解读人员',
-    `drive_status` VARCHAR(20) NOT NULL DEFAULT 'DRIVING' COMMENT '驱动状态',
+    `drive_status` int DEFAULT NULL COMMENT '驱动状态（10 驱动失败 / 11 驱动成功 / 12 驱动中）',
     `drive_executed_by` VARCHAR(80) DEFAULT NULL COMMENT '驱动执行人',
     `drive_executed_at` DATETIME DEFAULT NULL COMMENT '驱动执行时间',
     `create_by` bigint COMMENT '创建者',
@@ -38,9 +39,9 @@ CREATE TABLE IF NOT EXISTS `analysis_data` (
     `tenant_id`  varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
 
     PRIMARY KEY (`analysis_id`),
-    UNIQUE KEY `uk_analysis_data` (tenant_id, `subbarcode`, `product`, `analysis_date`),
-    KEY `idx_analysis_date_product` (`analysis_date`, `product`),
-    KEY `idx_analysis_product` (`product`),
+    KEY `idx_analysis_batch` (`analysis_batch_date`, `product_bio`, `subbarcode`),
+    KEY `idx_analysis_date_product` (`analysis_date`, `product_bio`),
+    KEY `idx_analysis_subbarcode` (`subbarcode`),
     INDEX `idx_analysis_product_id` (`product_id`, `del_flag`),
     KEY idx_tenant_id (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='样本分析数据';
@@ -122,35 +123,33 @@ CREATE TABLE IF NOT EXISTS `analysis_report_email_log` (
     KEY idx_tenant_id (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='报告邮件发送审计日志';
 
--- data_file_status
-CREATE TABLE IF NOT EXISTS `data_file_status` (
+-- analysis_file_status（2026-10-22 由 data_file_status 改名）
+-- 口径：只保留 analysis_id 主线 + 三列展示冗余（analysis_date / subbarcode / product_bio）；
+-- file_size 记录字节数（0 = 空文件）；同一文件重驱保留历史行（老行 del_flag=1 + 新行 del_flag=0），所以不加唯一键。
+CREATE TABLE IF NOT EXISTS `analysis_file_status` (
     `file_id` bigint NOT NULL AUTO_INCREMENT,
-    `file_path` VARCHAR(300) NOT NULL,
-    `file_name` VARCHAR(120) NOT NULL,
-    `data_type` VARCHAR(40) NOT NULL,
-    `file_type` VARCHAR(40) NOT NULL,
-    `file_text` LONGTEXT,
-    `analysis_date` VARCHAR(8) NOT NULL,
-    `analyzer` VARCHAR(80) DEFAULT NULL,
-    `barcode` VARCHAR(80) NOT NULL,
-    `subbarcode` VARCHAR(80) NOT NULL,
-    `product_name` VARCHAR(120) NOT NULL,
-    `status` VARCHAR(20) NOT NULL,
+    `file_path` VARCHAR(512) NOT NULL COMMENT '文件绝对路径',
+    `file_name` VARCHAR(120) NOT NULL COMMENT '文件名 <样本编号>T.<类型>',
+    `data_type` VARCHAR(40) NOT NULL COMMENT 'variant / druginfo',
+    `file_type` VARCHAR(40) NOT NULL COMMENT 'SNP/Indel/CNV/Fusion/CR_ALL/MSI/qc_g/qc/Chem/Chemical_all',
+    `file_text` LONGTEXT COMMENT '文件内容（超 1MB 截断）',
+    `file_size` bigint DEFAULT NULL COMMENT '文件字节数（0 = 空文件）',
+    `analysis_date` VARCHAR(8) NOT NULL COMMENT '冗余展示，来自批次',
+    `subbarcode` VARCHAR(80) NOT NULL COMMENT '冗余展示（后台按样本导出用，不参与查询）',
+    `product_bio` VARCHAR(120) NOT NULL COMMENT '生信产品编码（冗余展示，= analysis_data.product_bio）',
+    `status` VARCHAR(20) NOT NULL COMMENT 'Pending / Loaded / Error',
     `message` VARCHAR(2000) DEFAULT NULL,
     `create_by` bigint COMMENT '创建者',
     `create_time` datetime COMMENT '创建时间',
     `update_by` bigint COMMENT '更新者',
     `update_time` datetime COMMENT '更新时间',
-    `mut_num` INT DEFAULT NULL,
-    `analysis_id` bigint NOT NULL,
+    `mut_num` INT DEFAULT NULL COMMENT '明细行数',
+    `analysis_id` bigint NOT NULL COMMENT '所属分析批次',
     `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
     `tenant_id`  varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
 
     PRIMARY KEY (`file_id`),
-    UNIQUE KEY `uk_data_file_status` (tenant_id, `file_path`, `file_name`),
-    KEY `idx_report_case` (`analysis_date`, `product_name`, `subbarcode`, `status`),
-    KEY `idx_report_file_subbarcode` (`subbarcode`, `analysis_date`),
-    KEY `idx_file_analysis` (`analysis_id`),
+    KEY `idx_file_analysis` (`analysis_id`, `file_name`),
     KEY idx_tenant_id (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='样本文件驱动状态';
 

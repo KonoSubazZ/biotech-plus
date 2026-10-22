@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS `sample_file` (
 
     age                           varchar(50)  COMMENT '年龄（源表列 AGE）',
     subbarcode                       varchar(100)  COMMENT '样本编号（源表列 BARCODE）',
+    project_no                    varchar(60)  COMMENT '项目编号（= project_config.project_no；本仓扩展列，源表没有，报告创建必填）',
     bed                           varchar(100)  COMMENT '床位（源表列 BED）',
     birth_day                     varchar(100)  COMMENT '出生日期（源表列 BIRTHDAY）',
     birthplace                    varchar(100)  COMMENT '源表列 BIRTHPLACE',
