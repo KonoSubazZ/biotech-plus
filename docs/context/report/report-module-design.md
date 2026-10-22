@@ -339,10 +339,11 @@ ALTER TABLE `analysis_report`
 实际建表迁移为 `V8__report_match_history.sql`；v2 键口径 + 复用留痕由
 `script/sql/update/update_5.6.4-history-reuse-tracking.sql` 增量落地。两张表字段结构保持一致：
 
-- **复用键（v2，当前口径）**：`project_code`（产品项目）、`disease_id/disease`（癌种）、`gender`、
-  `gene`、`variant`、`ori_variant`、`parent_mutation_id`（人工改靶）。
-  键 = 上列规范化后 `sha256("v2|产品项目|癌种|性别|基因|位点|原始位点|改靶父级")`。
-  同产品项目下同一位点（同癌种、同性别、同改靶）复用同一条冻结结果。
+- **复用键（v3，当前口径，2026-10-22）**：`project_no`（项目编号）、`project_code`（产品项目 = product_bio）、
+  `disease_id/disease`（癌种）、`gender`、`gene`、`variant`、`ori_variant`、`parent_mutation_id`（人工改靶）。
+  键 = 上列规范化后 `sha256("v3|项目编号|产品项目|癌种|性别|基因|位点|原始位点|改靶父级")`。
+  即匹配到历史位点必须 **gene + variant + disease + gender + project_no + product_bio** 全部一致，
+  避免跨项目复用；胚系临床意义继承的 where 也同步加上 `project_no`。
 - `customer`（医院）、`source_type`、`mutation_type`、`measurement`（合子）：**列保留、继续填充，但已不进复用键**。
   复用边界是「产品项目」，不按医院；来源类型/突变类型/合子是位点短名的派生或次要维度。
 - `key_version`：复用键口径版本（1=旧键含 customer，2=当前键）。迁移把 v1 行 `del_flag='1'` 退役，不物理删除。
