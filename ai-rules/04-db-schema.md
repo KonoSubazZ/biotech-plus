@@ -133,6 +133,22 @@ KEY idx_<业务列> (<业务列>),                            -- 按查询需要
 6. 软删除 + 唯一键的取舍：RuoYi 的做法是唯一键**不含 del_flag**（删除后编码仍被占用）。
    要有"删除后可复用编码"的需求，再单独讨论，不要默默加。
 
+### 4.1 已备案的例外（别"顺手改回去"）
+
+驱动入库（`ruoyi-drive`，2026-10-21 首版 / **2026-10-22 重构**）改写了两张既有的报告域表，口径与上面的通用规则不同，
+**再看到它们"不符合规范"时先读 `AGENTS.md` §3.2，不要按通用规则改回来**：
+
+| 表 | 现状 | 为什么 |
+|---|---|---|
+| `analysis_data` | **没有唯一键**；批次身份 = `analysis_batch_date`（上传目录名 YYYYMMDDHHMMSS），普通索引 `idx_analysis_batch (analysis_batch_date, product_bio, subbarcode)` | 用户定：① 本期驱动不参与租户、后续整体移除租户数据权限模块；② 「同批次已驱动」由驱动接口用 `INSERT … WHERE NOT EXISTS` 判重拒绝（加唯一键会挡死「重新解读」——它同三件套但要新建 analysis_id）；③ `batch_no` 已删除，没有业务作用；④ `product` 改名 `product_bio`（= `product_config.product_bio`，上传目录第 2 层）；⑤ `analysis_date` = `LEFT(analysis_batch_date,8)`，只做展示/搜索 |
+| `analysis_file_status`（2026-10-22 由 `data_file_status` 改名） | **没有唯一键**，普通索引 `idx_file_analysis (analysis_id, file_name)` | "重新驱动"= 老行 `del_flag=1` + 新行 `del_flag=0`（新 file_id），同一文件必须允许多条历史行；只留三列展示冗余 `analysis_date / subbarcode / product_bio`（+ `file_size`），`product_name / barcode / analyzer` 已删除，归属以 `analysis_data` 为准 |
+| 两张表 | 驱动写入**不写 tenant_id**（走库默认 `000000`） | 驱动是平台动作（生信流程调接口触发），不是某个药企的业务录入 |
+
+迁移脚本：`script/sql/update/update_5.6.31-report-drive.sql`（首版，batch_no 方案）→
+`script/sql/update/update_5.6.32-report-drive-batch-refactor.sql`（批次口径）、
+`script/sql/update/update_5.6.33-report-file-status-refactor.sql`（**表改名 + 字段收敛，当前口径**）。`check_db_schema.py` 对这两张表的
+`missing-tenant-index` / `bad-index-name` 类告警按此例外处理。
+
 ---
 
 ## 5. 字符集与排序规则
