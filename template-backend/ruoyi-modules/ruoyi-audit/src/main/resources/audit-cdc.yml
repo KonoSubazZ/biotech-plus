@@ -1,0 +1,15 @@
+# CDC 数据变更日志（Canal）。enabled=false 时模块完全静默，不连 canal、不消费。
+audit:
+  cdc:
+    enabled: false
+    host: localhost
+    port: 11111
+    destination: example
+    username: ""
+    password: ""
+    # 与 canal-server 的 instance filter 保持一致；后端再做一次本地过滤，防服务端配大了
+    filter: "ry-vue[.](sample_file|analysis_data|analysis_report|analysis_report_email_log|analysis_file_status|wet_lab_qc|bioinfo_qc|qc_standard|qc_failed_notify|product_config|product_template|product_gene|report_template|report_mail_config|history_somatic|history_germline|history_reuse_log|report_variant_history|compliance_document|dev_log|validation_record|sys_user|sys_role|sys_user_role|sys_role_menu)"
+    batch-size: 500
+    poll-timeout-ms: 1000
+    # 单列值超过该长度截断并标注，避免 file_text 这类 longtext 把日志撑爆
+    max-value-length: 4000
