@@ -34,6 +34,9 @@ public class SampleInfoBo extends BaseEntity {
     @Size(max = 100, message = "样本编号长度不能超过 100")
     private String subbarcode;
 
+    @Size(max = 60, message = "项目编号长度不能超过 60")
+    private String projectNo;
+
     @Size(max = 100, message = "床位长度不能超过 100")
     private String bed;
 

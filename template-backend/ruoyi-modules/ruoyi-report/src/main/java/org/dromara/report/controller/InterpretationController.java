@@ -236,12 +236,13 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * Tab② 重新驱动单个文件：后端调外部 scanner.py（单文件驱动），脚本写回状态后把最新状态返回。
+     * 重新驱动单个文件（「集群对接」页签的文件行按钮）
      * <p>
-     * 只允许该批次内的文件；驱动未启用/脚本路径没配时明确报错，不做兜底假成功。
+     * 只允许该批次内的文件；驱动在 ruoyi-drive 里同步执行：同批次重跑 ——
+     * 该文件老的 analysis_file_status 行置 del_flag='1'，再插一条新行（新 file_id），返回最新状态。
      *
      * @param bo 入参（analysisId / fileId）
-     * @return 文件最新状态 + 批次级驱动状态 + 脚本说明
+     * @return 文件最新状态 + 批次级驱动状态 + 处理说明
      */
     @SaCheckPermission("report:interpretation:files")
     @RepeatSubmit()

@@ -24,7 +24,7 @@ public class FileRedriveVo implements Serializable {
     /** 文件名 */
     private String fileName;
 
-    /** 该文件驱动后的状态（data_file_status.status：Loaded / Pending / Error） */
+    /** 该文件驱动后的状态（analysis_file_status.status：Loaded / Pending / Error） */
     private String fileStatus;
 
     /** 该批次的样本级驱动状态（int 码：10 失败 / 11 成功 / 12 驱动中） */

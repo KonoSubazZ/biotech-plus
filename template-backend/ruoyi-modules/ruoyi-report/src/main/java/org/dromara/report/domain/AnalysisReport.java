@@ -42,20 +42,23 @@ public class AnalysisReport extends BaseEntity {
     /** 所属分析批次 */
     private Long analysisId;
 
+    /** 上传批次目录名快照（= analysis_data.analysis_batch_date） */
+    private String analysisBatchDate;
+
     /** 分析日期（YYYYMMDD，与 analysis_data 同口径） */
     private String analysisDate;
 
     /** 样本编号 */
     private String subbarcode;
 
-    /** 产品名称（analysis_data.product 的快照） */
-    private String product;
+    /** 生信产品编码快照（= analysis_data.product_bio） */
+    private String productBio;
 
     /** 产品ID（逻辑关联 product_config.id） */
     private Long productId;
 
-    /** 产品描述 */
-    private String productDesc;
+    /** 项目编号快照（= sample_file.project_no，报告创建时必填） */
+    private String projectNo;
 
     /** 解读癌种ID */
     private Long analysisDiseaseId;

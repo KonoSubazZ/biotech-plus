@@ -278,3 +278,9 @@ ssq:
   template-id: ${SSQ_TEMPLATE_ID:4197207713522448386}
   # 单次 HTTP 超时（秒）
   timeout-seconds: 30
+
+--- # 数据驱动入库：本机 / 测试环境的上传根
+# 层级是 <日期 YYYYMMDD>/<产品>/<样本>/<样本T>/10.Upload；后端容器要 bind mount 同一个路径
+# （见 /home/liushangzhi/docker/biotech-plus/deploy.sh 的 DRIVER_UPLOAD_DIR）。
+drive:
+  root-dir: /tmp/rp-upload

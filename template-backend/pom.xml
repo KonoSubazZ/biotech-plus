@@ -129,6 +129,12 @@
 
             <dependency>
                 <groupId>org.dromara</groupId>
+                <artifactId>ruoyi-drive</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.dromara</groupId>
                 <artifactId>ruoyi-project</artifactId>
                 <version>${revision}</version>
             </dependency>

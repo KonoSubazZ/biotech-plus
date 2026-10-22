@@ -285,3 +285,9 @@ ssq:
   client-secret: ${SSQ_CLIENT_SECRET:}
   template-id: ${SSQ_TEMPLATE_ID:}
   timeout-seconds: 30
+
+--- # 数据驱动入库：生产上传根（外部大盘），必须与后端容器的挂载源一致
+# 留空 = 调用时快速失败（报「未配置上传根目录 drive.root-dir」），**不要猜生产路径**。
+# 填真实目录后，deploy.sh 的挂载源（DRIVER_UPLOAD_DIR）要改成同一个目录，否则容器里看不到文件。
+drive:
+  root-dir: ${DRIVE_ROOT_DIR:}

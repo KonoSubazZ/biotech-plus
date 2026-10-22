@@ -9,9 +9,10 @@ import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.utils.StringUtils;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
+import org.dromara.drive.domain.vo.DriveFileVo;
+import org.dromara.drive.service.IDriveService;
 import org.dromara.report.domain.AnalysisReport;
 import org.dromara.report.domain.SampleInfo;
-import org.dromara.report.domain.dto.DriverInvokeResult;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
@@ -72,8 +73,8 @@ public class InterpretationServiceImpl implements IInterpretationService {
     private final SampleInfoMapper sampleInfoMapper;
     private final ReportTemplateMapper reportTemplateMapper;
 
-    /** 集群驱动调用器（重新驱动单个文件，能力组件） */
-    private final ClusterDriverInvoker clusterDriverInvoker;
+    /** 驱动入库服务（重新驱动单个文件；能力在 ruoyi-drive） */
+    private final IDriveService driveService;
     private final ReportOperationLock operationLock;
 
     @Override
@@ -118,7 +119,11 @@ public class InterpretationServiceImpl implements IInterpretationService {
             throw new ServiceException("报告已发送，请使用「重新解读」完成整批重扫后创建新报告");
         }
         if (sourceReportId != null && existing == null) {
-            throw new ServiceException("重新解读来源报告不存在");
+            // 重新解读会新建一个分析批次（不同 analysis_id），所以这里不能用「本批次已有报告」判断来源是否存在，
+            // 直接按 reportId 查来源报告（用户 2026-10-21：上传/重新解读新建批次）
+            if (analysisReportMapper.selectVoById(sourceReportId) == null) {
+                throw new ServiceException("重新解读来源报告不存在：reportId=" + sourceReportId);
+            }
         }
 
         AnalysisReport report = new AnalysisReport();
@@ -128,13 +133,21 @@ public class InterpretationServiceImpl implements IInterpretationService {
             report.setTemplate(existing.getTemplate());
         }
         report.setAnalysisId(snapshot.getAnalysisId());
+        report.setAnalysisBatchDate(snapshot.getAnalysisBatchDate());
         report.setAnalysisDate(snapshot.getAnalysisDate());
         report.setSubbarcode(snapshot.getSubbarcode());
-        report.setProduct(snapshot.getProduct());
+        report.setProductBio(snapshot.getProduct());
         report.setProductId(resolveProductId(snapshot.getProductId(), snapshot.getProduct()));
-        // 录单癌种：进入解读时就带上（LIMS sample_file，按样本编号取），后续生成报告只更新「解读癌种」
+        // 录单癌种 + 项目编号：进入解读时就带上（LIMS sample_file，按样本编号取）
         SampleInfo lims = selectSample(snapshot.getSubbarcode());
         report.setCancerType(lims == null ? null : lims.getCancerType());
+        // 项目编号是报告必填字段（用户 2026-10-22）：样本没维护项目号就不让建报告，避免出现空项目
+        String projectNo = lims == null ? null : lims.getProjectNo();
+        if (StringUtils.isBlank(projectNo)) {
+            throw new ServiceException("样本缺少项目编号，请先在「样本信息」里补 project_no 再进入解读：subbarcode="
+                + snapshot.getSubbarcode());
+        }
+        report.setProjectNo(projectNo.trim());
         report.setReportStatus(ReportStatus.BIOINFO_VIEW);
         analysisReportMapper.insert(report);
 
@@ -246,27 +259,17 @@ public class InterpretationServiceImpl implements IInterpretationService {
         if (analysisId == null || fileId == null) {
             throw new ServiceException("analysisId 与 fileId 不能为空");
         }
-        Map<String, Object> file = interpretationMapper.selectFileRow(fileId, analysisId);
-        if (file == null) {
-            throw new ServiceException("文件不存在或不属于该分析批次：fileId=" + fileId + "，analysisId=" + analysisId);
-        }
-        String filePath = toText(file.get("filePath"));
-        if (StringUtils.isBlank(filePath)) {
-            throw new ServiceException("该文件没有落盘路径，无法重新驱动：fileId=" + fileId);
-        }
+        // 驱动口径全部在 ruoyi-drive：同批次重跑 → 老行 del_flag=1 + 新行新 file_id，解析与落库都由它负责
+        DriveFileVo drive = driveService.driveFile(analysisId, fileId);
+        log.info("重新驱动完成：旧fileId={}，新fileId={}，status={}，driveStatus={}",
+            fileId, drive.getFileId(), drive.getStatus(), drive.getDriveStatus());
 
-        // 驱动脚本负责写库（文件级状态 + 按「所有文件都 Loaded」重算的样本级驱动状态）
-        DriverInvokeResult result = clusterDriverInvoker.invokeFile(filePath);
-        log.info("重新驱动完成：fileId={}，status={}，message={}", fileId, result.getStatus(), result.getMessage());
-
-        // 把脚本写回的最新状态读回来（脚本是唯一写入口，这里不重复实现口径）
-        Map<String, Object> latest = interpretationMapper.selectFileRow(fileId, analysisId);
         FileRedriveVo vo = new FileRedriveVo();
-        vo.setFileId(fileId);
-        vo.setFileName(latest == null ? toText(file.get("fileName")) : toText(latest.get("fileName")));
-        vo.setFileStatus(latest == null ? toText(file.get("status")) : toText(latest.get("status")));
-        vo.setDriveStatus(interpretationMapper.selectAnalysisDriveStatus(analysisId));
-        vo.setMessage(result.getMessage());
+        vo.setFileId(drive.getFileId());
+        vo.setFileName(drive.getFileName());
+        vo.setFileStatus(drive.getStatus());
+        vo.setDriveStatus(drive.getDriveStatus());
+        vo.setMessage(drive.getMessage());
         return vo;
     }
 
@@ -421,21 +424,35 @@ public class InterpretationServiceImpl implements IInterpretationService {
     private void ensureReportSnapshot(AnalysisReport existing) {
         boolean cancerBlank = StringUtils.isBlank(existing.getCancerType());
         boolean productBlank = existing.getProductId() == null;
-        if (!cancerBlank && !productBlank) {
+        boolean projectBlank = StringUtils.isBlank(existing.getProjectNo());
+        boolean batchBlank = StringUtils.isBlank(existing.getAnalysisBatchDate());
+        if (!cancerBlank && !productBlank && !projectBlank && !batchBlank) {
             return;
         }
         AnalysisReport patch = new AnalysisReport();
         patch.setReportId(existing.getReportId());
-        if (cancerBlank) {
+        if (cancerBlank || projectBlank) {
             SampleInfo lims = selectSample(existing.getSubbarcode());
             if (lims != null) {
-                patch.setCancerType(lims.getCancerType());
+                if (cancerBlank) {
+                    patch.setCancerType(lims.getCancerType());
+                }
+                if (projectBlank && StringUtils.isNotBlank(lims.getProjectNo())) {
+                    patch.setProjectNo(lims.getProjectNo());
+                }
             }
         }
         if (productBlank) {
-            patch.setProductId(reportTemplateMapper.selectProductIdByName(existing.getProduct()));
+            patch.setProductId(reportTemplateMapper.selectProductIdByName(existing.getProductBio()));
         }
-        if (patch.getCancerType() != null || patch.getProductId() != null) {
+        if (batchBlank) {
+            AnalysisSnapshotVo snapshot = interpretationMapper.selectAnalysisSnapshot(existing.getAnalysisId());
+            if (snapshot != null && StringUtils.isNotBlank(snapshot.getAnalysisBatchDate())) {
+                patch.setAnalysisBatchDate(snapshot.getAnalysisBatchDate());
+            }
+        }
+        if (patch.getCancerType() != null || patch.getProductId() != null
+            || patch.getProjectNo() != null || patch.getAnalysisBatchDate() != null) {
             analysisReportMapper.updateById(patch);
         }
     }

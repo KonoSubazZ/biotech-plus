@@ -133,7 +133,7 @@ public class PreviewVariantVo implements Serializable {
     /** 突变说明（HGVS → 中文，移植 en7 的 translate_hgvs.pl + mutation_explanation.pm） */
     private String mutationExplanation;
 
-    /** 来源文件类型（data_file_status.file_type：SNP / Indel / CNV / Fusion / CR_ALL） */
+    /** 来源文件类型（analysis_file_status.file_type：SNP / Indel / CNV / Fusion / CR_ALL） */
     private String fileType;
 
     /** 核酸类型：DNA / RNA（只有融合行才有值，取自 file_Fusion.fusion_quality） */

@@ -43,11 +43,17 @@ public class AnalysisReportVo implements Serializable {
     /** 样本编号 */
     private String subbarcode;
 
-    /** 产品名称 */
-    private String product;
+    /** 生信产品编码（= analysis_data.product_bio） */
+    private String productBio;
 
     /** 产品ID（product_config.id） */
     private Long productId;
+
+    /** 项目编号（= sample_file.project_no） */
+    private String projectNo;
+
+    /** 上传批次目录名（= analysis_data.analysis_batch_date） */
+    private String analysisBatchDate;
 
     /** 解读癌种 */
     private String analysisDisease;

@@ -278,10 +278,6 @@ onlyoffice:
   # 源文件临时凭证有效期（秒）
   source-ttl-seconds: 600
 
---- # 集群驱动（外部 scanner.py）：样本流转「驱动异常」/ 集群对接的「重新驱动」按钮调它驱动单个文件
-# 后端容器里要有 python3 + scanner.py + 依赖（mysql-connector-python，见 deploy/renderer-requirements.txt），
-# 且 scanner.py 目录与上传根目录都得挂进容器（见 ./deploy.sh 的 -v）。生产用环境变量覆盖：
-# DRIVER_SCANNER_PATH / DRIVER_ROOT_DIR / DRIVER_ENABLED。enabled=false 时按钮明确报「未启用」，不做假成功。
 --- # 报告签名通道：stub = 假实现（只落状态链，不连通道，离线联调用）；ssq = 真实上上签（报告交付场景）
 # 默认 stub：本地/测试环境不依赖上上签网关也能跑通「签名中 → 已签名 → 发送」；
 # 生产用 ssq（见 application-prod.yml），任何环境都可用环境变量 REPORT_SIGN_PROVIDER 覆盖。
@@ -290,14 +286,17 @@ report:
   sign:
     provider: ${REPORT_SIGN_PROVIDER:stub}
 
-driver:
-  enabled: true
-  # 外部 scanner 的租户/analysis_id/驱动状态兼容联调完成后才开启。
-  batch-enabled: ${DRIVER_BATCH_ENABLED:false}
-  python: python3
-  scanner-path: /app/report-driver/scanner.py
-  root-dir: /tmp/rp-upload
-  timeout-seconds: 300
+--- # 数据驱动入库（ruoyi-drive）：生信流程上传完成后主动调用，同步返回最终状态与文件数
+# 这里只放与环境无关的共用默认值；**上传根目录按环境放在 application-dev.yml / application-prod.yml**
+# （驱动路径是本机 /tmp/rp-upload、生产外部大盘，天然按环境分叉，不要塞回共用文件）。
+# 外部调用走固定 token（见下方 api.token.paths）。
+drive:
+  # 审计字段 create_by（sys_user.user_id）与执行人姓名（写 analysis_data.drive_executed_by）
+  create-by: 1
+  operator-name: tumor
+  # 明细批量插入每批行数 / data_file_status.file_text 最多保留字符数
+  batch-insert-size: 500
+  file-text-max-length: 1048576
 
 --- # 固定 token 的接口调用：外部系统（生信流程 / 脚本）推数据时不用登录换 access_token
 # 调用方在请求头带 X-Api-Token: <value>，且路径命中 paths 时，服务端按 account 的身份执行本次请求：
@@ -314,6 +313,7 @@ api:
     paths:
       - /qc/bioinfo/receive
       - /qc/wetLabQc/receive
+      - /report/drive/**
     # 调用方没带 clientid 请求头时使用的客户端编号（sys_client.client_key）
     clientId: e5cd7e4891bf95d1d19206ce24a7b32e
 

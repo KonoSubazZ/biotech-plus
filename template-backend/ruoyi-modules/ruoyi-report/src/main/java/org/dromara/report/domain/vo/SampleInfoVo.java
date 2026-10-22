@@ -28,6 +28,9 @@ public class SampleInfoVo {
     /** 样本编号 */
     private String subbarcode;
 
+    /** 项目编号（= project_config.project_no） */
+    private String projectNo;
+
     /** 床位 */
     private String bed;
 

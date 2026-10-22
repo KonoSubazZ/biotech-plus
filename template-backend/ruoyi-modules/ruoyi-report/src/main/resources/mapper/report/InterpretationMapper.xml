@@ -23,10 +23,9 @@
             d.analysis_id         AS analysisId,
             d.analysis_date       AS analysisDate,
             d.subbarcode          AS subbarcode,
-            d.barcode             AS barcode,
-            d.product             AS product,
+            d.subbarcode          AS barcode,
+            d.product_bio         AS product,
             d.product_id          AS productId,
-            d.analyzer            AS analyzer,
             d.drive_status        AS driveStatus,
             d.drive_executed_at   AS driveExecutedAt,
             r.report_id           AS reportId,
@@ -50,7 +49,7 @@
             AND d.subbarcode LIKE CONCAT('%', #{query.subbarcode}, '%')
         </if>
         <if test="query != null and query.product != null and query.product != ''">
-            AND d.product LIKE CONCAT('%', #{query.product}, '%')
+            AND d.product_bio LIKE CONCAT('%', #{query.product}, '%')
         </if>
         <if test="query != null and query.reportStatus != null and query.reportStatus != ''">
             AND r.report_status = #{query.reportStatus}
@@ -75,7 +74,7 @@
             f.analysis_date AS analysisDate,
             CHAR_LENGTH(f.file_text) AS textLength,
             f.update_time   AS updateTime
-        FROM data_file_status f
+        FROM analysis_file_status f
         WHERE f.del_flag = '0'
           AND f.analysis_id = #{analysisId}
         <if test="query != null and query.fileName != null and query.fileName != ''">
@@ -184,7 +183,7 @@
                file_name AS fileName,
                file_path AS filePath,
                status    AS status
-        FROM data_file_status
+        FROM analysis_file_status
         WHERE file_id = #{fileId}
           AND analysis_id = #{analysisId}
           AND del_flag = '0'
@@ -205,14 +204,14 @@
             f.file_type AS fileType,
             LEFT(f.file_text, #{maxLength}) AS fileText,
             CHAR_LENGTH(f.file_text)        AS textLength
-        FROM data_file_status f
+        FROM analysis_file_status f
         WHERE f.file_id = #{fileId}
           AND f.analysis_id = #{analysisId}
           AND f.del_flag = '0'
     </select>
 
     <!--
-      Tab③ 筛选位点：四类位点分散在四张表，用 choose 选表；JOIN data_file_status 锁定分析批次。
+      Tab③ 筛选位点：四类位点分散在四张表，用 choose 选表；JOIN analysis_file_status 锁定分析批次。
       按需求把各明细表除公共字段（create_by/create_time/update_by/update_time/del_flag/tenant_id）
       之外的列全部返回；列名保持数据库列名，顺序与标题由前端一份配置维护。
       返回 Map（key = 列名）而不是定长 VO：明细表列多（SNP/Indel、CR_ALL 各 38 列），
@@ -240,7 +239,7 @@
                     v.reviewed_by,
                     v.reviewed_at
                 FROM file_CNV v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
             </when>
             <when test="query.sourceType == 'FUSION'">
                 SELECT
@@ -280,7 +279,7 @@
                     v.reviewed_by,
                     v.reviewed_at
                 FROM file_Fusion v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
             </when>
             <when test="query.sourceType == 'CR_ALL'">
                 SELECT
@@ -324,7 +323,7 @@
                     v.reviewed_by,
                     v.reviewed_at
                 FROM file_CR_ALL v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
             </when>
             <otherwise>
                 SELECT
@@ -368,7 +367,7 @@
                     v.reviewed_by,
                     v.reviewed_at
                 FROM file_Somatic_SNV_Indel v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
             </otherwise>
         </choose>
         WHERE f.analysis_id = #{analysisId}
@@ -391,7 +390,7 @@
         <choose>
             <when test="sourceType == 'CNV'">
                 UPDATE file_CNV v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.is_reported = #{isReported},
                     v.filtered_rationale = #{filteredRationale},
                     v.reviewed_by = #{operatorId},
@@ -402,7 +401,7 @@
             </when>
             <when test="sourceType == 'FUSION'">
                 UPDATE file_Fusion v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.is_reported = #{isReported},
                     v.filtered_rationale = #{filteredRationale},
                     v.reviewed_by = #{operatorId},
@@ -413,7 +412,7 @@
             </when>
             <when test="sourceType == 'CR_ALL'">
                 UPDATE file_CR_ALL v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.is_reported = #{isReported},
                     v.filtered_rationale = #{filteredRationale},
                     v.reviewed_by = #{operatorId},
@@ -424,7 +423,7 @@
             </when>
             <otherwise>
                 UPDATE file_Somatic_SNV_Indel v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.is_reported = #{isReported},
                     v.filtered_rationale = #{filteredRationale},
                     v.reviewed_by = #{operatorId},
@@ -452,7 +451,10 @@
                r.report_name      AS reportName,
                r.analysis_id      AS analysisId,
                r.subbarcode       AS subbarcode,
-               r.product          AS product,
+               r.product_bio      AS product,
+               r.project_no       AS projectNo,
+               d.analysis_batch_date AS analysisBatchDate,
+               d.product_bio      AS productBio,
                r.product_id       AS productId,
                r.template         AS template,
                r.template_id      AS templateId,
@@ -474,6 +476,7 @@
                t.template_version AS templateVersion,
                t.module_code      AS moduleCode
         FROM analysis_report r
+        LEFT JOIN analysis_data d ON d.analysis_id = r.analysis_id AND d.del_flag = '0'
         LEFT JOIN report_template t ON t.template_id = r.template_id AND t.del_flag = '0'
         WHERE r.report_id = #{reportId} AND r.del_flag = '0'
     </select>
@@ -487,7 +490,7 @@
                v.parent_mutation_id AS parentMutationId,
                NULL AS fusionQuality
         FROM file_Somatic_SNV_Indel v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         UNION ALL
         SELECT 'CNV' AS sourceType, v.id AS sourceId, v.gene AS gene, v.variant AS variant,
@@ -497,7 +500,7 @@
                v.parent_mutation_id AS parentMutationId,
                NULL AS fusionQuality
         FROM file_CNV v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         UNION ALL
         SELECT 'FUSION' AS sourceType, v.id AS sourceId,
@@ -508,7 +511,7 @@
                v.parent_mutation_id AS parentMutationId,
                v.tag AS fusionQuality
         FROM file_Fusion v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         ORDER BY sourceId
     </select>
@@ -521,7 +524,7 @@
                v.parent_mutation_id AS parentMutationId,
                f.file_type AS fileType, NULL AS freqRaw, NULL AS cosmic, NULL AS fusionQuality
         FROM file_CR_ALL v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         ORDER BY sourceId
     </select>
@@ -605,7 +608,7 @@
         SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant, v.zygosity AS zygosity,
                v.parent_mutation_id AS parentMutationId
         FROM file_CR_ALL v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
           AND v.del_flag = '0' AND f.del_flag = '0'
     </select>
@@ -616,7 +619,7 @@
             <when test="sourceType == 'CNV'">
                 SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
                 FROM file_CNV v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
                   AND v.del_flag = '0' AND f.del_flag = '0'
             </when>
@@ -624,21 +627,21 @@
                 SELECT IFNULL(CONCAT(v.gene1, '-', v.gene2), v.gene) AS gene,
                        v.variant AS variant, v.ori_variant AS oriVariant
                 FROM file_Fusion v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
                   AND v.del_flag = '0' AND f.del_flag = '0'
             </when>
             <when test="sourceType == 'CR_ALL'">
                 SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
                 FROM file_CR_ALL v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
                   AND v.del_flag = '0' AND f.del_flag = '0'
             </when>
             <otherwise>
                 SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
                 FROM file_Somatic_SNV_Indel v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
                   AND v.del_flag = '0' AND f.del_flag = '0'
             </otherwise>
@@ -650,25 +653,25 @@
         <choose>
             <when test="sourceType == 'CNV'">
                 UPDATE file_CNV v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
             </when>
             <when test="sourceType == 'FUSION'">
                 UPDATE file_Fusion v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
             </when>
             <when test="sourceType == 'CR_ALL'">
                 UPDATE file_CR_ALL v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
             </when>
             <otherwise>
                 UPDATE file_Somatic_SNV_Indel v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
             </otherwise>
@@ -734,12 +737,12 @@
     <select id="selectAnalysisSnapshot" resultType="org.dromara.report.domain.vo.AnalysisSnapshotVo">
         SELECT
             d.analysis_id  AS analysisId,
+            d.analysis_batch_date AS analysisBatchDate,
             d.analysis_date AS analysisDate,
             d.subbarcode   AS subbarcode,
-            d.barcode      AS barcode,
-            d.product      AS product,
-            d.product_id   AS productId,
-            d.analyzer     AS analyzer
+            d.subbarcode   AS barcode,
+            d.product_bio  AS product,
+            d.product_id   AS productId
         FROM analysis_data d
         WHERE d.analysis_id = #{analysisId}
           AND d.del_flag = '0'
@@ -758,7 +761,7 @@
                q.genome_alignment_rate     AS genomeAlignmentRate,
                q.base_quality_q30_rate     AS baseQualityQ30Rate
         FROM file_qc q
-        JOIN data_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
+        JOIN analysis_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
         WHERE f.analysis_id = #{analysisId} AND q.del_flag = '0'
         ORDER BY q.id DESC
         LIMIT 1
@@ -777,7 +780,7 @@
                q.genome_alignment_rate     AS genomeAlignmentRate,
                q.base_quality_q30_rate     AS baseQualityQ30Rate
         FROM file_qc_control q
-        JOIN data_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
+        JOIN analysis_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
         WHERE f.analysis_id = #{analysisId} AND q.del_flag = '0'
         ORDER BY q.id DESC
         LIMIT 1

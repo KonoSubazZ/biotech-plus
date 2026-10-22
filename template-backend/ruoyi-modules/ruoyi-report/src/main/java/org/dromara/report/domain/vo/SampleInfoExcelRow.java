@@ -386,4 +386,7 @@ public class SampleInfoExcelRow {
     /** 冻结状态 */
     @ExcelProperty(value = "BLOCK", index = 121)
     private String block;
+    /** 项目编号（本仓扩展列，源表没有；追加在最后，老模板导出文件照样能导入） */
+    @ExcelProperty(value = "PROJECTNO", index = 122)
+    private String projectNo;
 }

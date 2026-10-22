@@ -36,6 +36,9 @@ public class SampleInfo extends BaseEntity {
     /** 样本编号（源表列 BARCODE） */
     private String subbarcode;
 
+    /** 项目编号（= project_config.project_no；报告创建时必填） */
+    private String projectNo;
+
     /** 床位（源表列 BED） */
     private String bed;
 

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.drive.mapper.DriveDetailMapper">
+
+    <!-- 表名只能来自 DriveFileType 枚举白名单（服务层控制），列名全部写死，解析器只提供值 -->
+    <delete id="deleteByFileId">
+        DELETE FROM `${table}` WHERE file_id = #{fileId}
+    </delete>
+
+    <insert id="insertSomaticSnvIndel">
+        INSERT INTO file_Somatic_SNV_Indel (file_id, `chr`, `start`, `end`, `ref`, `alt`, hom_het, mut_depth,
+                                            total_depth, mut_freq, func_known_gene, gene_known_gene,
+                                            exonic_func_known_gene, aa_change_known_gene, esp6500si_all,
+                                            c1000g2012apr_all, dbsnp_rs, cosmic91, clinvar, check_depth,
+                                            check_result, clinvar_result, sp_tag, final_check, database_info,
+                                            gene, transcript, exon, chgvs, phgvs, variant, ori_variant,
+                                            create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.chr}, #{item.start}, #{item.end}, #{item.ref}, #{item.alt},
+             #{item.homHet}, #{item.mutDepth}, #{item.totalDepth}, #{item.mutFreq}, #{item.funcKnownGene},
+             #{item.geneKnownGene}, #{item.exonicFuncKnownGene}, #{item.aaChangeKnownGene},
+             #{item.esp6500siAll}, #{item.c1000g2012aprAll}, #{item.dbsnpRs}, #{item.cosmic91},
+             #{item.clinvar}, #{item.checkDepth}, #{item.checkResult}, #{item.clinvarResult}, #{item.spTag},
+             #{item.finalCheck}, #{item.databaseInfo}, #{item.gene}, #{item.transcript}, #{item.exon},
+             #{item.chgvs}, #{item.phgvs}, #{item.variant}, #{item.oriVariant},
+             #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insertCnv">
+        INSERT INTO file_CNV (file_id, gene, `chr`, `start`, `end`, copy_num, variant, ori_variant,
+                              create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.gene}, #{item.chr}, #{item.start}, #{item.end}, #{item.copyNum},
+             #{item.variant}, #{item.oriVariant}, #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insertFusion">
+        INSERT INTO file_Fusion (file_id, chromosome1, softclip1, sclip1_info, chromosome2, softclip2,
+                                 sclip2_info, driver_gene, cosmic_info, db_info, stream, sup_reads_hq,
+                                 sup_reads_uniq, depth, freq, check_result, transcript, fusion_reads,
+                                 sarcoma_subtypes, evidence_level, gene, gene1, bp1, gene2, bp2, variant,
+                                 tag, ori_variant, create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.chromosome1}, #{item.softclip1}, #{item.sclip1Info},
+             #{item.chromosome2}, #{item.softclip2}, #{item.sclip2Info}, #{item.driverGene},
+             #{item.cosmicInfo}, #{item.dbInfo}, #{item.stream}, #{item.supReadsHq},
+             #{item.supReadsUniq}, #{item.depth}, #{item.freq}, #{item.checkResult}, #{item.transcript},
+             #{item.fusionReads}, #{item.sarcomaSubtypes}, #{item.evidenceLevel}, #{item.gene},
+             #{item.gene1}, #{item.bp1}, #{item.gene2}, #{item.bp2}, #{item.variant}, #{item.tag},
+             #{item.oriVariant}, #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insertCrAll">
+        INSERT INTO file_CR_ALL (file_id, gene, `chr`, pos, transcript_id, exon, chgvs, phgvs, zygosity,
+                                 exonic_func, c1000g2015aug_all, exac_eas, clinvar_id, sift_pred,
+                                 polyphen2_hdiv_pred, mutation_taster_pred, depth, revel, gnomad_genome_all,
+                                 interpro_domain, clnsig, omim_phenotypes, omim_id, hgmd_tag, hgmd_disease,
+                                 hgmd_pmid, classification_lovd, clinical_significance_clinvar, source,
+                                 clinical_significance_enigma, variant, ori_variant, create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.gene}, #{item.chr}, #{item.pos}, #{item.transcriptId}, #{item.exon},
+             #{item.chgvs}, #{item.phgvs}, #{item.zygosity}, #{item.exonicFunc},
+             #{item.c1000g2015augAll}, #{item.exacEas}, #{item.clinvarId}, #{item.siftPred},
+             #{item.polyphen2HdivPred}, #{item.mutationTasterPred}, #{item.depth}, #{item.revel},
+             #{item.gnomadGenomeAll}, #{item.interproDomain}, #{item.clnsig}, #{item.omimPhenotypes},
+             #{item.omimId}, #{item.hgmdTag}, #{item.hgmdDisease}, #{item.hgmdPmid},
+             #{item.classificationLovd}, #{item.clinicalSignificanceClinvar}, #{item.source},
+             #{item.clinicalSignificanceEnigma}, #{item.variant}, #{item.oriVariant},
+             #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insertMsi">
+        INSERT INTO file_MSI (file_id, score, threshold, `status`, check_result, create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.score}, #{item.threshold}, #{item.status}, #{item.checkResult},
+             #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insertQc">
+        INSERT INTO file_qc (file_id, tumor_cell_content, dna_total_ng, dna_degradation, pre_library_total_ng,
+                             sequencing_data_volume, mean_sequencing_depth, coverage_uniformity,
+                             target_region_coverage, genome_alignment_rate, base_quality_q30_rate,
+                             create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.tumorCellContent}, #{item.dnaTotalNg}, #{item.dnaDegradation},
+             #{item.preLibraryTotalNg}, #{item.sequencingDataVolume}, #{item.meanSequencingDepth},
+             #{item.coverageUniformity}, #{item.targetRegionCoverage}, #{item.genomeAlignmentRate},
+             #{item.baseQualityQ30Rate}, #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insertQcControl">
+        INSERT INTO file_qc_control (file_id, tumor_cell_content, dna_total_ng, dna_degradation,
+                                     pre_library_total_ng, sequencing_data_volume, mean_sequencing_depth,
+                                     coverage_uniformity, target_region_coverage, genome_alignment_rate,
+                                     base_quality_q30_rate, create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.tumorCellContent}, #{item.dnaTotalNg}, #{item.dnaDegradation},
+             #{item.preLibraryTotalNg}, #{item.sequencingDataVolume}, #{item.meanSequencingDepth},
+             #{item.coverageUniformity}, #{item.targetRegionCoverage}, #{item.genomeAlignmentRate},
+             #{item.baseQualityQ30Rate}, #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insertChem">
+        INSERT INTO file_Chem (file_id, `chr`, `position`, allele1, create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.chr}, #{item.position}, #{item.allele1}, #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insertChemical">
+        INSERT INTO file_chemical (file_id, raw_json, create_by, create_time)
+        VALUES
+        <foreach collection="rows" item="item" separator=",">
+            (#{item.fileId}, #{item.rawJson}, #{item.createBy}, NOW())
+        </foreach>
+    </insert>
+
+</mapper>

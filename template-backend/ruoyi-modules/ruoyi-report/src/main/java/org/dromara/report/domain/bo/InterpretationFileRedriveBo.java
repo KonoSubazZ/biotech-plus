@@ -15,7 +15,7 @@ public class InterpretationFileRedriveBo {
     @NotNull(message = "分析数据ID不能为空")
     private Long analysisId;
 
-    /** 文件ID（data_file_status.file_id） */
+    /** 文件ID（analysis_file_status.file_id） */
     @NotNull(message = "文件ID不能为空")
     private Long fileId;
 }

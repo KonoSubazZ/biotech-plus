@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.drive.mapper.DriveAnalysisMapper">
+
+    <!--
+      上传建批次：一条语句原子判重（INSERT … SELECT … WHERE NOT EXISTS），并发下不会插出两条同批次。
+      没有唯一键（重新解读要允许三件套相同的多行），所以判重只能靠这条语句 + 业务校验。
+    -->
+    <insert id="insertIfAbsent">
+        INSERT INTO analysis_data (analysis_batch_date, analysis_date, subbarcode, product_bio, product_id,
+                                   drive_status, drive_executed_by, drive_executed_at,
+                                   create_by, create_time, del_flag)
+        SELECT #{row.analysisBatchDate}, #{row.analysisDate}, #{row.subbarcode}, #{row.productBio}, #{row.productId},
+               #{row.driveStatus}, #{row.operatorName}, NOW(),
+               #{row.createBy}, NOW(), '0'
+        FROM DUAL
+        WHERE NOT EXISTS (SELECT 1 FROM analysis_data
+                          WHERE analysis_batch_date = #{row.analysisBatchDate}
+                            AND product_bio = #{row.productBio}
+                            AND subbarcode = #{row.subbarcode})
+    </insert>
+
+    <!-- 重新解读：同三件套也允许新建（不判重） -->
+    <insert id="insertNewBatch">
+        INSERT INTO analysis_data (analysis_batch_date, analysis_date, subbarcode, product_bio, product_id,
+                                   drive_status, drive_executed_by, drive_executed_at,
+                                   create_by, create_time, del_flag)
+        VALUES (#{row.analysisBatchDate}, #{row.analysisDate}, #{row.subbarcode}, #{row.productBio}, #{row.productId},
+                #{row.driveStatus}, #{row.operatorName}, NOW(),
+                #{row.createBy}, NOW(), '0')
+    </insert>
+
+    <select id="selectLatestAnalysisId" resultType="java.lang.Long">
+        SELECT analysis_id
+        FROM analysis_data
+        WHERE analysis_batch_date = #{analysisBatchDate}
+          AND product_bio = #{productBio}
+          AND subbarcode = #{subbarcode}
+          AND del_flag = '0'
+        ORDER BY analysis_id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectBatch" resultType="java.util.LinkedHashMap">
+        SELECT analysis_batch_date AS analysisBatchDate,
+               analysis_date       AS analysisDate,
+               product_bio         AS productBio,
+               subbarcode          AS subbarcode
+        FROM analysis_data
+        WHERE analysis_id = #{analysisId}
+          AND del_flag = '0'
+        LIMIT 1
+    </select>
+
+    <select id="countById" resultType="int">
+        SELECT COUNT(*) FROM analysis_data WHERE analysis_id = #{analysisId} AND del_flag = '0'
+    </select>
+
+    <update id="updateDriveStatus">
+        UPDATE analysis_data
+        SET drive_status = #{driveStatus}, update_by = #{updateBy}, update_time = NOW()
+        WHERE analysis_id = #{analysisId}
+    </update>
+
+    <update id="finishDrive">
+        UPDATE analysis_data
+        SET drive_status = #{driveStatus}, drive_executed_by = #{executedBy}, drive_executed_at = NOW(),
+            update_by = #{updateBy}, update_time = NOW()
+        WHERE analysis_id = #{analysisId}
+    </update>
+
+</mapper>

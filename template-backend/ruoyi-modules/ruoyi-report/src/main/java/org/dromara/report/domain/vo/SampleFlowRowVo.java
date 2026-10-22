@@ -35,7 +35,7 @@ public class SampleFlowRowVo implements Serializable {
     /** 产品名称 */
     private String product;
 
-    /** 驱动状态（int 码：10 失败 / 11 成功 / 12 驱动中，见 utils/DriveStatus） */
+    /** 驱动状态（int 码：10 失败 / 11 成功 / 12 驱动中，常量见 ruoyi-drive 的 utils/DriveStatus） */
     private Integer driveStatus;
 
     /** 驱动执行时间 */

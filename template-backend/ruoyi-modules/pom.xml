@@ -11,6 +11,7 @@
 
     <modules>
         <module>ruoyi-report</module>
+        <module>ruoyi-drive</module>
         <module>ruoyi-project</module>
         <module>ruoyi-qc</module>
         <module>ruoyi-compliance</module>

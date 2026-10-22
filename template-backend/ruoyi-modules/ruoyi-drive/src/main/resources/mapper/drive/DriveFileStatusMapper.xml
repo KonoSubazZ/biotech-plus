@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.drive.mapper.DriveFileStatusMapper">
+
+    <!-- 新行先落 Pending，解析成功/失败后再改状态
+         2026-10-22 重构：表名 analysis_file_status；只写 analysis_id 主线 + 两列展示快照（analysis_date / subbarcode）
+         与 product_bio（后台看表/导出直接可读）；file_size 记录字节数（0=空文件）；
+         tenant_id 不写，走库默认 000000 -->
+    <insert id="insertFile">
+        INSERT INTO analysis_file_status (file_path, file_name, data_type, file_type, analysis_date, subbarcode,
+                                          product_bio, file_size, status, create_by, create_time, analysis_id, del_flag)
+        VALUES (#{row.filePath}, #{row.fileName}, #{row.dataType}, #{row.fileType}, #{row.analysisDate},
+                #{row.subbarcode}, #{row.productBio}, #{row.fileSize}, #{row.status}, #{row.createBy}, NOW(),
+                #{row.analysisId}, '0')
+    </insert>
+
+    <select id="selectLatestActiveFileId" resultType="java.lang.Long">
+        SELECT file_id
+        FROM analysis_file_status
+        WHERE analysis_id = #{analysisId} AND file_name = #{fileName} AND del_flag = '0'
+        ORDER BY file_id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectActiveFile" resultType="java.util.LinkedHashMap">
+        SELECT file_id   AS fileId,
+               file_path AS filePath,
+               file_name AS fileName,
+               file_type AS fileType,
+               status    AS status
+        FROM analysis_file_status
+        WHERE analysis_id = #{analysisId} AND file_id = #{fileId} AND del_flag = '0'
+        LIMIT 1
+    </select>
+
+    <update id="deactivateActiveFile">
+        UPDATE analysis_file_status
+        SET del_flag = '1', update_by = #{updateBy}, update_time = NOW()
+        WHERE analysis_id = #{analysisId} AND file_name = #{fileName} AND del_flag = '0'
+    </update>
+
+    <update id="markLoaded">
+        UPDATE analysis_file_status
+        SET status = 'Loaded', mut_num = #{mutNum}, file_text = #{fileText}, message = NULL,
+            update_by = #{updateBy}, update_time = NOW()
+        WHERE file_id = #{fileId}
+    </update>
+
+    <update id="markError">
+        UPDATE analysis_file_status
+        SET status = 'Error', message = #{message}, update_by = #{updateBy}, update_time = NOW()
+        WHERE file_id = #{fileId}
+    </update>
+
+    <select id="selectActiveFiles" resultType="java.util.LinkedHashMap">
+        SELECT file_id AS fileId, file_name AS fileName, file_type AS fileType, status,
+               mut_num AS mutNum, message
+        FROM analysis_file_status
+        WHERE analysis_id = #{analysisId} AND del_flag = '0'
+        ORDER BY file_id
+    </select>
+
+    <select id="countActiveFiles" resultType="int">
+        SELECT COUNT(*) FROM analysis_file_status WHERE analysis_id = #{analysisId} AND del_flag = '0'
+    </select>
+
+    <select id="countLoadedFiles" resultType="int">
+        SELECT COUNT(*) FROM analysis_file_status
+        WHERE analysis_id = #{analysisId} AND del_flag = '0' AND status = 'Loaded'
+    </select>
+
+</mapper>

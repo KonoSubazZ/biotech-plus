@@ -43,7 +43,7 @@ public interface InterpretationMapper {
     AnalysisSnapshotVo selectAnalysisSnapshot(@Param("analysisId") Long analysisId);
 
     /**
-     * 分页查询某个分析批次的集群文件（data_file_status）；不返回 file_text 大字段。
+     * 分页查询某个分析批次的集群文件（analysis_file_status）；不返回 file_text 大字段。
      *
      * @param page       分页参数
      * @param analysisId 分析数据ID
@@ -153,7 +153,7 @@ public interface InterpretationMapper {
     Integer selectAnalysisDriveStatus(@Param("analysisId") Long analysisId);
 
     /**
-     * 取单个文件的文本内容（data_file_status.file_text），超长按 maxLength 截断。
+     * 取单个文件的文本内容（analysis_file_status.file_text），超长按 maxLength 截断。
      *
      * @param fileId    文件ID
      * @param analysisId 分析数据ID（校验文件确实属于该批次）

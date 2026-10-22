@@ -74,8 +74,8 @@
             d.analysis_id           AS analysisId,
             d.analysis_date         AS analysisDate,
             d.subbarcode            AS subbarcode,
-            d.barcode               AS barcode,
-            d.product               AS product,
+            d.subbarcode            AS barcode,
+            d.product_bio           AS product,
             d.drive_status          AS driveStatus,
             d.drive_executed_at     AS driveExecutedAt,
             s.customer_name         AS customerName,
@@ -132,7 +132,7 @@
             AND d.subbarcode LIKE CONCAT('%', #{query.subbarcode}, '%')
         </if>
         <if test="query.product != null and query.product != ''">
-            AND d.product LIKE CONCAT('%', #{query.product}, '%')
+            AND d.product_bio LIKE CONCAT('%', #{query.product}, '%')
         </if>
         <if test="query.analysisDate != null and query.analysisDate != ''">
             AND d.analysis_date = #{query.analysisDate}

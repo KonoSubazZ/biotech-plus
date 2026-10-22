@@ -71,11 +71,11 @@
           AND (u.user_id = 1 OR role.role_key = 'superadmin' OR m.perms = 'report:interpretation:review')
     </select>
     <select id="countBadFiles" resultType="int">
-        SELECT COUNT(*) FROM data_file_status
+        SELECT COUNT(*) FROM analysis_file_status
         WHERE analysis_id = #{analysisId} AND del_flag = '0' AND (status IS NULL OR status != 'Loaded')
     </select>
     <select id="countFiles" resultType="int">
-        SELECT COUNT(*) FROM data_file_status WHERE analysis_id = #{analysisId} AND del_flag = '0'
+        SELECT COUNT(*) FROM analysis_file_status WHERE analysis_id = #{analysisId} AND del_flag = '0'
     </select>
     <select id="selectChild" resultType="long">
         SELECT report_id FROM analysis_report WHERE source_report_id = #{sourceReportId} AND del_flag = '0'
