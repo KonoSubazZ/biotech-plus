@@ -25,19 +25,28 @@ public class ProductConfigBo extends BaseEntity {
     private Long id;
 
     // @fields:start
-    /** 产品名称 */
-    @NotBlank(message = "产品名称不能为空")
-    @Size(max = 120, message = "产品名称长度不能超过 120")
-    private String name;
-
     /** 产品编码 */
     @NotBlank(message = "产品编码不能为空")
     @Size(max = 60, message = "产品编码长度不能超过 60")
-    private String code;
+    private String productCode;
 
-    /** 检测类型 */
+    /** 生信编码（= 上传目录第 2 层 product，与 analysis_data.product 逐字相等） */
+    @NotBlank(message = "生信编码不能为空")
+    @Size(max = 120, message = "生信编码长度不能超过 120")
+    private String productBio;
+
+    /** 产品名称（对外展示、报告用） */
+    @NotBlank(message = "产品名称不能为空")
+    @Size(max = 120, message = "产品名称长度不能超过 120")
+    private String productName;
+
+    /** 检测类型（组织 / 血液） */
     @Size(max = 60, message = "检测类型长度不能超过 60")
     private String testType;
+
+    /** panel类型（DNA / RNA / DNA_RNA / WES / HRD 等） */
+    @Size(max = 60, message = "panel类型长度不能超过 60")
+    private String panelType;
 
     /** 相关疾病 */
     @Size(max = 500, message = "相关疾病长度不能超过 500")

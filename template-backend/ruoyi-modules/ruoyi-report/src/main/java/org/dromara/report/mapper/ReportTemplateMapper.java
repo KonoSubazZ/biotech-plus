@@ -87,9 +87,9 @@ public interface ReportTemplateMapper extends BaseMapperPlus<ReportTemplate, Rep
     List<ReportTemplateVo> selectEnabledByProductId(@Param("productId") Long productId);
 
     /**
-     * 按产品名/编码定位 product_config.id（scanner 只写产品名，product_id 可能为空）。
+     * 按产品名/编码定位 product_config.id（scanner 只写生信编码，product_id 可能为空）。
      *
-     * @param name 产品名或产品编码
+     * @param name 生信编码 / 对外产品名 / 产品编码之一
      * @return 产品ID；定位不到返回 null
      */
     Long selectProductIdByName(@Param("name") String name);
@@ -97,7 +97,7 @@ public interface ReportTemplateMapper extends BaseMapperPlus<ReportTemplate, Rep
     /**
      * 产品下拉选项（product_config；跨模块只读，不走 Maven 依赖）。
      *
-     * @return 每行含 id / name / code / status
+     * @return 每行含 id / productBio / productName / productCode / status
      */
     List<Map<String, Object>> selectProductOptions();
 

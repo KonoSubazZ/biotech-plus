@@ -22,14 +22,20 @@ public class ProductConfigVo {
     private Long id;
 
     // @fields:start
-    /** 产品名称 */
-    private String name;
-
     /** 产品编码 */
-    private String code;
+    private String productCode;
 
-    /** 检测类型 */
+    /** 生信编码（= 上传目录第 2 层 product，与 analysis_data.product 逐字相等） */
+    private String productBio;
+
+    /** 产品名称（对外展示、报告用） */
+    private String productName;
+
+    /** 检测类型（组织 / 血液） */
     private String testType;
+
+    /** panel类型（DNA / RNA / DNA_RNA / WES / HRD 等） */
+    private String panelType;
 
     /** 相关疾病 */
     private String relatedDiseases;
