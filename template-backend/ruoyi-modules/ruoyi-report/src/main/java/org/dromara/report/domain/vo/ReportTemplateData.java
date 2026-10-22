@@ -51,6 +51,9 @@ public class ReportTemplateData implements Serializable {
     /** 报告ID */
     private Long reportId;
 
+    /** 项目编号（公共字段：来自 analysis_report.project_no） */
+    private String projectNo;
+
     /** 模板主键（登记 analysis_report.template_id 用；不进 JSON） */
     @JsonIgnore
     private Long templateId;

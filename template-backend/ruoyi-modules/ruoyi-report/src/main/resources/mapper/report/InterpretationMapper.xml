@@ -698,26 +698,26 @@
 
     <insert id="insertSomaticHistory">
         INSERT IGNORE INTO history_somatic
-            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
+            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_no, project_code,
              source_type, mutation_type, measurement, parent_mutation_id, match_status, variation_class,
              match_result, source_analysis_id, source_report_id, source_variant_id, knowledge_matched_at,
              create_time, update_time)
         VALUES
             (#{h.matchKey}, #{h.keyVersion}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
-             #{h.customer}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
+             #{h.customer}, #{h.projectNo}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
              #{h.parentMutationId}, #{h.matchStatus}, #{h.variationClass}, #{h.matchResult},
              #{h.sourceAnalysisId}, #{h.sourceReportId}, #{h.sourceVariantId}, NOW(), NOW(), NOW())
     </insert>
 
     <insert id="insertGermlineHistory">
         INSERT IGNORE INTO history_germline
-            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
+            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_no, project_code,
              source_type, mutation_type, measurement, parent_mutation_id, match_status, variation_class,
              match_result, clinical_significance, source_analysis_id, source_report_id, source_variant_id,
              knowledge_matched_at, create_time, update_time)
         VALUES
             (#{h.matchKey}, #{h.keyVersion}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
-             #{h.customer}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
+             #{h.customer}, #{h.projectNo}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
              #{h.parentMutationId}, #{h.matchStatus}, #{h.variationClass}, #{h.matchResult}, #{h.clinicalSignificance},
              #{h.sourceAnalysisId}, #{h.sourceReportId}, #{h.sourceVariantId}, NOW(), NOW(), NOW())
     </insert>

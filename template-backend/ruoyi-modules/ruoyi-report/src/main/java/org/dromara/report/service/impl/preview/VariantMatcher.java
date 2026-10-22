@@ -278,6 +278,7 @@ public class VariantMatcher {
         history.put("disease", pc.getDisease());
         history.put("gender", pc.getGender());
         history.put("customer", pc.getCustomer());
+        history.put("projectNo", pc.getProjectNo());
         history.put("projectCode", pc.getProjectCode());
         // 以下三列 + customer 已不进匹配键（v2 按产品项目收敛），但列保留并继续填充，供查看/审计
         history.put("sourceType", item.getSourceType());

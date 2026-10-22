@@ -39,6 +39,9 @@ public class ReportVariantHistoryVo implements Serializable {
     /** 客户 */
     private String client;
 
+    /** 项目编号（替代 client 做归属展示） */
+    private String projectNo;
+
     /** 产品 */
     private String product;
 

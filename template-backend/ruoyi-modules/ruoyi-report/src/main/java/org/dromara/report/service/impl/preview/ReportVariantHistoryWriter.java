@@ -80,6 +80,7 @@ public class ReportVariantHistoryWriter {
         row.setAnalysisId(PreviewSupport.asLong(report.get("analysisId")));
         row.setSubbarcode(asString(report.get("subbarcode")));
         row.setClient(cleanCustomer(pc.getCustomer()));
+        row.setProjectNo(asString(report.get("projectNo")));
         row.setProduct(asString(report.get("product")));
         row.setDisease(pc.getDisease());
         row.setSourceType(item.getSourceType());

@@ -38,6 +38,9 @@ public class PreviewContext {
 
     private String customer;
 
+    /** 项目编号（analysis_report.project_no；历史表与报告 JSON 的公共归属字段） */
+    private String projectNo;
+
     private String projectCode;
 
     private List<String> productGenes;

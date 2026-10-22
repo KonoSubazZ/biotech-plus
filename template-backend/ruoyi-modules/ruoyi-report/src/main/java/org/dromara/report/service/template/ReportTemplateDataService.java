@@ -55,6 +55,7 @@ public class ReportTemplateDataService {
         data.setTemplateVersion(template.getTemplateVersion());
         data.setAnalysisId(input.getContext().getAnalysisId());
         data.setReportId(input.getContext().getReportId());
+        data.setProjectNo(input.getContext().getProjectNo());
 
         commonModules.apply(context, data);
 
