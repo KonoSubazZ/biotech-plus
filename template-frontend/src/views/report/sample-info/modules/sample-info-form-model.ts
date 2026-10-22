@@ -45,6 +45,7 @@ export const EMPTY_SAMPLE_INFO_FORM: Api.Report.SampleInfoForm = {
     orderCode: null,
     outpatient: null,
     pathologicalType: null,
+    projectNo: null,
     pathologyNum: null,
     patientName: null,
     patientPhone: null,

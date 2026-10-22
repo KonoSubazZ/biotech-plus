@@ -31,6 +31,9 @@ const model = defineModel<Api.Report.SampleInfoForm>('model', { required: true }
       <NFormItem label="经理邮箱" path="managerEmail">
         <NInput v-model:value="model.managerEmail" placeholder="请输入经理邮箱" />
       </NFormItem>
+      <NFormItem label="项目编号" path="projectNo">
+        <NInput v-model:value="model.projectNo" placeholder="如 NG0101（报告创建必填）" clearable />
+      </NFormItem>
       <NFormItem label="订单编号" path="orderCode">
         <NInput v-model:value="model.orderCode" placeholder="请输入订单编号" />
       </NFormItem>
