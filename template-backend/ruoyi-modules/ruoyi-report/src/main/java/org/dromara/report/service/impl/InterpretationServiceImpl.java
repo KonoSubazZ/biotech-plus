@@ -118,19 +118,19 @@ public class InterpretationServiceImpl implements IInterpretationService {
         if (existing != null && (sourceReportId == null || !sourceReportId.equals(existing.getReportId()))) {
             throw new ServiceException("报告已发送，请使用「重新解读」完成整批重扫后创建新报告");
         }
-        if (sourceReportId != null && existing == null) {
-            // 重新解读会新建一个分析批次（不同 analysis_id），所以这里不能用「本批次已有报告」判断来源是否存在，
-            // 直接按 reportId 查来源报告（用户 2026-10-21：上传/重新解读新建批次）
-            if (analysisReportMapper.selectVoById(sourceReportId) == null) {
-                throw new ServiceException("重新解读来源报告不存在：reportId=" + sourceReportId);
-            }
+        // 重新解读会新建一个分析批次（不同 analysis_id），所以这里不能用「本批次已有报告」判断来源是否存在，
+        // 直接按 reportId 查来源报告（用户 2026-10-21：上传/重新解读新建批次）
+        AnalysisReportVo source = sourceReportId == null ? null : analysisReportMapper.selectVoById(sourceReportId);
+        if (sourceReportId != null && source == null) {
+            throw new ServiceException("重新解读来源报告不存在：reportId=" + sourceReportId);
         }
 
         AnalysisReport report = new AnalysisReport();
         report.setSourceReportId(sourceReportId);
-        if (sourceReportId != null) {
-            report.setTemplateId(existing.getTemplateId());
-            report.setTemplate(existing.getTemplate());
+        if (source != null) {
+            // 模板沿用来来源报告（新批次此时还没有报告记录，不能拿 existing）
+            report.setTemplateId(source.getTemplateId());
+            report.setTemplate(source.getTemplate());
         }
         report.setAnalysisId(snapshot.getAnalysisId());
         report.setAnalysisBatchDate(snapshot.getAnalysisBatchDate());

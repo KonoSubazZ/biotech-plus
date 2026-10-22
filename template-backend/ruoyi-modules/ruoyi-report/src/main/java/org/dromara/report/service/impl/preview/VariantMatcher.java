@@ -59,6 +59,9 @@ public class VariantMatcher {
     /** 复用键版本：v2 = 按「产品项目 + 位点 + 癌种 + 性别 + 人工改靶父级」冻结 */
     private static final String MATCH_KEY_VERSION = "v4";
 
+    /** 落库的 key_version 数字（由 MATCH_KEY_VERSION 推出，别再手写常量） */
+    private static final int MATCH_KEY_VERSION_NO = Integer.parseInt(MATCH_KEY_VERSION.substring(1));
+
     private final InterpretationMapper interpretationMapper;
 
     private final NkbDrugMatcher drugMatcher;
@@ -271,7 +274,7 @@ public class VariantMatcher {
         }
         Map<String, Object> history = new LinkedHashMap<>();
         history.put("matchKey", matchKey);
-        history.put("keyVersion", 2);
+        history.put("keyVersion", MATCH_KEY_VERSION_NO);
         history.put("gene", nz(item.getGene()));
         history.put("variant", nz(item.getVariant()));
         history.put("oriVariant", nz(item.getOriVariant()));
