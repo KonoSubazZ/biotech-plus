@@ -8,14 +8,20 @@
 
 ### product_config（产品配置表）
 
+> 2026-10-22 列重排（迁移脚本 `script/sql/update/update_5.6.32-product-config-columns.sql`）：
+> 原 `name` 一列同时被当生信编码和对外产品名用，现拆成 `product_bio` + `product_name`；`code` 改名 `product_code`。
+> 下表已是落库后的实际结构。
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
-| id | uuid | PK, defaultRandom | 主键 |
-| name | varchar(120) | NOT NULL | 产品名称，关联 sample_file.product_name、QC 自动判定链 |
-| code | varchar(60) | NOT NULL, UNIQUE | 产品编码 |
-| test_type | varchar(60) | - | 检测类型 |
+| id | bigint | PK, AUTO_INCREMENT | 主键 |
+| product_code | varchar(60) | NOT NULL, UNIQUE(tenant_id, product_code) | 产品编码（对外） |
+| product_bio | varchar(120) | NOT NULL | 生信编码：逐字等于上传目录第 2 层 product / analysis_data.product（驱动与报告定位靠它） |
+| product_name | varchar(120) | NOT NULL | 产品名称（对外展示、报告模板下拉） |
+| test_type | varchar(60) | - | 检测类型（组织 / 血液） |
+| panel_type | varchar(60) | - | panel类型（DNA / RNA / DNA_RNA / WES / HRD 等，口径同生信质检判定） |
 | related_diseases | varchar(500) | - | 相关疾病 |
-| report_cycle_days | integer | - | 报告周期（天） |
+| report_cycle_days | int | - | 报告周期（天） |
 | status | varchar(20) | NOT NULL, default 'active' | active / inactive |
 | remark | varchar(500) | - | 备注 |
 | _created_at / _created_by | - | 系统字段 | - |

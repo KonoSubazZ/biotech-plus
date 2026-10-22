@@ -10,10 +10,15 @@ SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS `product_config` (
     id                bigint       NOT NULL AUTO_INCREMENT           COMMENT '主键',
 
-    -- 业务字段（设计文档 §1）
-    name              varchar(120) NOT NULL                          COMMENT '产品名称（关联 sample_file.product_name，也是 QC 自动判定链的桥接字段）',
-    code              varchar(60)  NOT NULL                          COMMENT '产品编码',
-    test_type         varchar(60)                                    COMMENT '检测类型',
+    -- 业务字段（2026-10-22 列重排：name 拆成 product_bio + product_name，见 update_5.6.32）
+    --   product_bio  = 生信侧产品名，逐字等于上传目录第 2 层 / analysis_data.product（驱动与报告定位都靠它）
+    --   product_name = 对外展示名（页面、报告模板下拉）
+    --   code         = 对外产品编码，改名 product_code
+    product_code      varchar(60)  NOT NULL                          COMMENT '产品编码',
+    product_bio       varchar(120) NOT NULL                          COMMENT '生信编码（= 上传目录第 2 层 product，与 analysis_data.product 逐字相等）',
+    product_name      varchar(120) NOT NULL                          COMMENT '产品名称（对外展示、报告用）',
+    test_type         varchar(60)                                    COMMENT '检测类型（组织 / 血液）',
+    panel_type        varchar(60)                                    COMMENT 'panel类型（DNA / RNA / DNA_RNA / WES / HRD 等，口径同生信质检判定）',
     related_diseases  varchar(500)                                   COMMENT '相关疾病',
     report_cycle_days int                                            COMMENT '报告周期（天）',
     status            varchar(20)  NOT NULL DEFAULT 'active'         COMMENT '状态（active 启用 / inactive 停用）',
@@ -31,8 +36,8 @@ CREATE TABLE IF NOT EXISTS `product_config` (
 
     PRIMARY KEY (id),
     KEY idx_tenant_id (tenant_id),
-    -- 设计文档「code UNIQUE」+ 规范要求 tenant_id 打头（不同租户可以有相同编码的产品）
-    UNIQUE KEY uk_product_config_code (tenant_id, code)
+    -- 规范要求 tenant_id 打头（不同租户可以有相同编码的产品）
+    UNIQUE KEY uk_product_config_product_code (tenant_id, product_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='产品配置';
 
 
