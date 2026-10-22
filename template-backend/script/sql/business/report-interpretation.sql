@@ -550,6 +550,7 @@ CREATE TABLE IF NOT EXISTS `report_template` (
     `template_name` VARCHAR(255) NOT NULL COMMENT '模板名称',
     `template_version` VARCHAR(40) NOT NULL DEFAULT 'v1' COMMENT '模板版本',
     `customer_code` VARCHAR(120) DEFAULT NULL COMMENT '客户编码',
+    `project_id` bigint DEFAULT NULL COMMENT '逻辑关联project_config.id（模板归属项目）',
     `report_type` VARCHAR(40) NOT NULL COMMENT '报告类型',
     `module_code` VARCHAR(500) NULL DEFAULT NULL COMMENT '有序个性化Java报告模块编码列表，分号分隔；公共模块无需配置',
     `report_name` VARCHAR(500) DEFAULT NULL COMMENT '报告命名模板：静态文本 + {{路径}} 动态取值；空=用默认命名',
@@ -567,6 +568,7 @@ CREATE TABLE IF NOT EXISTS `report_template` (
     UNIQUE KEY `uk_report_template_code` (tenant_id, `template_code`),
     KEY `idx_report_template_module` (`module_code`, `status`, `del_flag`),
     KEY `idx_report_template_customer` (`customer_code`, `status`, `del_flag`),
+    KEY `idx_report_template_project` (`project_id`, `status`, `del_flag`),
     KEY idx_tenant_id (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='报告模板';
 
@@ -695,22 +697,24 @@ UPDATE report_template
 
 
 -- ============================================================================
--- 菜单：「报告管理」（父，path='report'）›「报告模板配置」
+-- 菜单：「项目管理」（父，path='project'）›「模板配置」
+--   2026-10-22 起模板配置归属项目管理（顺序：1 项目配置 / 2 产品配置 / 3 质控标准 / 4 模板配置），
+--   存量库的迁移见 script/sql/update/update_5.6.33-report-template-project.sql
 -- 幂等：按 path 定位父菜单（不写死 menu_id）；NOT EXISTS 直接相关子查询（MySQL 5.7 无 LATERAL）
 -- ============================================================================
-SET @report_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'report' LIMIT 1);
+SET @project_menu_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'project' LIMIT 1);
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT 'route.report_template', @report_menu_id, 3, 'template', 'report/template/index',
+SELECT 'route.project_template-config', @project_menu_id, 4, 'template-config', 'project/template-config/index',
     1, 0, 'C', '0', '0', 'report:template:list', 'local-icon-documentation', 1, NOW(), '模板配置'
 FROM (SELECT 1) AS dummy
-WHERE @report_menu_id IS NOT NULL
+WHERE @project_menu_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
-      WHERE parent_id = @report_menu_id AND path = 'template') AS c0);
+      WHERE parent_id = @project_menu_id AND path = 'template-config') AS c0);
 
 SET @template_menu_id = (SELECT menu_id FROM sys_menu
-    WHERE parent_id = @report_menu_id AND path = 'template' AND menu_type = 'C' LIMIT 1);
+    WHERE parent_id = @project_menu_id AND path = 'template-config' AND menu_type = 'C' LIMIT 1);
 
 -- 按钮权限（F）：与 @SaCheckPermission 逐字一致，不进侧边栏
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,

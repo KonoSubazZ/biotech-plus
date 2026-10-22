@@ -51,7 +51,7 @@ SET @parent_id = (SELECT menu_id FROM sys_menu WHERE path = 'project' LIMIT 1);
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT 'route.project_qc-standard', @parent_id, 1, 'qc-standard', 'project/qc-standard/index', 1, 0,
+SELECT 'route.project_qc-standard', @parent_id, 3, 'qc-standard', 'project/qc-standard/index', 1, 0,
     'C', '0', '0', 'qc:qcStandard:list', 'local-icon-dict', 1, NOW(), '质控标准'
 FROM (SELECT 1) AS dummy
 WHERE @parent_id IS NOT NULL
