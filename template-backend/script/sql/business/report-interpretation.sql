@@ -4,7 +4,7 @@
 --       docs/context/report/report-module-design.md（表结构草案 / 接口 / 业务规则）
 -- 按本仓规范改造（ai-rules/04-db-schema.md；体检 python3 tools/check_db_schema.py，error 必须 0）：
 --   ① 单列主键统一 bigint NOT NULL AUTO_INCREMENT
---      （参考 SQL 里 analysis_report.report_id / data_file_status.file_id 是 int unsigned → 闸门 bad-pk）
+--      （参考 SQL 里 analysis_report.report_id / analysis_file_status.file_id 是 int unsigned → 闸门 bad-pk）
 --   ② 每张表补 tenant_id varchar(20) NOT NULL DEFAULT '000000' + KEY idx_tenant_id；唯一键前拼 tenant_id
 --   ③ 审计列改本仓命名：create_by(bigint) / create_time(datetime) / update_by(bigint) /
 --      update_time(datetime) / del_flag(char(1))。scanner 侧同步改造（见 readme）
@@ -22,75 +22,93 @@ SET NAMES utf8mb4;
 -- 口径（2026-10-22）：批次身份 = 上传目录名 analysis_batch_date（YYYYMMDDHHMMSS），analysis_date 只做展示/按天搜索；
 -- 不加唯一键 —— 「同批次已驱动」由驱动接口判重拒绝，而「重新解读」需要允许三件套相同、analysis_id 不同的多行。
 CREATE TABLE IF NOT EXISTS `analysis_data` (
-    `analysis_id` bigint NOT NULL AUTO_INCREMENT COMMENT '分析数据ID',
-    `analysis_batch_date` VARCHAR(14) NOT NULL COMMENT '上传批次目录名 YYYYMMDDHHMMSS（批次身份）',
-    `analysis_date` VARCHAR(8) NOT NULL COMMENT '分析日期YYYYMMDD（= LEFT(analysis_batch_date,8)）',
-    `subbarcode` VARCHAR(80) NOT NULL COMMENT '样本编号（上传目录第 3 层，不含结尾 T）',
-    `product_bio` VARCHAR(120) NOT NULL COMMENT '生信产品编码（= 上传目录第 2 层 = product_config.product_bio）',
-    `product_id` bigint DEFAULT NULL COMMENT '逻辑关联product_config.id（本仓产品主数据表）',
-    `drive_status` int DEFAULT NULL COMMENT '驱动状态（10 驱动失败 / 11 驱动成功 / 12 驱动中）',
-    `drive_executed_by` VARCHAR(80) DEFAULT NULL COMMENT '驱动执行人',
-    `drive_executed_at` DATETIME DEFAULT NULL COMMENT '驱动执行时间',
-    `create_by` bigint COMMENT '创建者',
-    `create_time` datetime COMMENT '创建时间',
-    `update_by` bigint COMMENT '更新者',
-    `update_time` datetime COMMENT '更新时间',
-    `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
-    `tenant_id`  varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
-
+  `analysis_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '分析数据ID',
+  `analysis_batch_date` varchar(14) NOT NULL COMMENT '上传批次目录名 YYYYMMDDHHMMSS（批次身份）',
+  `analysis_date` varchar(8) NOT NULL COMMENT '分析日期YYYYMMDD',
+  `subbarcode` varchar(80) NOT NULL COMMENT '样本编号',
+  `product_bio` varchar(120) NOT NULL COMMENT '生信产品编码（= 上传目录第 2 层 = product_config.product_bio）',
+  `product_id` bigint(20) DEFAULT NULL COMMENT '逻辑关联product_config.id（本仓产品主数据表）',
+  `drive_status` int(11) DEFAULT NULL COMMENT '驱动状态（10 驱动失败 / 11 驱动成功 / 12 驱动中）',
+  `drive_executed_by` varchar(80) DEFAULT NULL COMMENT '驱动执行人',
+  `drive_executed_at` datetime DEFAULT NULL COMMENT '驱动执行时间',
+  `create_by` bigint(20) DEFAULT NULL COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` bigint(20) DEFAULT NULL COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
+  `tenant_id` varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
     PRIMARY KEY (`analysis_id`),
-    KEY `idx_analysis_batch` (`analysis_batch_date`, `product_bio`, `subbarcode`),
-    KEY `idx_analysis_date_product` (`analysis_date`, `product_bio`),
-    KEY `idx_analysis_subbarcode` (`subbarcode`),
-    INDEX `idx_analysis_product_id` (`product_id`, `del_flag`),
-    KEY idx_tenant_id (tenant_id)
+    KEY `idx_analysis_product_id` (`product_id`,`del_flag`),
+    KEY `idx_tenant_id` (`tenant_id`),
+    KEY `idx_analysis_batch` (`analysis_batch_date`,`product_bio`,`subbarcode`),
+    KEY `idx_analysis_date_product` (`analysis_date`,`product_bio`),
+    KEY `idx_analysis_subbarcode` (`subbarcode`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='样本分析数据';
 
 -- analysis_report
 CREATE TABLE IF NOT EXISTS `analysis_report` (
-    `report_id` bigint NOT NULL AUTO_INCREMENT COMMENT '报告ID',
-    `analysis_id` bigint NOT NULL,
-    `analysis_date` VARCHAR(8) NOT NULL,
-    `subbarcode` VARCHAR(80) NOT NULL COMMENT '样本编号',
-    `product` VARCHAR(120) NOT NULL,
-    `product_id` bigint DEFAULT NULL COMMENT '产品ID',
-    `product_desc` VARCHAR(255) DEFAULT NULL COMMENT '产品描述',
-    `analysis_disease_id` bigint DEFAULT NULL COMMENT '解读癌种ID',
-    `analysis_disease` VARCHAR(255) DEFAULT NULL,
-    `cancer_type` VARCHAR(256) DEFAULT NULL COMMENT 'LIMS癌种（myapp_webcrmsample.CANCERTYPE）',
-    `chem_disease` VARCHAR(255) DEFAULT NULL COMMENT '化疗癌种',
-    `report_type` VARCHAR(40) DEFAULT NULL COMMENT '报告类型',
-    `report_file_raw_path` VARCHAR(1000) DEFAULT NULL COMMENT '原始DOCX报告路径',
-    `report_file_path` VARCHAR(255) DEFAULT NULL COMMENT '报告路径',
-    `sub_report_file_path` VARCHAR(255) DEFAULT NULL COMMENT '子报告路径',
-    `template` VARCHAR(255) DEFAULT NULL COMMENT '报告模板',
-    `report_generated_by` VARCHAR(80) DEFAULT NULL COMMENT '报告产出人',
-    `report_generated_at` DATETIME DEFAULT NULL COMMENT '报告生成时间',
-    `report_checked_by` VARCHAR(80) DEFAULT NULL COMMENT '报告审核人',
-    `report_checked_at` DATETIME DEFAULT NULL COMMENT '报告审核时间',
-    `report_sent_by` VARCHAR(80) DEFAULT NULL COMMENT '报告发放人',
-    `report_sent_at` DATETIME DEFAULT NULL COMMENT '报告发放时间',
-    `status` VARCHAR(20) NOT NULL DEFAULT 'INTERPRETING',
-    `comment` VARCHAR(300) DEFAULT NULL COMMENT '备注',
-    `create_by` bigint COMMENT '创建者',
-    `create_time` datetime COMMENT '创建时间',
-    `update_by` bigint COMMENT '更新者',
-    `update_time` datetime COMMENT '更新时间',
-    `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
-    `template_id` bigint DEFAULT NULL COMMENT '逻辑关联report_template.template_id',
-    `report_json_path` VARCHAR(1000) DEFAULT NULL COMMENT '正式生成JSON文件路径',
-    `report_name` VARCHAR(500) DEFAULT NULL COMMENT '最近一次生成的报告名（命名模板渲染结果，不含唯一后缀）',
-    `report_signed_file_path` VARCHAR(1000) DEFAULT NULL COMMENT '签名后PDF报告路径（上上签回传，最终交付）',
-    `sign_status`  VARCHAR(20) DEFAULT NULL COMMENT '签名状态（NOT_SUBMITTED/SIGNING/SIGNED/FAILED）',
-    `sign_flow_no` VARCHAR(80) DEFAULT NULL COMMENT '上上签签名流程号',
-    `sign_time`    DATETIME DEFAULT NULL COMMENT '签名完成时间',
-    `tenant_id`  varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
-
+  `report_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '报告ID',
+  `analysis_id` bigint(20) NOT NULL,
+  `analysis_batch_date` varchar(14) NOT NULL COMMENT '上传批次目录名快照（= analysis_data.analysis_batch_date）',
+  `analysis_date` varchar(8) NOT NULL,
+  `subbarcode` varchar(80) NOT NULL COMMENT '样本编号',
+  `product_bio` varchar(120) NOT NULL COMMENT '生信产品编码快照（= analysis_data.product_bio）',
+  `product_id` bigint(20) DEFAULT NULL COMMENT '产品ID',
+  `project_no` varchar(60) NOT NULL COMMENT '项目编号快照（= sample_file.project_no）',
+  `analysis_disease_id` bigint(20) DEFAULT NULL COMMENT '解读癌种ID',
+  `analysis_disease` varchar(255) DEFAULT NULL,
+  `cancer_type` varchar(256) DEFAULT NULL COMMENT 'LIMS癌种（myapp_webcrmsample.CANCERTYPE）',
+  `chem_disease` varchar(255) DEFAULT NULL COMMENT '化疗癌种',
+  `report_type` varchar(40) DEFAULT NULL COMMENT '报告类型',
+  `report_file_raw_path` varchar(1000) DEFAULT NULL COMMENT '原始DOCX报告路径',
+  `report_file_path` varchar(1000) DEFAULT NULL COMMENT '报告路径',
+  `sub_report_file_path` varchar(255) DEFAULT NULL COMMENT '子报告路径',
+  `template` varchar(255) DEFAULT NULL COMMENT '报告模板',
+  `report_generated_by` bigint(20) DEFAULT NULL COMMENT '报告生成人（sys_user.user_id）',
+  `report_generated_at` datetime DEFAULT NULL COMMENT '报告生成时间',
+  `report_checked_by` bigint(20) DEFAULT NULL COMMENT '报告复核人（sys_user.user_id）',
+  `report_checked_at` datetime DEFAULT NULL COMMENT '报告审核时间',
+  `report_sent_by` bigint(20) DEFAULT NULL COMMENT '报告发送人（sys_user.user_id）',
+  `report_sent_at` datetime DEFAULT NULL COMMENT '报告发放时间',
+  `comment` varchar(300) DEFAULT NULL COMMENT '备注',
+  `report_status` int(11) NOT NULL DEFAULT '20' COMMENT '报告状态（20 生信看点 / 21 生信审核 / 30 报告待解读 / 31 报告解读中 / 32 报告生成成功 / 33 报告生成失败 / 40 报告待审核 / 41 报告审核中 / 42 报告审核失败 / 43 报告审核成功 / 50 报告签名中 / 52 报告签名失败 / 53 报告签名成功 / 60 报告待发送 / 61 报告发送失败 / 62 报告发送成功）',
+  `create_by` bigint(20) DEFAULT NULL COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` bigint(20) DEFAULT NULL COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
+  `template_id` bigint(20) DEFAULT NULL COMMENT '逻辑关联report_template.template_id',
+  `report_json_path` varchar(1000) DEFAULT NULL COMMENT '正式生成JSON文件路径',
+  `report_name` varchar(500) DEFAULT NULL COMMENT '最近一次生成的报告名（命名模板渲染结果，不含唯一后缀）',
+  `tenant_id` varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
+  `report_signed_file_path` varchar(1000) DEFAULT NULL COMMENT '签名后PDF报告路径（上上签回传，最终交付）',
+  `report_sign_started_at` datetime DEFAULT NULL COMMENT '签名开始时间（送签时间）',
+  `report_sign_flow_no` varchar(80) DEFAULT NULL COMMENT '上上签合同/流程号',
+  `report_sign_time` datetime DEFAULT NULL COMMENT '签名完成时间（上上签回调）',
+  `report_bioinfo_viewed_by` bigint(20) DEFAULT NULL COMMENT '生信看点人（sys_user.user_id）',
+  `report_bioinfo_viewed_at` datetime DEFAULT NULL COMMENT '生信看点完成时间',
+  `report_bioinfo_reviewed_by` bigint(20) DEFAULT NULL COMMENT '生信复核人（sys_user.user_id）',
+  `report_bioinfo_reviewed_at` datetime DEFAULT NULL COMMENT '生信复核时间',
+  `report_interpreted_by` bigint(20) DEFAULT NULL COMMENT '报告解读人（认领人 sys_user.user_id）',
+  `report_interpreted_at` datetime DEFAULT NULL COMMENT '报告解读认领时间',
+  `report_review_claimed_by` bigint(20) DEFAULT NULL COMMENT '报告复核认领人（sys_user.user_id）',
+  `report_review_claimed_at` datetime DEFAULT NULL COMMENT '报告复核认领时间',
+  `report_pathologist_by` bigint(20) DEFAULT NULL COMMENT '病理师（固定账号 bingli，sys_user.user_id）',
+  `report_revert_from` tinyint(4) DEFAULT NULL COMMENT '回退来源状态（审核失败回退时记原状态）',
+  `report_revert_reason` varchar(300) DEFAULT NULL COMMENT '回退原因（审核失败）',
+  `report_gen_fail_reason` varchar(500) DEFAULT NULL COMMENT '报告生成失败原因（33）',
+  `report_sign_fail_reason` varchar(300) DEFAULT NULL COMMENT '报告签名失败原因（52）',
+  `report_version` int(11) DEFAULT NULL COMMENT '业务版本，首次生成时预留',
+  `report_sequence_id` bigint(20) DEFAULT NULL COMMENT '业务版本序列ID',
+  `report_generation_no` int(11) NOT NULL DEFAULT '0' COMMENT '内部生成轮次',
+  `report_reviewer_id` bigint(20) DEFAULT NULL COMMENT '重生成后的定向复审人',
+  `source_report_id` bigint(20) DEFAULT NULL COMMENT '重新解读来源报告ID',
     PRIMARY KEY (`report_id`),
-    KEY `idx_report_analysis` (`analysis_id`, `del_flag`),
-    KEY `idx_report_status` (`status`),
-    INDEX `idx_report_template_id` (`template_id`, `status`),
-    KEY idx_tenant_id (tenant_id)
+    KEY `idx_report_analysis` (`analysis_id`,`del_flag`),
+    KEY `idx_report_status` (`report_status`),
+    KEY `idx_report_template_id` (`template_id`,`report_status`),
+    KEY `idx_tenant_id` (`tenant_id`),
+    KEY `idx_report_sign` (`report_sign_flow_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='分析报告';
 
 -- analysis_report_email_log
@@ -127,36 +145,35 @@ CREATE TABLE IF NOT EXISTS `analysis_report_email_log` (
 -- 口径：只保留 analysis_id 主线 + 三列展示冗余（analysis_date / subbarcode / product_bio）；
 -- file_size 记录字节数（0 = 空文件）；同一文件重驱保留历史行（老行 del_flag=1 + 新行 del_flag=0），所以不加唯一键。
 CREATE TABLE IF NOT EXISTS `analysis_file_status` (
-    `file_id` bigint NOT NULL AUTO_INCREMENT,
-    `file_path` VARCHAR(512) NOT NULL COMMENT '文件绝对路径',
-    `file_name` VARCHAR(120) NOT NULL COMMENT '文件名 <样本编号>T.<类型>',
-    `data_type` VARCHAR(40) NOT NULL COMMENT 'variant / druginfo',
-    `file_type` VARCHAR(40) NOT NULL COMMENT 'SNP/Indel/CNV/Fusion/CR_ALL/MSI/qc_g/qc/Chem/Chemical_all',
-    `file_text` LONGTEXT COMMENT '文件内容（超 1MB 截断）',
-    `file_size` bigint DEFAULT NULL COMMENT '文件字节数（0 = 空文件）',
-    `analysis_date` VARCHAR(8) NOT NULL COMMENT '冗余展示，来自批次',
-    `subbarcode` VARCHAR(80) NOT NULL COMMENT '冗余展示（后台按样本导出用，不参与查询）',
-    `product_bio` VARCHAR(120) NOT NULL COMMENT '生信产品编码（冗余展示，= analysis_data.product_bio）',
-    `status` VARCHAR(20) NOT NULL COMMENT 'Pending / Loaded / Error',
-    `message` VARCHAR(2000) DEFAULT NULL,
-    `create_by` bigint COMMENT '创建者',
-    `create_time` datetime COMMENT '创建时间',
-    `update_by` bigint COMMENT '更新者',
-    `update_time` datetime COMMENT '更新时间',
-    `mut_num` INT DEFAULT NULL COMMENT '明细行数',
-    `analysis_id` bigint NOT NULL COMMENT '所属分析批次',
-    `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
-    `tenant_id`  varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
-
+  `file_id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `file_path` varchar(512) NOT NULL COMMENT '文件绝对路径',
+  `file_name` varchar(120) NOT NULL,
+  `data_type` varchar(40) NOT NULL,
+  `file_type` varchar(40) NOT NULL,
+  `file_text` longtext,
+  `file_size` bigint(20) DEFAULT NULL COMMENT '文件字节数（0 = 空文件）',
+  `analysis_date` varchar(8) NOT NULL,
+  `subbarcode` varchar(80) NOT NULL,
+  `product_bio` varchar(120) NOT NULL COMMENT '生信产品编码（冗余展示，= analysis_data.product_bio）',
+  `status` varchar(20) NOT NULL,
+  `message` varchar(2000) DEFAULT NULL,
+  `create_by` bigint(20) DEFAULT NULL COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` bigint(20) DEFAULT NULL COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  `mut_num` int(11) DEFAULT NULL,
+  `analysis_id` bigint(20) NOT NULL,
+  `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
+  `tenant_id` varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
     PRIMARY KEY (`file_id`),
-    KEY `idx_file_analysis` (`analysis_id`, `file_name`),
-    KEY idx_tenant_id (tenant_id)
+    KEY `idx_tenant_id` (`tenant_id`),
+    KEY `idx_file_analysis` (`analysis_id`,`file_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='样本文件驱动状态';
 
 -- file_Somatic_SNV_Indel
 CREATE TABLE IF NOT EXISTS `file_Somatic_SNV_Indel` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `chr` varchar(50) DEFAULT NULL COMMENT '原字段：chr',
     `start` varchar(50) DEFAULT NULL COMMENT '原字段：start',
     `end` varchar(50) DEFAULT NULL COMMENT '原字段：end',
@@ -209,7 +226,7 @@ CREATE TABLE IF NOT EXISTS `file_Somatic_SNV_Indel` (
 -- file_CNV
 CREATE TABLE IF NOT EXISTS `file_CNV` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `gene` varchar(255) DEFAULT NULL COMMENT '原字段：gene',
     `chr` varchar(50) DEFAULT NULL COMMENT '原字段：chr',
     `start` varchar(50) DEFAULT NULL COMMENT '原字段：start',
@@ -238,7 +255,7 @@ CREATE TABLE IF NOT EXISTS `file_CNV` (
 -- file_Fusion
 CREATE TABLE IF NOT EXISTS `file_Fusion` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `chromosome1` varchar(50) DEFAULT NULL COMMENT '原字段：chromosome1',
     `softclip1` varchar(50) DEFAULT NULL COMMENT '原字段：softclip1',
     `sclip1_info` text COMMENT '原字段：sclip1_info',
@@ -287,7 +304,7 @@ CREATE TABLE IF NOT EXISTS `file_Fusion` (
 -- file_CR_ALL
 CREATE TABLE IF NOT EXISTS `file_CR_ALL` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `gene` varchar(255) DEFAULT NULL COMMENT '原字段：Gene',
     `chr` varchar(50) DEFAULT NULL COMMENT '原字段：Chr',
     `pos` varchar(50) DEFAULT NULL COMMENT '原字段：Pos',
@@ -340,7 +357,7 @@ CREATE TABLE IF NOT EXISTS `file_CR_ALL` (
 -- file_MSI
 CREATE TABLE IF NOT EXISTS `file_MSI` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `score` varchar(255) DEFAULT NULL COMMENT '原字段：Score',
     `threshold` varchar(255) DEFAULT NULL COMMENT '原字段：Threshold',
     `status` varchar(255) DEFAULT NULL COMMENT '原字段：Status',
@@ -362,7 +379,7 @@ CREATE TABLE IF NOT EXISTS `file_MSI` (
 -- file_qc
 CREATE TABLE IF NOT EXISTS `file_qc` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `tumor_cell_content` varchar(255) DEFAULT NULL COMMENT '原字段：肿瘤細胞含量',
     `dna_total_ng` varchar(255) DEFAULT NULL COMMENT '原字段：DNA 总量（ng）',
     `dna_degradation` varchar(255) DEFAULT NULL COMMENT '原字段：DNA 降解程度',
@@ -390,7 +407,7 @@ CREATE TABLE IF NOT EXISTS `file_qc` (
 -- file_qc_control
 CREATE TABLE IF NOT EXISTS `file_qc_control` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `tumor_cell_content` varchar(255) DEFAULT NULL COMMENT '原字段：肿瘤細胞含量',
     `dna_total_ng` varchar(255) DEFAULT NULL COMMENT '原字段：DNA 总量（ng）',
     `dna_degradation` varchar(255) DEFAULT NULL COMMENT '原字段：DNA 降解程度',
@@ -418,7 +435,7 @@ CREATE TABLE IF NOT EXISTS `file_qc_control` (
 -- file_chemical
 CREATE TABLE IF NOT EXISTS `file_chemical` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `raw_json` longtext COMMENT '原始chemical.json完整内容',
     `reviewed_by` bigint DEFAULT NULL COMMENT '审核人ID',
     `reviewed_at` datetime DEFAULT NULL COMMENT '审核时间',
@@ -597,7 +614,7 @@ CREATE TABLE IF NOT EXISTS `product_template` (
 -- file_Chem（参考工程库里有、但 report_management_schema.sql 未导出 → 从 172.20.1.34:8806/biotech 只读取 SHOW CREATE TABLE 后同样改造）
 CREATE TABLE IF NOT EXISTS `file_Chem` (
     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    `file_id` bigint NOT NULL COMMENT '关联data_file_status.file_id',
+    `file_id` bigint NOT NULL COMMENT '关联analysis_file_status.file_id',
     `chr` varchar(50) DEFAULT NULL COMMENT '原字段：chr',
     `position` varchar(50) DEFAULT NULL COMMENT '原字段：position',
     `allele1` varchar(255) DEFAULT NULL COMMENT '原字段：allele1',

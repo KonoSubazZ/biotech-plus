@@ -11,11 +11,11 @@ CREATE TABLE IF NOT EXISTS `product_config` (
     id                bigint       NOT NULL AUTO_INCREMENT           COMMENT '主键',
 
     -- 业务字段（2026-10-22 列重排：name 拆成 product_bio + product_name，见 update_5.6.32）
-    --   product_bio  = 生信侧产品名，逐字等于上传目录第 2 层 / analysis_data.product（驱动与报告定位都靠它）
+    --   product_bio  = 生信侧产品名，逐字等于上传目录第 2 层 / analysis_data.product_bio（驱动与报告定位都靠它）
     --   product_name = 对外展示名（页面、报告模板下拉）
     --   code         = 对外产品编码，改名 product_code
     product_code      varchar(60)  NOT NULL                          COMMENT '产品编码',
-    product_bio       varchar(120) NOT NULL                          COMMENT '生信编码（= 上传目录第 2 层 product，与 analysis_data.product 逐字相等）',
+    product_bio       varchar(120) NOT NULL                          COMMENT '生信编码（= 上传目录第 2 层 product，与 analysis_data.product_bio 逐字相等）',
     product_name      varchar(120) NOT NULL                          COMMENT '产品名称（对外展示、报告用）',
     test_type         varchar(60)                                    COMMENT '检测类型（组织 / 血液）',
     panel_type        varchar(60)                                    COMMENT 'panel类型（DNA / RNA / DNA_RNA / WES / HRD 等，口径同生信质检判定）',
