@@ -11,7 +11,7 @@ declare namespace Api {
       id: number;
       /** 产品编码（对外，唯一） */
       productCode: string;
-      /** 生信编码：= 上传目录第 2 层 product，与 analysis_data.product 逐字相等 */
+      /** 生信编码：= 上传目录第 2 层 product，与 analysis_data.product_bio 逐字相等 */
       productBio: string;
       /** 产品名称（对外展示、报告用） */
       productName: string;
