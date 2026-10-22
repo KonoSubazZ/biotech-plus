@@ -30,7 +30,7 @@ const { hasAuth } = useAuth();
 const productId = computed(() => props.product?.id ?? null);
 const productLabel = computed(() => {
   if (!props.product) return '';
-  return `${props.product.name}（${props.product.code}）`;
+  return `${props.product.productName}（${props.product.productCode}）`;
 });
 
 /** 已关联的基因数（头部展示） */

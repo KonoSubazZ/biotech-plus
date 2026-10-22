@@ -58,7 +58,7 @@ async function loadProductOptions() {
   if (error || !data) {
     return;
   }
-  productOptions.value = data.map(item => ({ label: `${item.name}（${item.code}）`, value: item.id }));
+  productOptions.value = data.map(item => ({ label: `${item.productName}（${item.productCode}）`, value: item.id }));
 }
 
 function createDefaultModel(): Api.Qc.QcStandardForm {

@@ -9,11 +9,18 @@ declare namespace Api {
     /** 列表项（= 后端 Vo） */
     interface ProductConfig {
       id: number;
-      name: string;
-      code: string;
+      /** 产品编码（对外，唯一） */
+      productCode: string;
+      /** 生信编码：= 上传目录第 2 层 product，与 analysis_data.product 逐字相等 */
+      productBio: string;
+      /** 产品名称（对外展示、报告用） */
+      productName: string;
       /** active 启用 / inactive 停用 */
       status: string;
+      /** 检测类型（组织 / 血液） */
       testType?: string | null;
+      /** panel类型（DNA / RNA / DNA_RNA / WES / HRD 等） */
+      panelType?: string | null;
       relatedDiseases?: string | null;
       reportCycleDays?: number | null;
       remark?: string | null;
@@ -25,15 +32,18 @@ declare namespace Api {
 
     /** 搜索参数（与项目其它模块同一写法：分页走 Common.CommonSearchParams） */
     type ProductConfigSearchParams = CommonType.RecordNullable<
-      Pick<ProductConfig, 'name' | 'code' | 'testType' | 'status'> & Common.CommonSearchParams
+      Pick<ProductConfig, 'productName' | 'productBio' | 'productCode' | 'testType' | 'panelType' | 'status'> &
+        Common.CommonSearchParams
     >;
 
     /** 新增/编辑表单（= 后端 Bo） */
     interface ProductConfigForm {
       id?: number | null;
-      name: string;
-      code: string;
+      productCode: string;
+      productBio: string;
+      productName: string;
       testType?: string | null;
+      panelType?: string | null;
       relatedDiseases?: string | null;
       reportCycleDays?: number | null;
       status?: string | null;

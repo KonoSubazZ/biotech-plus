@@ -52,7 +52,7 @@ async function loadProductMap() {
   if (error || !data) {
     return;
   }
-  productNameMap.value = Object.fromEntries(data.map(item => [item.id, `${item.name}（${item.code}）`]));
+  productNameMap.value = Object.fromEntries(data.map(item => [item.id, `${item.productName}（${item.productCode}）`]));
 }
 
 onMounted(loadProductMap);

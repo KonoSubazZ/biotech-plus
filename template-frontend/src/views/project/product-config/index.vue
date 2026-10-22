@@ -41,8 +41,9 @@ const STATUS_META: Record<string, { label: string; type: 'success' | 'warning' |
 const searchParams = ref<Api.Project.ProductConfigSearchParams>({
   pageNum: 1,
   pageSize: 10,
-  name: null,
-  code: null,
+  productName: null,
+  productBio: null,
+  productCode: null,
   status: null,
   params: {}
 });
@@ -58,9 +59,11 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     },
     columns: () => [
       { type: 'selection', align: 'center', width: 48 },
-      { key: 'name', title: '产品名称', align: 'center', minWidth: 160 },
-      { key: 'code', title: '产品编码', align: 'center', minWidth: 140 },
-      { key: 'testType', title: '检测类型', align: 'center', minWidth: 120 },
+      { key: 'productName', title: '产品名称', align: 'center', minWidth: 160 },
+      { key: 'productCode', title: '产品编码', align: 'center', minWidth: 140 },
+      { key: 'productBio', title: '生信编码', align: 'center', minWidth: 220 },
+      { key: 'testType', title: '检测类型', align: 'center', minWidth: 100 },
+      { key: 'panelType', title: 'panel类型', align: 'center', minWidth: 120 },
       { key: 'relatedDiseases', title: '相关疾病', align: 'center', minWidth: 160 },
       { key: 'reportCycleDays', title: '报告周期(天)', align: 'center', width: 120 },
       {

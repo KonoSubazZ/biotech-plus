@@ -42,7 +42,7 @@ const productOptions = ref<Api.Report.ProductOption[]>([]);
 
 const productSelectOptions = computed(() =>
   productOptions.value.map(item => ({
-    label: `${item.name}（${item.code}）`,
+    label: `${item.productName}（${item.productCode}）`,
     value: item.id
   }))
 );

@@ -70,8 +70,12 @@ declare namespace Api {
     /** 产品下拉选项（product_config） */
     interface ProductOption {
       id: number;
-      name: string;
-      code: string;
+      /** 生信编码（= 上传目录第 2 层 product） */
+      productBio: string;
+      /** 产品名称（对外展示、报告用） */
+      productName: string;
+      /** 产品编码 */
+      productCode: string;
       status: string;
     }
   }
