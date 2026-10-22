@@ -12,7 +12,7 @@ flowchart TD
     B --> C{analysis_data 是否存在}
     C -->|否| D[创建分析批次<br/>样本 + 产品 + 分析日期]
     C -->|是| E[复用 analysis_id 并进入重驱]
-    D --> F[创建或复用 data_file_status]
+    D --> F[创建或复用 analysis_file_status]
     E --> F
     F --> G[按文件类型调用 Processor]
     G --> H[(file_Somatic_SNV_Indel<br/>file_CNV / file_Fusion / file_CR_ALL<br/>以及其他 file_* 明细表)]
@@ -30,7 +30,7 @@ flowchart TD
     Q --> M
 
     M --> R[LIMS 信息<br/>按 subbarcode = BARCODE 动态读取]
-    M --> S[集群对接<br/>读取 data_file_status]
+    M --> S[集群对接<br/>读取 analysis_file_status]
     M --> T[筛选位点<br/>更新共享 file_* .is_reported]
     R --> U[报告预览]
     T --> U
@@ -169,7 +169,7 @@ flowchart LR
     A[Preview/Generate API] --> B[ReportContextLoader]
     B --> B1[analysis_report]
     B --> B2[实时 LIMS]
-    B --> B3[data_file_status]
+    B --> B3[analysis_file_status]
     B --> B4[file_* 中 is_reported = 1 的数据]
     B --> B5[product / gene / template]
 

@@ -16,7 +16,7 @@
 |------|------|------|------|
 | id | bigint | PK, AUTO_INCREMENT | 主键 |
 | product_code | varchar(60) | NOT NULL, UNIQUE(tenant_id, product_code) | 产品编码（对外） |
-| product_bio | varchar(120) | NOT NULL | 生信编码：逐字等于上传目录第 2 层 product / analysis_data.product（驱动与报告定位靠它） |
+| product_bio | varchar(120) | NOT NULL | 生信编码：逐字等于上传目录第 2 层 product / analysis_data.product_bio（驱动与报告定位靠它） |
 | product_name | varchar(120) | NOT NULL | 产品名称（对外展示、报告模板下拉） |
 | test_type | varchar(60) | - | 检测类型（组织 / 血液） |
 | panel_type | varchar(60) | - | panel类型（DNA / RNA / DNA_RNA / WES / HRD 等，口径同生信质检判定） |

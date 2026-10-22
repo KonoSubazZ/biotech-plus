@@ -30,7 +30,7 @@ SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1
 - 其他实体瘤：圣域个性化体细胞结果为空，只输出胚系结果。
 - 两类结果都按当前产品启用的 `product_gene` 过滤和补空行；产品未配置启用基因时结果为空并返回告警，不得静默当作“全部基因”。
 - `novopm2_tis_1238` 与 `novopm2_blo_1238` 使用同一模板 `pharma-shengyu` 和同一组 8 个基因：`BRCA1`、`BRCA2`、`PALB2`、`RAD51C`、`RAD51D`、`BRIP1`、`BARD1`、`FANCD2`。
-- 数据库中的稳定产品编码分别为 `SYN-818-102_novopm2_tis_1238`、`SYN-818-102_novopm2_blo_1238`；`analysis_data.product` 当前保存短产品名。`analysis_data.product_id` 为空时，查询必须兼容按 `product_code` 或 `product_name` 定位产品。
+- 数据库中的稳定产品编码分别为 `SYN-818-102_novopm2_tis_1238`、`SYN-818-102_novopm2_blo_1238`；`analysis_data.product_bio` 当前保存短产品名。`analysis_data.product_bio_id` 为空时，查询必须兼容按 `product_code` 或 `product_name` 定位产品。
 
 ### 0.3 胚系历史、临床意义与改靶
 
@@ -85,7 +85,7 @@ POST /admin/report/template/generate
 
 报告模块分为四层：
 
-1. 数据层：`scanner.py` 负责把文件写入 `data_file_status` 和各 `file_*` 明细表。
+1. 数据层：`scanner.py` 负责把文件写入 `analysis_file_status` 和各 `file_*` 明细表。
 2. 解读层：Java 动态读取 LIMS、文件、位点、产品和模板，并允许修改共享的 `file_* .is_reported`。
 3. 匹配层：Java 先组装公共字段，再按 `report_template.module_code` 的分号顺序执行个性化处理器；精确命中 `history_somatic/history_germline` 时复用冻结的位点匹配，否则查询最新知识库并首次写入历史。
 4. 生成层：点击生成时重新执行匹配，把最终 JSON 和 DOCX 写入制品目录，并分别把路径登记到 `analysis_report.report_json_path` 和 `report_file_raw_path`。
@@ -110,7 +110,7 @@ POST /admin/report/template/generate
 | --------- | --------------------------------------------------------------------- | ---------------------------------------------- |
 | 数据上传  | `docs/report-driver/scanner.py`                                       | 解析路径并启动文件扫描                         |
 | 分析批次  | `core/file_scanner.py`、`analysis_data`                               | 按样本、产品、分析日期创建或复用 `analysis_id` |
-| 文件记录  | `data_file_status`                                                    | 保存文件路径、类型、状态、解析信息             |
+| 文件记录  | `analysis_file_status`                                                    | 保存文件路径、类型、状态、解析信息             |
 | 文件明细  | `file_Somatic_SNV_Indel`、`file_CNV`、`file_Fusion`、`file_CR_ALL` 等 | Processor 按 `file_id` 写入对应子表            |
 | 报告入口  | `ReportService`、`analysis_report`                                    | 点击解读创建或进入 `report_id`                 |
 | LIMS 展示 | `ReportMapper.selectLimsInfo`                                         | `subbarcode = BARCODE`，按最新记录动态读取     |
@@ -136,7 +136,7 @@ POST /admin/report/template/generate
 ### 3.1 业务关系
 
 ```text
-analysis_data 1 --- N data_file_status 1 --- N file_* 明细
+analysis_data 1 --- N analysis_file_status 1 --- N file_* 明细
       |
       +--- N analysis_report
 
@@ -158,7 +158,7 @@ file_CR_ALL --- history_germline 通过来源 ID 逻辑追踪
 
 | 关联字段                                  | 写入前逻辑校验                                   | 删除规则                       |
 | ----------------------------------------- | ------------------------------------------------ | ------------------------------ |
-| `data_file_status.analysis_id`            | `analysis_data` 存在且未删除                     | 分析数据存在文件时禁止物理删除 |
+| `analysis_file_status.analysis_id`            | `analysis_data` 存在且未删除                     | 分析数据存在文件时禁止物理删除 |
 | `analysis_report.analysis_id`             | 分析数据存在且驱动状态可解读                     | 报告存在时分析数据只能逻辑删除 |
 | `analysis_report.product_id`              | 产品存在且启用，并与分析数据产品一致             | 被报告引用的产品禁止物理删除   |
 | `analysis_report.template_id`             | 模板存在且启用，`module_code` 已注册，且 `product_template` 允许该组合 | 被报告引用的模板禁止物理删除   |
@@ -296,7 +296,7 @@ MySQL 5.7 无法通过普通唯一索引表达“同一产品只能有一个启�
 
 ### 4.6 分析数据增量字段
 
-现有 `analysis_data.product` 继续保留为上传时的产品名称，同时增加逻辑产品 ID：
+现有 `analysis_data.product_bio` 继续保留为上传时的产品名称，同时增加逻辑产品 ID：
 
 ```sql
 ALTER TABLE `analysis_data`
@@ -304,7 +304,7 @@ ALTER TABLE `analysis_data`
   ADD KEY `idx_analysis_product_id` (`product_id`, `deleted`);
 ```
 
-回填时用 `analysis_data.product = product.product_code` 匹配。未匹配数据先输出清单，不应自动创建未知产品。
+回填时用 `analysis_data.product_bio = product.product_code` 匹配。未匹配数据先输出清单，不应自动创建未知产品。
 
 ### 4.7 报告增量字段
 
@@ -323,7 +323,7 @@ ALTER TABLE `analysis_report`
 沿用现有字段：
 
 - `analysis_id`：报告所属分析。
-- `product`：当前报告产品短名称；产品主数据通过 `analysis_data.product_id` 或产品名称兼容查询。
+- `product`：当前报告产品短名称；产品主数据通过 `analysis_data.product_bio_id` 或产品名称兼容查询。
 - `template_id`、`template`：本次生成使用的模板 ID 和编码。
 - `report_json_path`：本次最新正式生成 JSON 的文件路径。
 - `report_file_raw_path`：生成的 DOCX 路径。
@@ -354,7 +354,7 @@ ALTER TABLE `analysis_report`
 - `source_analysis_id`、`source_report_id`、`source_variant_id`：仅用于审计追踪，不建立外键。
 - `match_key`：全部匹配条件规范化后计算 SHA-256，并使用唯一索引保证首次结果不会被后续知识库更新覆盖。
 
-上下文映射：`customer` 依次取最新 LIMS 的 `CUSTOMERNAME`、`CUSTOMEDESC`、`corpdesc`；全部为空时使用 `UNKNOWN_CUSTOMER@ANALYSIS:{analysisId}`，仅允许同一分析下的多报告复用，避免未知客户跨样本串用。`project_code = analysis_data.product`。项目编号缺失时不读写历史，直接使用最新知识库结果。
+上下文映射：`customer` 依次取最新 LIMS 的 `CUSTOMERNAME`、`CUSTOMEDESC`、`corpdesc`；全部为空时使用 `UNKNOWN_CUSTOMER@ANALYSIS:{analysisId}`，仅允许同一分析下的多报告复用，避免未知客户跨样本串用。`project_code = analysis_data.product_bio`。项目编号缺失时不读写历史，直接使用最新知识库结果。
 
 查找规则：
 
@@ -452,7 +452,7 @@ LIMS 通常不变，因此不做版本化。若 LIMS 在报告正式生成前发
 更新前服务层必须校验：
 
 1. `source_id` 存在且未删除。
-2. 通过 `file_id -> data_file_status.analysis_id` 验证位点属于请求中的分析批次。
+2. 通过 `file_id -> analysis_file_status.analysis_id` 验证位点属于请求中的分析批次。
 3. `is_reported` 只能是 `0` 或 `1`。
 4. 设为不报出时，过滤理由是否必填由当前业务规则决定。
 
