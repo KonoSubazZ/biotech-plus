@@ -57,7 +57,7 @@ public class VariantMatcher {
         1, "致病", 2, "可能致病", 3, "未知临床意义", 4, "可能良性", 5, "良性");
 
     /** 复用键版本：v2 = 按「产品项目 + 位点 + 癌种 + 性别 + 人工改靶父级」冻结 */
-    private static final String MATCH_KEY_VERSION = "v2";
+    private static final String MATCH_KEY_VERSION = "v3";
 
     private final InterpretationMapper interpretationMapper;
 
@@ -242,7 +242,7 @@ public class VariantMatcher {
     /**
      * 胚系临床意义：历史已有 → 用它；否则从同条件最近一条继承；再否则默认 3（未知临床意义）。
      * <p>
-     * 条件与匹配键对齐（产品 + 癌种 + 性别 + 位点）——<b>故意忽略 parent_mutation_id</b>
+     * 条件与匹配键对齐（项目编号 + 产品 + 癌种 + 性别 + 位点）——<b>故意忽略 parent_mutation_id</b>
      * （改靶继承，设计书 §4.8 第 4 条），也忽略 customer / 合子（它们已不在匹配键里，
      * 带上会导致跨医院继承不到）。
      */
@@ -252,6 +252,7 @@ public class VariantMatcher {
         query.put("variant", item.getVariant());
         query.put("disease", pc.getDisease());
         query.put("gender", pc.getGender());
+        query.put("projectNo", pc.getProjectNo());
         query.put("projectCode", pc.getProjectCode());
         Integer inherited = interpretationMapper.selectInheritedGermlineSignificance(query);
         return inherited == null ? 3 : inherited;
@@ -302,7 +303,10 @@ public class VariantMatcher {
     }
 
     /**
-     * 匹配键：v2 口径 = {@code sha256(v2|产品项目|癌种|性别|基因|位点|原始位点|人工改靶父级)}。
+     * 匹配键：v3 口径 = {@code sha256(v3|项目编号|产品项目|癌种|性别|基因|位点|原始位点|人工改靶父级)}。
+     * <p>
+     * v3（2026-10-22 用户定）：在 v2「产品项目」基础上加 project_no —— 匹配到历史位点必须
+     * {@code gene + variant + disease + gender + project_no + product_bio} 全一致，避免跨项目复用。
      * <p>
      * 冻结语义：同一键只写一次（INSERT IGNORE），此后一律复用，NKB 更新不刷新。
      * <p>
@@ -318,7 +322,7 @@ public class VariantMatcher {
             ? "name:" + nz(pc.getDisease())
             : "id:" + pc.getDiseaseId();
         String raw = String.join("|",
-            MATCH_KEY_VERSION, nz(pc.getProjectCode()), diseaseKey, nz(pc.getGender()),
+            MATCH_KEY_VERSION, nz(pc.getProjectNo()), nz(pc.getProjectCode()), diseaseKey, nz(pc.getGender()),
             nz(item.getGene()), nz(item.getVariant()), nz(item.getOriVariant()),
             ParentMutationIds.toKey(item.getParentMutationIds()));
         return sha256(raw);

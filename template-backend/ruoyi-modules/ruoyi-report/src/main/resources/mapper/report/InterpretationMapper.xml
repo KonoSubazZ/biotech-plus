@@ -727,7 +727,7 @@
         SELECT clinical_significance
         FROM history_germline
         WHERE gene = #{q.gene} AND variant = #{q.variant} AND disease = #{q.disease}
-          AND gender = #{q.gender} AND project_code = #{q.projectCode}
+          AND gender = #{q.gender} AND project_no = #{q.projectNo} AND project_code = #{q.projectCode}
           AND del_flag = '0'
         ORDER BY id DESC
         LIMIT 1
