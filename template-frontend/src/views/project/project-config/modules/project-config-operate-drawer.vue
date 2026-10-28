@@ -48,6 +48,9 @@ function createDefaultModel(): Api.Project.ProjectConfigForm {
     projectNo: '',
     projectName: '',
     customer: '',
+    contractName: null,
+    contractCode: null,
+    studyPlanNo: null,
     receiveEmail: '',
     ccEmail: null,
     remark: null
@@ -125,10 +128,20 @@ watch(visible, () => {
           <NFormItem class="md:col-span-2" label="客户名称" path="customer">
             <NInput v-model:value="model.customer" placeholder="请输入客户名称" />
           </NFormItem>
-          <NFormItem class="md:col-span-2" label="收件邮箱" path="receiveEmail">
+          <!-- 合同三项是项目级展示字段：只在本页与导出里展示，不参与报告取值 -->
+          <NFormItem class="md:col-span-2" label="合同名称" path="contractName">
+            <NInput v-model:value="model.contractName" placeholder="可空；仅展示用，不改变报告上的合同" />
+          </NFormItem>
+          <NFormItem label="合同编号" path="contractCode">
+            <NInput v-model:value="model.contractCode" placeholder="可空；仅展示用" />
+          </NFormItem>
+          <NFormItem label="研究方案编号" path="studyPlanNo">
+            <NInput v-model:value="model.studyPlanNo" placeholder="可空；仅展示用" />
+          </NFormItem>
+          <NFormItem class="md:col-span-2" label="项目收件邮箱" path="receiveEmail">
             <NInput v-model:value="model.receiveEmail" placeholder="多个邮箱用分号分隔，如 a@x.com;b@y.com" />
           </NFormItem>
-          <NFormItem class="md:col-span-2" label="抄送邮箱" path="ccEmail">
+          <NFormItem class="md:col-span-2" label="项目抄送邮箱" path="ccEmail">
             <NInput v-model:value="model.ccEmail" placeholder="可空；多个邮箱用分号分隔" />
           </NFormItem>
           <NFormItem class="md:col-span-2" label="备注" path="remark">

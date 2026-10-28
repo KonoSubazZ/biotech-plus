@@ -9,6 +9,7 @@ import { $t } from '@/locales';
 import ButtonIcon from '@/components/custom/button-icon.vue';
 import ProjectConfigOperateDrawer from './modules/project-config-operate-drawer.vue';
 import ProjectConfigSearch from './modules/project-config-search.vue';
+import ProjectCenterPanel from './modules/project-center-panel.vue';
 
 // name 必须与路由名一致，否则 keep-alive 失效
 defineOptions({
@@ -49,19 +50,42 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       searchParams.value.pageSize = params.pageSize;
     },
     columns: () => [
-      { type: 'selection', align: 'center', width: 48 },
-      { key: 'projectNo', title: '项目编号', align: 'center', width: 140 },
-      { key: 'projectName', title: '项目名称', align: 'center', minWidth: 160 },
-      { key: 'customer', title: '客户名称', align: 'center', minWidth: 150 },
-      { key: 'receiveEmail', title: '收件邮箱', align: 'center', minWidth: 190 },
-      { key: 'ccEmail', title: '抄送邮箱', align: 'center', minWidth: 160 },
-      { key: 'createByName', title: '创建人', align: 'center', width: 150, render: row => renderNameTime(row.createByName, row.createTime) },
-      { key: 'updateByName', title: '更新人', align: 'center', width: 150, render: row => renderNameTime(row.updateByName, row.updateTime) },
+      // 展开区 = 该项目的研究中心子表：一屏看到项目 → 中心的树形结构，不跳页
+      {
+        type: 'expand',
+        align: 'center',
+        width: 40,
+        renderExpand: (row: Api.Project.ProjectConfig) => <ProjectCenterPanel project={row} />
+      },
+      { type: 'selection', align: 'center', width: 44 },
+      { key: 'projectNo', title: '项目编号', align: 'center', width: 100 },
+      { key: 'projectName', title: '项目名称', align: 'center', minWidth: 130 },
+      { key: 'customer', title: '客户名称', align: 'center', minWidth: 110 },
+      // 合同三项各自一列（项目级展示字段）；长文本一律省略 + 悬浮看全文，避免把列撑变形
+      { key: 'contractName', title: '合同名称', align: 'center', width: 150, ellipsis: { tooltip: true } },
+      { key: 'contractCode', title: '合同编号', align: 'center', width: 130, ellipsis: { tooltip: true } },
+      { key: 'studyPlanNo', title: '研究方案编号', align: 'center', width: 130, ellipsis: { tooltip: true } },
+      { key: 'receiveEmail', title: '项目收件邮箱', align: 'center', minWidth: 150, ellipsis: { tooltip: true } },
+      { key: 'ccEmail', title: '项目抄送邮箱', align: 'center', minWidth: 130, ellipsis: { tooltip: true } },
+      {
+        key: 'createByName',
+        title: '创建人',
+        align: 'center',
+        width: 120,
+        render: row => renderNameTime(row.createByName, row.createTime)
+      },
+      {
+        key: 'updateByName',
+        title: '更新人',
+        align: 'center',
+        width: 120,
+        render: row => renderNameTime(row.updateByName, row.updateTime)
+      },
       {
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 100,
+        width: 90,
         // 操作列固定在右侧：横向滚动时「修改 / 删除」始终可见（与 report/*、qc/* 同一套）
         fixed: 'right',
         render: row => {

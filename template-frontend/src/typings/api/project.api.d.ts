@@ -52,15 +52,27 @@ declare namespace Api {
 
     // ------------------------------------------------------------------ 项目配置
 
-    /** 项目配置（= 后端 ProjectConfigVo）：一个项目一行，存报告发送用的收件/抄送邮箱 */
+    /** 项目配置（= 后端 ProjectConfigVo）：parentId=0 是项目行，>0 是研究中心行 */
     interface ProjectConfig {
       id: number;
+      /** 父节点 id（0=项目行；>0=研究中心行） */
+      parentId?: number | null;
       /** 项目编号（同一租户内唯一） */
       projectNo: string;
       /** 项目名称 */
       projectName: string;
       /** 客户名称 */
       customer: string;
+      /** 合同名称（项目级展示字段，不参与业务逻辑） */
+      contractName?: string | null;
+      /** 合同编号（项目级展示字段） */
+      contractCode?: string | null;
+      /** 研究方案编号（项目级展示字段） */
+      studyPlanNo?: string | null;
+      /** 研究中心编号（仅研究中心行有值） */
+      researchCenterNo?: string | null;
+      /** 研究中心名称（仅研究中心行有值） */
+      researchCenterName?: string | null;
       /** 收件邮箱（多个用分号分隔） */
       receiveEmail: string;
       /** 抄送邮箱（多个用分号分隔） */
@@ -89,6 +101,25 @@ declare namespace Api {
       projectNo: string;
       projectName: string;
       customer: string;
+      contractName?: string | null;
+      contractCode?: string | null;
+      studyPlanNo?: string | null;
+      receiveEmail: string;
+      ccEmail?: string | null;
+      remark?: string | null;
+    }
+
+    /**
+     * 研究中心新增/编辑表单（= 后端 ProjectCenterBo）
+     * <p>
+     * 项目名 / 客户名 / 合同三项不在这里：它们只属于项目行，中心行写空。
+     */
+    interface ProjectCenterForm {
+      id?: number | null;
+      /** 所属项目行 id（新增必填） */
+      parentId: number;
+      researchCenterNo: string;
+      researchCenterName: string;
       receiveEmail: string;
       ccEmail?: string | null;
       remark?: string | null;
