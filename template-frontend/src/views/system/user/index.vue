@@ -76,7 +76,6 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
           );
         }
       },
-      { key: 'tenantId', title: $t('page.system.tenant.tenantId'), width: 130, ellipsis: true },
       {
         key: 'sex',
         title: $t('page.system.user.sex'),
