@@ -12,6 +12,7 @@ import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.impl.ReportDocxRenderer;
 import org.dromara.report.utils.ArtifactPermissions;
+import org.dromara.report.utils.ReportArtifactPaths;
 import org.dromara.report.utils.ReportNameResolver;
 import org.dromara.report.utils.ReportStatus;
 import org.dromara.report.service.impl.ReportNameVariables;
@@ -87,27 +88,28 @@ public class ReportGenerationService {
             data.getReportInfo().setReportVersion(version);
             data.getReportInfo().setGenerationNo(attempt.generationNo());
             attempt = artifactStore.prepare(report, reportName);
-            Path jsonPath = attempt.staged("json", ".json");
-            Path docxPath = attempt.staged("docx", ".docx");
+            Path jsonPath = attempt.staged(ReportArtifactPaths.JSON, ".json");
+            Path docxPath = attempt.staged(ReportArtifactPaths.DOCX, ".docx");
             writeJson(jsonPath, data);
             ArtifactPermissions.relax(jsonPath);
             Path templateFile = reportDocxRenderer.locateTemplate(template);
             reportDocxRenderer.render(templateFile, jsonPath, docxPath);
             ArtifactPermissions.relax(docxPath);
-            pdfConverter.convert(docxPath, attempt.staging().resolve("pdf"));
+            pdfConverter.convert(docxPath, attempt.work().resolve(ReportArtifactPaths.PDF));
             artifactStore.publish(attempt);
             published = true;
             registerPublished(bo, data, attempt, reportName);
             artifactStore.finish(attempt);
-            return buildResult(data, reportName, attempt.published("json", ".json"),
-                attempt.published("docx", ".docx"), Map.of("reportVersion", version,
+            return buildResult(data, reportName, attempt.published(ReportArtifactPaths.JSON, ".json"),
+                attempt.published(ReportArtifactPaths.DOCX, ".docx"), Map.of("reportVersion", version,
                     "generationNo", attempt.generationNo()));
         } catch (RuntimeException e) {
             if (published) {
                 artifactStore.rollback(attempt);
             }
+            // 生成失败不归档、不写失败目录：只丢弃临时工作目录，目标日期目录不留半成品
             if (attempt != null) {
-                artifactStore.failed(attempt, e.getMessage());
+                artifactStore.discard(attempt);
             }
             markGenerateFailed(bo.getReportId(), e.getMessage());
             throw e;
@@ -117,8 +119,9 @@ public class ReportGenerationService {
     private void registerPublished(InterpretationPreviewBo bo, ReportTemplateData data,
                                    ReportArtifactAttempt attempt, String reportName) {
         transactions.executeWithoutResult(status -> {
-            updateArtifact(bo, data, attempt.published("json", ".json"), attempt.published("docx", ".docx"),
-                attempt.published("pdf", ".pdf"), reportName);
+            updateArtifact(bo, data, attempt.published(ReportArtifactPaths.JSON, ".json"),
+                attempt.published(ReportArtifactPaths.DOCX, ".docx"),
+                attempt.published(ReportArtifactPaths.PDF, ".pdf"), reportName);
             markGenerated(bo.getReportId());
         });
     }

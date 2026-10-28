@@ -201,14 +201,20 @@ public class ReportSignSsqService implements IReportSignService {
         }
 
         Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
-        String reportName = report == null ? null : text(report.get("reportName"));
-        String fileBase = StringUtils.hasText(reportName) ? reportName : "report-" + reportId;
-        Path signedDir = ReportArtifactPaths.signedDir(artifactRoot, ReportArtifactPaths.REPORT, LocalDate.now());
-        if (report.get("reportVersion") != null) {
-            Path pdf = Path.of(text(report.get("reportFilePath")));
-            signedDir = pdf.getParent().getParent().resolve("signed");
-            String pdfName = pdf.getFileName().toString();
-            fileBase = pdfName.substring(0, pdfName.length() - 4);
+        if (report == null) {
+            throw new ServiceException("报告不存在或已删除：reportId=" + reportId);
+        }
+        String reportName = text(report.get("reportName"));
+        // 签名件目录同样取 analysis_report.analysis_date（不取签名当天），与原始文件落在同一天目录；
+        // 文件名沿用原 PDF 的基名，便于回溯到是哪份报告签回来的
+        Path signedDir = ReportArtifactPaths.reportDir(artifactRoot, ReportArtifactPaths.SIGNED,
+            ReportArtifactPaths.requireDay(text(report.get("analysisDate"))));
+        String pdfPath = text(report.get("reportFilePath"));
+        String fileBase;
+        if (StringUtils.hasText(pdfPath)) {
+            fileBase = Path.of(pdfPath).getFileName().toString().replaceAll("\\.pdf$", "");
+        } else {
+            fileBase = StringUtils.hasText(reportName) ? reportName : "report-" + reportId;
         }
         Path signed = ssqSignService.downloadSignedPdf(flowNo, signedDir, fileBase);
 
