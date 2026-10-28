@@ -1,7 +1,7 @@
 <script setup lang="tsx">
 import { computed, ref } from 'vue';
 import dayjs from 'dayjs';
-import { NButton, NTag } from 'naive-ui';
+import { NButton, NSpace, NTag } from 'naive-ui';
 import { useRoute } from 'vue-router';
 import {
   fetchEnterInterpretation,
@@ -48,6 +48,13 @@ function queryNumber(key: string) {
   const raw = route.query[key];
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value ? Number(value) : 0;
+}
+
+/** 读取 query 里的字符串参数（如 readonly=1） */
+function queryString(key: string) {
+  const raw = route.query[key];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value ? String(value) : '';
 }
 
 const searchParams = ref<Api.Report.InterpretationSearchParams>({
@@ -127,9 +134,21 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         render: row =>
           // 带文字的按钮（不用纯图标）：第一次交付要让用户一眼看到入口
           canInterpret.value ? (
-            <NButton text type="primary" loading={entering.value} onClick={() => handleEnter(row)}>
-              {Number(row.reportStatus) === 62 ? '重新解读' : '解读'}
-            </NButton>
+            Number(row.reportStatus) === 62 ? (
+              // 已完成（62）：可只读查看解读记录，也可整批重扫后重新解读出一条新记录
+              <NSpace size={8} justify="center">
+                <NButton text type="primary" disabled={entering.value} onClick={() => handleEnter(row, true)}>
+                  查看解读
+                </NButton>
+                <NButton text type="warning" loading={entering.value} onClick={() => handleEnter(row, false)}>
+                  重新解读
+                </NButton>
+              </NSpace>
+            ) : (
+              <NButton text type="primary" loading={entering.value} onClick={() => handleEnter(row)}>
+                解读
+              </NButton>
+            )
           ) : (
             <span>-</span>
           )
@@ -137,16 +156,21 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     ]
   });
 
-/** 进入解读：创建/复用报告记录 → 带上 reportId / analysisId 回本页，由详情组件接管渲染 */
-async function handleEnter(row: Api.Report.InterpretationRow) {
+/**
+ * 进入解读：创建/复用报告记录 → 带上 reportId / analysisId 回本页，由详情组件接管渲染。
+ * readonly=true 用于已完成（62）报告的「查看解读」：不新建、不重扫，详情页只读展示。
+ */
+async function handleEnter(row: Api.Report.InterpretationRow, readonly = false) {
   if (entering.value) {
     return;
   }
   entering.value = true;
   try {
-    const request = Number(row.reportStatus) === 62 && row.reportId
-      ? fetchReinterpretReport({ analysisId: row.analysisId, reportId: row.reportId })
-      : fetchEnterInterpretation({ analysisId: row.analysisId });
+    const request = readonly
+      ? fetchEnterInterpretation({ analysisId: row.analysisId, readonly: true })
+      : Number(row.reportStatus) === 62 && row.reportId
+        ? fetchReinterpretReport({ analysisId: row.analysisId, reportId: row.reportId })
+        : fetchEnterInterpretation({ analysisId: row.analysisId });
     const { data: report, error } = await request;
     if (error) {
       return;
@@ -156,6 +180,9 @@ async function handleEnter(row: Api.Report.InterpretationRow) {
       reportId: String(report.reportId),
       analysisId: String(report.analysisId)
     };
+    if (readonly) {
+      query.readonly = '1';
+    }
     // 从带页签的链接进来时保持同一页签，其它情况落到第一个有权限的页签
     if (currentTab.value) {
       query.tab = currentTab.value;
@@ -184,6 +211,7 @@ async function backToList() {
       :report-id="currentReportId || null"
       :analysis-id="currentAnalysisId"
       :initial-tab="currentTab"
+      :readonly="queryString('readonly') === '1'"
       @back="backToList"
     />
 

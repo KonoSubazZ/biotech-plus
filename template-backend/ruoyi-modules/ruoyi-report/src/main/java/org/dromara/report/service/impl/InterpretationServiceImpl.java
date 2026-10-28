@@ -86,10 +86,73 @@ public class InterpretationServiceImpl implements IInterpretationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AnalysisReportVo enter(Long analysisId) {
+        return enter(analysisId, false);
+    }
+
+    /**
+     * 进入解读；readonly=true 时只返回该批次已有报告，不新建/不补快照/不校验流转状态
+     * （已完成报告「查看解读记录」用）。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AnalysisReportVo enter(Long analysisId, boolean readonly) {
         if (analysisId == null) {
             throw new ServiceException("分析数据ID不能为空");
         }
+        if (readonly) {
+            AnalysisReport existing = selectReusableReport(analysisId);
+            if (existing == null) {
+                throw new ServiceException("该批次还没有报告记录，无法查看解读：analysisId=" + analysisId);
+            }
+            return analysisReportMapper.selectVoById(existing.getReportId());
+        }
         return operationLock.call(-analysisId, () -> enterLocked(analysisId, null));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void claimBioinfoView(Long analysisId, Long reportId) {
+        claimBioinfo(analysisId, reportId, true);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void claimBioinfoReview(Long analysisId, Long reportId) {
+        claimBioinfo(analysisId, reportId, false);
+    }
+
+    /**
+     * 生信环节认领：只占人（report_bioinfo_viewed_by / reviewed_by），不改状态、不写时间。
+     * 状态不对、已被他人占住、复核自己看点的报告都直接拒绝。
+     */
+    private void claimBioinfo(Long analysisId, Long reportId, boolean view) {
+        if (analysisId == null || reportId == null) {
+            throw new ServiceException("analysisId 与 reportId 不能为空");
+        }
+        Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
+        if (report == null || !String.valueOf(analysisId).equals(String.valueOf(report.get("analysisId")))) {
+            throw new ServiceException("报告不存在或不属于该分析批次：reportId=" + reportId
+                + "，analysisId=" + analysisId);
+        }
+        int status = Integer.parseInt(String.valueOf(report.get("status")));
+        int expected = view ? ReportStatus.BIOINFO_VIEW : ReportStatus.BIOINFO_REVIEW;
+        if (status != expected) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status) + "）不能认领：reportId=" + reportId);
+        }
+        if (!view) {
+            String viewer = toText(report.get("reportBioinfoViewedBy"));
+            if (viewer != null && viewer.equals(String.valueOf(LoginHelper.getUserId()))) {
+                throw new ServiceException("不能复核自己看点的报告：reportId=" + reportId);
+            }
+        }
+        int claimed = view
+            ? interpretationMapper.claimBioinfoView(reportId, LoginHelper.getUserId())
+            : interpretationMapper.claimBioinfoReview(reportId, LoginHelper.getUserId());
+        if (claimed == 0) {
+            throw new ServiceException("该报告已被他人认领，请刷新列表：reportId=" + reportId);
+        }
+        log.info("生信环节认领：reportId={}，环节={}，认领人={}", reportId, view ? "生信看点" : "生信复核",
+            LoginHelper.getUserId());
     }
 
     @Override
@@ -218,6 +281,10 @@ public class InterpretationServiceImpl implements IInterpretationService {
             throw new ServiceException("当前状态（" + ReportStatus.label(status) + "）不允许看点完成：reportId=" + reportId);
         }
 
+        // 认领口径（2026-10-27 定）：点「处理」先占人；这里兜底再占一次（幂等），被他人占住则拒绝。
+        if (interpretationMapper.claimBioinfoView(reportId, LoginHelper.getUserId()) == 0) {
+            throw new ServiceException("该报告已由他人认领（生信看点），请刷新后查看：reportId=" + reportId);
+        }
         int affected = interpretationMapper.updateBioinfoViewed(reportId, LoginHelper.getUserId());
         if (affected == 0) {
             throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + reportId);
@@ -246,6 +313,10 @@ public class InterpretationServiceImpl implements IInterpretationService {
             throw new ServiceException("不能复核自己看点的报告：reportId=" + reportId);
         }
 
+        // 认领口径（2026-10-27 定）：点「处理」先占人；这里兜底再占一次（幂等），被他人占住则拒绝。
+        if (interpretationMapper.claimBioinfoReview(reportId, LoginHelper.getUserId()) == 0) {
+            throw new ServiceException("该报告已由他人认领（生信复核），请刷新后查看：reportId=" + reportId);
+        }
         int affected = interpretationMapper.updateBioinfoReviewed(reportId, LoginHelper.getUserId());
         if (affected == 0) {
             throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + reportId);

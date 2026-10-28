@@ -43,6 +43,32 @@ public interface IInterpretationService {
     AnalysisReportVo enter(Long analysisId);
 
     /**
+     * 进入解读（可只读）：只读 = 已完成报告「查看解读记录」，不新建、不补快照、不校验流转状态。
+     *
+     * @param analysisId 分析数据ID
+     * @param readonly   是否只读查看
+     * @return 报告头信息（含 reportId / status）
+     */
+    AnalysisReportVo enter(Long analysisId, boolean readonly);
+
+    /**
+     * 认领生信看点（样本流转「生信看点」页签点「处理」时调用）：先占人，不改状态。
+     * 已被他人占住时抛异常。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     */
+    void claimBioinfoView(Long analysisId, Long reportId);
+
+    /**
+     * 认领生信复核（「生信审核」页签点「处理」时调用）：先占人，不改状态。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     */
+    void claimBioinfoReview(Long analysisId, Long reportId);
+
+    /**
      * 加载解读页上下文：报告头 + LIMS 信息 + 生成前校验结论。
      *
      * @param reportId   报告ID

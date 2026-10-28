@@ -151,9 +151,19 @@ public class SampleFlowServiceImpl implements ISampleFlowService {
             return handleSigning(report, vo);
         }
         if ("bioinfo-view".equals(tab)) {
-            // 生信看点：第一次「处理」就为该批次建/复用报告记录（状态 20 生信看点）
-            vo.setReportId(interpretationService.enter(bo.getAnalysisId()).getReportId());
+            // 生信看点：第一次「处理」就为该批次建/复用报告记录（状态 20 生信看点），
+            // 同时认领（占人，不改状态），防止同一批次被多人同时处理
+            Long reportId = interpretationService.enter(bo.getAnalysisId()).getReportId();
+            interpretationService.claimBioinfoView(bo.getAnalysisId(), reportId);
+            vo.setReportId(reportId);
             vo.setReportStatus(ReportStatus.BIOINFO_VIEW);
+            vo.setMessage("已认领生信看点，报告流转到「筛选位点」");
+        }
+        if ("bioinfo-review".equals(tab) && vo.getReportId() != null) {
+            // 生信审核：同样先认领（占人），防多人同时复核
+            interpretationService.claimBioinfoReview(bo.getAnalysisId(), vo.getReportId());
+            vo.setReportStatus(ReportStatus.BIOINFO_REVIEW);
+            vo.setMessage("已认领生信审核，报告流转到「筛选位点」");
         }
         if (vo.getReportId() == null) {
             if ("driver".equals(tab)) {

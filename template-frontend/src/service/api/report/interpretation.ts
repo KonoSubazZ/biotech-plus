@@ -189,7 +189,7 @@ export function fetchParentCandidates(keyword: string) {
 }
 
 /** 进入解读：创建/复用该分析批次的「解读中」报告，返回 reportId */
-export function fetchEnterInterpretation(data: { analysisId: number }) {
+export function fetchEnterInterpretation(data: { analysisId: number; readonly?: boolean }) {
   return request<Api.Report.InterpretationReport>({
     url: '/report/interpretation/enter',
     method: 'post',

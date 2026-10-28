@@ -125,6 +125,25 @@ public interface InterpretationMapper {
     int updateBioinfoViewed(@Param("reportId") Long reportId, @Param("userId") Long userId);
 
     /**
+     * 认领生信看点：点「处理」时先占人（不改状态），防止同一批次被多人同时处理。
+     * 已被他人占用时影响行数为 0。
+     *
+     * @param reportId 报告ID
+     * @param userId   当前用户
+     * @return 影响行数
+     */
+    int claimBioinfoView(@Param("reportId") Long reportId, @Param("userId") Long userId);
+
+    /**
+     * 认领生信复核：点「处理」时先占人（不改状态）。
+     *
+     * @param reportId 报告ID
+     * @param userId   当前用户
+     * @return 影响行数
+     */
+    int claimBioinfoReview(@Param("reportId") Long reportId, @Param("userId") Long userId);
+
+    /**
      * 生信复核通过（21 生信审核 → 30 报告待解读）：记复核人与时间。
      * <p>
      * 带来源状态条件：重复点击或并发时后到的那次影响行数为 0，调用方据此提示刷新。
@@ -391,6 +410,15 @@ public interface InterpretationMapper {
                            @Param("fromStatuses") List<Integer> fromStatuses,
                            @Param("revertFrom") Integer revertFrom,
                            @Param("revertReason") String revertReason);
+
+    /**
+     * 清空报告制品路径：审核驳回后文件已移到 {@code report/rejected/}，
+     * 库里不再保留失效路径（归档位置不入库）。
+     *
+     * @param reportId 报告ID
+     * @return 影响行数
+     */
+    int clearReportArtifact(@Param("reportId") Long reportId);
 
     /**
      * 回填报告业务字段：生成报告时把本次生效的「解读癌种」写回 analysis_report

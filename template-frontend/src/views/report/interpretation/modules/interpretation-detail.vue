@@ -25,9 +25,11 @@ interface Props {
   analysisId: number;
   /** 直达页签（路由 query.tab；空或越权时落到第一个有权限的页签） */
   initialTab?: string;
+  /** 只读查看（已完成报告的「查看解读」）：所有写操作按钮禁用，只允许浏览与下载 */
+  readonly?: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), { initialTab: '', reportId: null });
+const props = withDefaults(defineProps<Props>(), { initialTab: '', reportId: null, readonly: false });
 
 interface Emits {
   (e: 'back'): void;
@@ -113,6 +115,7 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
             </span>
             <NTag v-if="noReport" type="warning">未建报告</NTag>
             <NTag v-else :type="reportStatus.type">{{ reportStatus.label }}</NTag>
+            <NTag v-if="props.readonly" type="default">只读查看</NTag>
             <NTag v-if="context?.report.reportVersion" type="info">V{{ context.report.reportVersion }}</NTag>
             <span class="text-13px op-60">分析批次 {{ props.analysisId }}</span>
           </NSpace>
@@ -165,7 +168,13 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
       </NAlert>
 
       <NTabs v-else :value="activeTab" type="line" animated @update:value="handleTabChange">
-        <NTabPane v-for="tab in visibleTabs" :key="tab.name" :name="tab.name" :tab="tab.label">
+        <NTabPane
+          v-for="tab in visibleTabs"
+          :key="tab.name"
+          :name="tab.name"
+          :tab="tab.label"
+          :class="{ 'readonly-pane': props.readonly }"
+        >
           <template v-if="tab.name === 'lims'">
             <InterpretationTabLims v-if="context" :lims="context.lims" />
           </template>
@@ -211,4 +220,15 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+/* 只读查看：所有写操作控件不可点（后端状态机在 62 状态也已拒绝生成/提交/审核/发送） */
+.readonly-pane :deep(button),
+.readonly-pane :deep(input),
+.readonly-pane :deep(textarea),
+.readonly-pane :deep(.n-select),
+.readonly-pane :deep(.n-switch),
+.readonly-pane :deep(.n-checkbox) {
+  pointer-events: none;
+  opacity: 0.6;
+}
+</style>

@@ -153,28 +153,50 @@
         WHERE report_id = #{reportId} AND del_flag = '0'
     </update>
 
-    <!-- 生信看点完成：20 → 21，写看点人/时间（来源状态条件防重复提交） -->
+    <!-- 生信看点认领：点「处理」先占人，不改状态；已被他人占住时 0 行 -->
+    <update id="claimBioinfoView">
+        UPDATE analysis_report
+        SET report_bioinfo_viewed_by = #{userId},
+            update_by                = #{userId},
+            update_time              = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 20
+          AND (report_bioinfo_viewed_by IS NULL OR report_bioinfo_viewed_by = #{userId})
+    </update>
+
+    <!-- 生信复核认领：点「处理」先占人，不改状态 -->
+    <update id="claimBioinfoReview">
+        UPDATE analysis_report
+        SET report_bioinfo_reviewed_by = #{userId},
+            update_by                  = #{userId},
+            update_time                = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 21
+          AND (report_bioinfo_reviewed_by IS NULL OR report_bioinfo_reviewed_by = #{userId})
+    </update>
+
+    <!-- 生信看点完成：20 → 21，只有认领人（report_bioinfo_viewed_by）能点完成 -->
     <update id="updateBioinfoViewed">
         UPDATE analysis_report
         SET report_status            = 21,
-            report_bioinfo_viewed_by = #{userId},
             report_bioinfo_viewed_at = NOW(),
             update_by                = #{userId},
             update_time              = NOW()
         WHERE report_id = #{reportId} AND del_flag = '0'
           AND report_status = 20
+          AND report_bioinfo_viewed_by = #{userId}
     </update>
 
-    <!-- 生信复核通过：21 → 30，写复核人/时间（来源状态条件防重复提交） -->
+    <!-- 生信复核通过：21 → 30，只有认领人（report_bioinfo_reviewed_by）能点通过 -->
     <update id="updateBioinfoReviewed">
         UPDATE analysis_report
         SET report_status              = 30,
-            report_bioinfo_reviewed_by = #{userId},
             report_bioinfo_reviewed_at = NOW(),
             update_by                  = #{userId},
             update_time                = NOW()
         WHERE report_id = #{reportId} AND del_flag = '0'
           AND report_status = 21
+          AND report_bioinfo_reviewed_by = #{userId}
     </update>
 
     <!-- 单文件行（重新驱动用）：拿落盘路径与当前状态 -->
@@ -559,6 +581,17 @@
         WHERE report_id = #{reportId} AND del_flag = '0'
           AND report_status IN
         <foreach collection="fromStatuses" item="item" open="(" separator="," close=")">#{item}</foreach>
+    </update>
+
+    <!-- 审核驳回后清空失效路径（文件已移到 report/rejected/，不记录归档位置） -->
+    <update id="clearReportArtifact">
+        UPDATE analysis_report
+        SET report_json_path        = NULL,
+            report_file_raw_path    = NULL,
+            report_file_path        = NULL,
+            report_signed_file_path = NULL,
+            update_time             = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
     </update>
 
     <!-- 报告状态流转：只在允许的来源状态下更新（0 行 = 状态已变，调用方报错让用户刷新） -->

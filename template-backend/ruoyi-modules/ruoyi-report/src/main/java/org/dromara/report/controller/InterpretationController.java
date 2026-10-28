@@ -124,7 +124,7 @@ public class InterpretationController extends BaseController {
     @Log(title = "报告解读", businessType = BusinessType.INSERT)
     @PostMapping("/enter")
     public R<AnalysisReportVo> enter(@RequestBody @Validated InterpretationEnterBo bo) {
-        return R.ok(interpretationService.enter(bo.getAnalysisId()));
+        return R.ok(interpretationService.enter(bo.getAnalysisId(), Boolean.TRUE.equals(bo.getReadonly())));
     }
 
     /**
