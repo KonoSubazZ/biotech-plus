@@ -6,7 +6,7 @@
 >
 > 设计原则：关联关系由业务代码维护，数据库不建立物理外键；`report_template.module_code` 只负责选择 Java 业务处理器；模板不保存复杂业务规则；完整预览结果不落库，只保存可复用的位点匹配历史，并在正式生成时冻结最终 JSON。
 
-## 0. 当前实现权威快照（2026-09-14）
+## 0. 当前实现权威快照（2026-09-14，最新修订 2026-10-27）
 
 本节是给后续重写 Agent 的实现基线。若本文后续“目标草案”或“分阶段实施”与本节冲突，以本节、当前 Java 代码及 Flyway 迁移为准。
 
@@ -46,10 +46,12 @@ SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1
 
 - 预览 JSON 只存在于 Java 对象和 HTTP 响应，不写数据库，也不创建预览文件。
 - 正式生成时服务端重新查询最新 LIMS、报出位点、改靶、临床意义、产品基因和模板配置，不接受前端回传的预览 JSON。
-- 当前实现把最终 JSON 写入 `<artifact-root>/report/json/`、原始 DOCX 写入 `<artifact-root>/report/docx/<yyyyMMdd>/`（均不再建 reportId 子目录）；转化 PDF 与签名后 PDF 分别落 `<artifact-root>/report/pdf|signed/<yyyyMMdd>/`（见 report-docx-renderer.md 的「制品目录」）。
+- 当前实现把最终 JSON 写入 `<artifact-root>/report/json/<analysis_date>/`、原始 DOCX 写入 `<artifact-root>/report/docx/<analysis_date>/`、转化 PDF 写 `<artifact-root>/report/pdf/<analysis_date>/`、签名后 PDF 写 `<artifact-root>/report/signed/<analysis_date>/`（同样取 analysis_date，不取签名当天）（均不再建 reportId/版本子目录，日期取 `analysis_report.analysis_date`；见 report-docx-renderer.md 的「制品目录」）。
 - DOCX 与 JSON 使用相同文件名前缀；`analysis_report.report_json_path` 保存 JSON 路径，`report_file_raw_path` 保存 DOCX 路径，`template_id/template/report_generated_by/report_generated_at` 同时更新。
 - 再次生成会重新组装数据并创建新的唯一 JSON/DOCX 文件，因此内容可能随最新业务数据变化；数据库路径会指向最新制品，旧 JSON 文件不会被原地修改。
 - 当前运行代码不把 JSON 内容写入 `analysis_report.report_detail`，也未使用 `report_json_hash`。本文后续出现的 `report_detail`/哈希方案属于旧目标草案，重写时不得当作已实现行为。
+- 生成失败不归档：本轮制品先写在临时区 `<root>/.work/<tenant>_<reportId>_<轮次>/`，全部成功才逐阶段 move 到日期目录；失败只丢弃临时区（不建 `failed/` 目录、不留半成品、不落库），状态落 33。
+- 审核驳回归档：把该报告已有的 JSON/DOCX/PDF/签名件 move 到 `<root>/report/rejected/<analysis_date>/<subbarcode>_V<version>/{json,docx,pdf,signed}/`，同目录写一份 `manifest.json`；移出后用 `clearReportArtifact` 把库里 4 个路径字段置空（归档位置**不入库**），避免下载接口拿到已失效路径。
 
 ### 0.5 当前接口
 
@@ -80,6 +82,94 @@ POST /admin/report/template/generate
 | `sql/init/init.sql`、`sql/init/file_tables.sql` | 旧式独立文件明细表基线，已同步质控对照表及人工改靶字段；完整结构仍以 Flyway 顺序为准 |
 
 已执行过的 Flyway 迁移不可回改。已有环境通过后续版本增量升级；新语言实现可以按版本顺序复现，或据此生成一份等价的全量初始化脚本。
+
+### 0.7 流转状态码、生信认领、只读查看与历史冻结时机（2026-10-27 现行口径）
+
+本节是 2026-10-27 落地的四条现行口径。本文后续章节若出现 `PENDING_REVIEW` / `APPROVED` / `REJECTED` 这类英文枚举，
+或“提交审核即冻结历史”的表述，**都属于早期草案，以本节与代码为准**。
+
+#### 0.7.1 状态码（`analysis_report.report_status`，权威定义 `utils/ReportStatus.java`）
+
+线性主链 + 失败旁支，没有前一状态就没有后一状态的数据：
+
+| 码 | 含义 | 进入条件 |
+| -- | ---- | -------- |
+| 20 | 生信看点 | 生信在样本流转「生信看点」点「处理」，建/复用该批次的报告记录 |
+| 21 | 生信审核 | 看点完成（20→21），**必须由另一个人**复核 |
+| 30 | 报告待解读 | 生信复核通过（21→30） |
+| 31 | 报告解读中 | 解读员进入/认领；也是审核驳回后的回退落点 |
+| 32 | 报告生成成功 | JSON/DOCX/PDF 三件套全部生成成功 |
+| 33 | 报告生成失败 | 生成异常，可重新生成（临时区已丢弃） |
+| 40 | 报告待审核 | 提交审核（32→40） |
+| 41 | 报告审核中 | 复核员认领（40→41） |
+| 42 | 报告审核失败 | 已定义但**当前不落库**：审核驳回直接回退 31，来源状态记进 `report_revert_from` |
+| 43 | 报告审核成功 | 瞬时态：写入审核人后立即自动送签转 50 |
+| 50 | 报告签名中 | 已送上上签，等回调或手动刷新 |
+| 52 | 报告签名失败 | 可重新送签 |
+| 53 | 报告签名成功 | 已定义但**当前不落库**：收到签名件由签名服务直接写 60（查询过滤里仍兼容 50/52/53） |
+| 60 | 报告待发送 | 签名件已落盘 |
+| 61 | 报告发送失败 | 可重发 |
+| 62 | 报告发送成功 | 终态；也是“可以再新建报告”的判据 |
+
+#### 0.7.2 生信看点 / 生信审核的认领（方案 B：不加字段、复用 `*_by`）
+
+「处理」先占人、不改状态；「完成」再校验占人并推进状态。字段就是原有的
+`report_bioinfo_viewed_by/at`、`report_bioinfo_reviewed_by/at`（存 user_id，不新增 `claimed_*` 列）。
+
+| 动作 | 入口 | 写入 | SQL 条件 | 冲突结果 |
+| ---- | ---- | ---- | -------- | -------- |
+| 认领看点 | 样本流转「生信看点」点处理 → `POST /report/flow/handle`（tab=bioinfo-view） | `report_bioinfo_viewed_by` | `report_status=20 AND (viewed_by IS NULL OR viewed_by=当前用户)` | 影响 0 行 → 「该报告已被他人认领，请刷新列表」 |
+| 认领复核 | 「生信审核」点处理（tab=bioinfo-review） | `report_bioinfo_reviewed_by` | `report_status=21 AND (reviewed_by IS NULL OR reviewed_by=当前用户)` | 同上；且看点人不能复核自己看点的报告 |
+| 看点完成 | 筛选位点页签提交 | `report_bioinfo_viewed_at` + 状态 21 | 认领人必须是当前用户；未认领时先幂等占位 | 0 行 → 「报告状态已变化，请刷新后重试」 |
+| 复核通过 | 筛选位点页签提交 | `report_bioinfo_reviewed_at` + 状态 30 | 同上，且 `viewed_by ≠ 当前用户` | 同上 |
+
+已知限制（方案 B 的固有限制，未额外加机制）：
+
+- 认领只是“防多人同时处理”的占位，**不是硬前置**：审核接口允许 40（未认领）直接审核 / 驳回；40→41 只在点「处理」时发生。
+- 认领**不会自动释放**：认领人不处理就卡住，需要改库（或以后加超时释放）。
+- 列表**不显示认领人姓名**（字段存 user_id），要显示需 JOIN `sys_user`。
+- 认领后别人仍能打开详情、能看，只是点「完成」会被拒；要“别人完全看不到”得再加读侧过滤。
+
+#### 0.7.3 已完成报告（62）的只读查看
+
+- `POST /report/interpretation/enter` 入参加 `readonly`：`readonly=true` 时**只按 `analysisId` 找该批次已有报告直接返回**，
+  不新建报告、不补快照、不校验流转状态；该批次没有报告直接报错。
+- 前端列表对 62 的行给两个按钮：**查看解读**（`readonly=true`）与 **重新解读**（原链路：重扫出新批次、新建报告）。
+- 详情页带 `readonly=1` 时：顶部出现「只读查看」标签，9 个页签都能浏览，页签内按钮/输入框/下拉/开关
+  （`pointer-events:none` + 变灰）全部不可操作；预览页签对 62 自动读冻结 JSON（原有逻辑）。
+- 重新解读：只允许 62 → 走驱动 `type=REINTERPRET` 建新 `analysis_id` → `enterAfterRescan` 建新报告，
+  `source_report_id` 指向来源报告；已有子报告时直接返回子报告（幂等）。
+
+#### 0.7.4 位点历史冻结时机：审核通过才写
+
+| 环节 | 是否写历史 |
+| ---- | ---------- |
+| 预览 / 生成（32） | 不写；只读历史（命中就复用冻结结果），未命中查最新知识库 |
+| 提交审核（32→40/41） | **不写**（2026-10-27 起从这里移走） |
+| 审核通过（40/41→43） | **写**：命中历史 → `reuse_count+1` + `last_reused_at` + 写一条 `history_reuse_log`；未命中 → `INSERT IGNORE` 冻结首条，并写 `report_variant_history`（历史检出） |
+| 审核驳回 | 不写（所以驳回的报告不会污染历史） |
+
+- 冻结与状态更新在**同一事务**：`freezeHistory` 抛错则审核通过回滚。
+- 副作用（有意接受）：提交审核后到审核通过前，「历史检出」页看不到本报告的位点，审核通过那一刻才出现。
+
+#### 0.7.5 驳回处置
+
+- 只有 40/41 能驳回；驳回原因必填；产出人不能审核/驳回自己的报告；状态条件更新，重复点击后到的那次影响 0 行直接报错。
+- 归档：`report/rejected/<analysis_date>/<subbarcode>_V<version>/` + `manifest.json`
+  （`reportId / reportVersion / reportGenerationNo / reportName / analysisDate / rejectedBy / rejectedAt / reason`）。
+- 归档失败 → 抛错且**状态不变**（不会出现“文件移走了但状态没回退”）。
+- 库里 4 个路径字段置空，状态回 31，来源状态与原因写进 `report_revert_from` / `comment`，
+  「报告解读中」页签据此打「审核失败回退」标签。
+
+#### 0.7.6 代码落点（复现这 5 条时改这几处）
+
+| 口径 | 落点 |
+| ---- | ---- |
+| 只读查看 | `InterpretationEnterBo.readonly` · `IInterpretationService.enter(analysisId, readonly)` · `InterpretationServiceImpl.enter` · `InterpretationController.enter` · 前端 `views/report/interpretation/index.vue`（两按钮 + `readonly=1`）、`modules/interpretation-detail.vue`（props + 只读标签/样式） |
+| 生信认领 | `IInterpretationService.claimBioinfoView/claimBioinfoReview` · `InterpretationMapper.xml` 的 `claimBioinfoView/claimBioinfoReview`（新增）与 `updateBioinfoViewed/updateBioinfoReviewed`（加“认领人=当前用户”条件） · `SampleFlowServiceImpl`（两个页签「处理」时调认领） |
+| 冻结时机 | `InterpretationReviewService.submitLocked`（删 `freezeHistory`）· `approveLocked`（加 `freezeHistory`） |
+| 驳回归档 | `ReportArtifactStore.rejected` · `ReportArtifactPaths.rejectedDir` · `InterpretationReviewService.rejectLocked`（先归档再清路径再回退状态） |
+| 制品目录 | `ReportArtifactPaths`（`reportDir/rejectedDir/requireDay`）· `ReportArtifactStore`（`.work` 临时区 → 日期目录）· `ReportGenerationService` · `ReportSignSsqService` |
 
 ## 1. 架构结论
 
@@ -936,10 +1026,13 @@ Python 不再执行以下操作：
 
 ### 11.1 审核
 
-- 只有 `PENDING_REVIEW` 可以审核。
+> **现行口径（2026-10-27）见 §0.7**：状态用数字码（40/41 可审核、43 瞬时通过、驳回回退 31），
+> 且**位点历史改为“审核通过才冻结”**（提交审核不再写历史）。下面几条保留为早期枚举草案的对照。
+
+- 只有 `PENDING_REVIEW` 可以审核（现行：只有 40 待审核 / 41 审核中可审核）。
 - 产出人不能审核自己的报告。
-- 审核通过更新为 `APPROVED`。
-- 驳回更新为 `REJECTED`，驳回原因必填。
+- 审核通过更新为 `APPROVED`（现行：写 43 后立即自动送签转 50）。
+- 驳回更新为 `REJECTED`，驳回原因必填（现行：归档到 `report/rejected/` 后回退 31，不切独立状态）。
 - 审核动作使用状态条件更新，避免重复审核。
 
 ### 11.2 重出
