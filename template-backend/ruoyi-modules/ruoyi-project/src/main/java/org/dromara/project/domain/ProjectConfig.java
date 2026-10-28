@@ -25,20 +25,43 @@ public class ProjectConfig extends BaseEntity {
     @TableId(value = "id")
     private Long id;
 
+    /** 父节点 ID（0=项目行；研究中心行=所属项目行 id） */
+    private Long parentId;
+
     // @fields:start
-    /** 项目编号 */
+    /** 项目编号（项目行唯一；研究中心行冗余存） */
     private String projectNo;
 
-    /** 项目名称 */
+    /** 项目名称（仅项目行有值） */
     private String projectName;
 
-    /** 客户名称 */
+    /** 客户名称（仅项目行有值） */
     private String customer;
 
-    /** 收件邮箱 */
+    /** 合同名称（仅项目行有值；展示字段，不参与业务逻辑） */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String contractName;
+
+    /** 合同编号（仅项目行有值；展示字段） */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String contractCode;
+
+    /** 研究方案编号（仅项目行有值；展示字段） */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String studyPlanNo;
+
+    /** 研究中心编号（仅研究中心行有值；项目行为空串） */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String researchCenterNo;
+
+    /** 研究中心名称（仅研究中心行有值；项目行为空串） */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String researchCenterName;
+
+    /** 收件邮箱（项目行=项目自身，研究中心行=该中心） */
     private String receiveEmail;
 
-    /** 抄送邮箱 */
+    /** 抄送邮箱（项目行=项目自身，研究中心行=该中心） */
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String ccEmail;
 

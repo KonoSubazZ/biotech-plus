@@ -3,6 +3,7 @@ package org.dromara.project.service;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.project.domain.bo.ProjectConfigBo;
+import org.dromara.project.domain.bo.ProjectCenterBo;
 import org.dromara.project.domain.vo.ProjectConfigVo;
 
 import java.util.List;
@@ -54,4 +55,36 @@ public interface IProjectConfigService {
      * @return 是否成功
      */
     Boolean deleteByIds(List<Long> ids);
+
+    /**
+     * 某项目下的研究中心列表（按 id 升序，即录入顺序）
+     *
+     * @param parentId 项目行主键
+     * @return 研究中心列表
+     */
+    List<ProjectConfigVo> selectCentersByParentId(Long parentId);
+
+    /**
+     * 新增研究中心（挂到指定项目行下）
+     *
+     * @param bo 业务对象
+     * @return 是否成功
+     */
+    Boolean insertCenterByBo(ProjectCenterBo bo);
+
+    /**
+     * 修改研究中心（只能改中心行，归属关系不可变）
+     *
+     * @param bo 业务对象
+     * @return 是否成功
+     */
+    Boolean updateCenterByBo(ProjectCenterBo bo);
+
+    /**
+     * 批量删除研究中心（逻辑删除；混入项目行直接拒绝）
+     *
+     * @param ids 主键集合
+     * @return 是否成功
+     */
+    Boolean deleteCentersByIds(List<Long> ids);
 }

@@ -12,12 +12,24 @@
 <mapper namespace="org.dromara.project.mapper.ProjectConfigMapper">
 
     <!--
-      唯一键 uk_project_config_project_no(tenant_id, project_no) 不含 del_flag，
-      软删的行仍占着项目编号 —— 这两条 SQL 故意不带 del_flag 过滤，供「删了再配一次」时恢复旧行。
+      唯一键 uk_project_config_node(tenant_id, project_no, research_center_no, research_center_name)
+      不含 del_flag，软删的行仍占着业务键 —— 下面三条 SQL 故意不带 del_flag = '0' 过滤，
+      供「删了再配一次」时恢复旧行。
+      parent_id = 0 是项目行，parent_id > 0 是研究中心行，恢复时必须按节点类型区分，别抓错行。
     -->
     <select id="selectDeletedIdByProjectNo" resultType="java.lang.Long">
         SELECT id FROM project_config
-        WHERE project_no = #{projectNo} AND del_flag = '1'
+        WHERE project_no = #{projectNo} AND parent_id = 0 AND del_flag = '1'
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectDeletedCenterId" resultType="java.lang.Long">
+        SELECT id FROM project_config
+        WHERE project_no = #{projectNo}
+          AND research_center_no = #{researchCenterNo}
+          AND research_center_name = #{researchCenterName}
+          AND parent_id &gt; 0 AND del_flag = '1'
         ORDER BY id ASC
         LIMIT 1
     </select>

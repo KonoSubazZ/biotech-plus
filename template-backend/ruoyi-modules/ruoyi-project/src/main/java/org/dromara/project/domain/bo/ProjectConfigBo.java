@@ -40,6 +40,18 @@ public class ProjectConfigBo extends BaseEntity {
     @Size(max = 200, message = "客户名称长度不能超过 200")
     private String customer;
 
+    /** 合同名称（展示字段，不参与业务逻辑） */
+    @Size(max = 200, message = "合同名称长度不能超过 200")
+    private String contractName;
+
+    /** 合同编号（展示字段，不参与业务逻辑） */
+    @Size(max = 100, message = "合同编号长度不能超过 100")
+    private String contractCode;
+
+    /** 研究方案编号（展示字段，不参与业务逻辑） */
+    @Size(max = 100, message = "研究方案编号长度不能超过 100")
+    private String studyPlanNo;
+
     /** 收件邮箱 */
     @NotBlank(message = "收件邮箱不能为空")
     @Size(max = 500, message = "收件邮箱长度不能超过 500")

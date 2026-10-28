@@ -28,6 +28,21 @@ public interface ProjectConfigMapper extends BaseMapperPlus<ProjectConfig, Proje
     Long selectDeletedIdByProjectNo(@Param("projectNo") String projectNo);
 
     /**
+     * 查被软删的、同项目同编号同名的研究中心行 id（专供「删了再加回来」恢复旧行）。
+     * <p>
+     * 与 {@link #selectDeletedIdByProjectNo} 同一套理由：唯一键不含 del_flag，软删行仍占着
+     * (project_no, research_center_no, research_center_name)，直接 insert 会撞键。
+     *
+     * @param projectNo          项目编号
+     * @param researchCenterNo   研究中心编号
+     * @param researchCenterName 研究中心名称
+     * @return 软删行 id；没有则 null
+     */
+    Long selectDeletedCenterId(@Param("projectNo") String projectNo,
+                               @Param("researchCenterNo") String researchCenterNo,
+                               @Param("researchCenterName") String researchCenterName);
+
+    /**
      * 把软删行恢复成存在状态（updateById 不会带 del_flag，所以单列一条 SQL）。
      *
      * @param id 主键

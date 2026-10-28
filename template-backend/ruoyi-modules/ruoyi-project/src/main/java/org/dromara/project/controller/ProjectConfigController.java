@@ -14,6 +14,7 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.project.domain.bo.ProjectConfigBo;
+import org.dromara.project.domain.bo.ProjectCenterBo;
 import org.dromara.project.domain.vo.ProjectConfigVo;
 import org.dromara.project.service.IProjectConfigService;
 import org.springframework.validation.annotation.Validated;
@@ -108,5 +109,58 @@ public class ProjectConfigController extends BaseController {
     @DeleteMapping("/{ids}")
     public R<Void> remove(@NotEmpty(message = "主键不能为空") @PathVariable Long[] ids) {
         return toAjax(projectConfigService.deleteByIds(List.of(ids)));
+    }
+
+    /**
+     * 某项目下的研究中心列表
+     *
+     * @param id 项目行主键
+     * @return 研究中心列表
+     */
+    @SaCheckPermission("project:projectConfig:query")
+    @GetMapping("/{id}/centers")
+    public R<List<ProjectConfigVo>> centers(@NotNull(message = "主键不能为空") @PathVariable Long id) {
+        return R.ok(projectConfigService.selectCentersByParentId(id));
+    }
+
+    /**
+     * 新增研究中心
+     *
+     * @param bo 业务对象
+     * @return 操作结果
+     */
+    @SaCheckPermission("project:projectConfig:add")
+    @Log(title = "研究中心", businessType = BusinessType.INSERT)
+    @RepeatSubmit()
+    @PostMapping("/center")
+    public R<Void> addCenter(@Validated @RequestBody ProjectCenterBo bo) {
+        return toAjax(projectConfigService.insertCenterByBo(bo));
+    }
+
+    /**
+     * 修改研究中心
+     *
+     * @param bo 业务对象
+     * @return 操作结果
+     */
+    @SaCheckPermission("project:projectConfig:edit")
+    @Log(title = "研究中心", businessType = BusinessType.UPDATE)
+    @RepeatSubmit()
+    @PutMapping("/center")
+    public R<Void> editCenter(@Validated @RequestBody ProjectCenterBo bo) {
+        return toAjax(projectConfigService.updateCenterByBo(bo));
+    }
+
+    /**
+     * 删除研究中心（逻辑删除）
+     *
+     * @param ids 主键集合
+     * @return 操作结果
+     */
+    @SaCheckPermission("project:projectConfig:remove")
+    @Log(title = "研究中心", businessType = BusinessType.DELETE)
+    @DeleteMapping("/center/{ids}")
+    public R<Void> removeCenter(@NotEmpty(message = "主键不能为空") @PathVariable Long[] ids) {
+        return toAjax(projectConfigService.deleteCentersByIds(List.of(ids)));
     }
 }
