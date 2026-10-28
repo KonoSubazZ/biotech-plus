@@ -106,8 +106,6 @@ public class InterpretationReviewService {
             throw new ServiceException("报告尚未生成，请先在「报告预览」生成报告：reportId=" + bo.getReportId());
         }
 
-        previewService.freezeHistory(generatedParameters(bo, report));
-
         int affected = revisionMapper.submitReview(bo.getReportId(), reviewerId);
         if (affected == 0) {
             throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + bo.getReportId());
@@ -139,6 +137,10 @@ public class InterpretationReviewService {
                 + "）不允许审核通过：reportId=" + bo.getReportId());
         }
         assertNotProducer(report);
+
+        // 历史冻结（2026-10-27 用户口径）：提交审核不再写历史，改到「审核通过」时冻结
+        // （历史检出与解读历史都不因提交/驳回产生，避免驳回报告污染历史）
+        previewService.freezeHistory(generatedParameters(bo, report));
 
         int affected = interpretationMapper.updateReportReview(bo.getReportId(), STATUS_APPROVED, null,
             LoginHelper.getUserId(), LoginHelper.getUserId(), REVIEWABLE_STATUS, null, null);
@@ -204,6 +206,8 @@ public class InterpretationReviewService {
         report.put("rejectedBy", LoginHelper.getUserId());
         report.put("rejectedAt", java.time.LocalDateTime.now().toString());
         artifactStore.rejected(report, bo.getReason().trim());
+        // 文件已移到 report/rejected/<analysisDate>/，库里不再保留失效路径（归档位置不入库）
+        interpretationMapper.clearReportArtifact(bo.getReportId());
 
         // 审核不通过：同一条报告回退到「报告解读中」，来源状态与原因留在回退字段里
         // （样本流转「报告解读中」页签用它打「审核失败回退」标签，与正常认领区分）
