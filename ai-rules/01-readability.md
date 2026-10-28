@@ -135,7 +135,7 @@ const { handleAdd, handleEdit } = useTableOperate(rows, getDataByPage);
 ## 6. 机械闸门
 
 ```bash
-python3 tools/readability_check.py --changed-only origin/main   # 只查本次改动（推荐）
+python3 tools/readability_check.py --changed-only origin/master   # 只查本次改动（推荐）
 python3 tools/readability_check.py template-backend             # 全量，看老债
 python3 tools/readability_check.py --fail-on warn               # 严格模式（warn 也算失败）
 python3 tools/readability_check.py --json report.json           # 给 CI 归档

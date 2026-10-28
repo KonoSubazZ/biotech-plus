@@ -24,8 +24,8 @@ effort: xhigh
 ## 交接什么（缺一项评审就会跑偏）
 
 ```bash
-git diff origin/main...HEAD > /tmp/change.diff
-python3 tools/readability_check.py --changed-only origin/main | tee /tmp/readability-report.txt
+git diff origin/master...HEAD > /tmp/change.diff
+python3 tools/readability_check.py --changed-only origin/master | tee /tmp/readability-report.txt
 ```
 
 交给评审者：**diff + 计划/意图 + 三份判据 + 机械报告**

@@ -21,13 +21,13 @@
 
 ```bash
 # 1. 我这次改的代码合不合规（提 PR 前必跑）
-python3 tools/readability_check.py --changed-only origin/main
+python3 tools/readability_check.py --changed-only origin/master
 
 # 2. 看有哪些规则
 python3 tools/readability_check.py --rules
 
 # 3. 交给人/另一个 agent 评审时，产出 diff
-git diff origin/main...HEAD > /tmp/change.diff
+git diff origin/master...HEAD > /tmp/change.diff
 ```
 
 ## 与已有的 VibeCoding Athena 什么关系

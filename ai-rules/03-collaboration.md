@@ -64,10 +64,10 @@ git checkout main && git pull
 git checkout -b feat/<模块>-<简述>
 
 # 每天开工先 rebase，别攒三天
-git fetch origin && git rebase origin/main
+git fetch origin && git rebase origin/master
 
 # 提 PR 前：机械闸门 + 自测
-python3 tools/readability_check.py --changed-only origin/main
+python3 tools/readability_check.py --changed-only origin/master
 
 git push -u origin feat/<模块>-<简述>
 ```
@@ -109,7 +109,7 @@ readability-gate:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
-    - python3 tools/readability_check.py --changed-only origin/main --json readability.json
+    - python3 tools/readability_check.py --changed-only origin/master --json readability.json
   artifacts:
     when: always
     paths: [readability.json]

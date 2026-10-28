@@ -89,9 +89,10 @@ python3 tools/new_crud.py --root . --module biotech --entity QcRecord --table qc
 ### 6. 验证（三件都要做，缺一不算完成）
 
 ```bash
-cd template-backend && mvn -B -ntp -pl ruoyi-modules/ruoyi-<模块> -am validate   # 期望 BUILD SUCCESS
-cd .. && python3 tools/readability_check.py --changed-only origin/main            # error 必须为 0
-git diff origin/main...HEAD > /tmp/change.diff                                    # 交给评审
+cd template-backend && docker run --rm -v "$PWD":/src -v ~/.m2:/root/.m2 -w /src \
+  maven:3.9-eclipse-temurin-17 mvn -B -ntp -o -Pdev -DskipTests -pl ruoyi-modules/ruoyi-<模块> -am package   # 期望 BUILD SUCCESS
+cd .. && python3 tools/readability_check.py --changed-only origin/master            # error 必须为 0
+git diff origin/master...HEAD > /tmp/change.diff                                    # 交给评审
 ```
 
 完成判据：mvn 出 `BUILD SUCCESS`（**核实实际执行的测试数量，零测试不算通过**）、

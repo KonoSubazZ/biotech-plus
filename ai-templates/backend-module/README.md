@@ -83,7 +83,7 @@ done
 ```bash
 cd template-backend
 mvn -B -ntp -pl ruoyi-modules/ruoyi-biotech -am validate     # 期望 BUILD SUCCESS
-cd .. && python3 tools/readability_check.py --changed-only origin/main
+cd .. && python3 tools/readability_check.py --changed-only origin/master
 ```
 
 **⑤ 前端配套**：接口层与页面从 `ai-templates/frontend-module/` 复制；
@@ -118,5 +118,5 @@ cd .. && python3 tools/readability_check.py --changed-only origin/main
 ```bash
 cd template-backend
 mvn -B -ntp -pl ruoyi-modules/ruoyi-biotech -am validate
-cd .. && python3 tools/readability_check.py --changed-only origin/main
+cd .. && python3 tools/readability_check.py --changed-only origin/master
 ```

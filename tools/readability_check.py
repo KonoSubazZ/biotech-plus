@@ -7,7 +7,7 @@
 用法（在仓库根目录执行）：
     python3 tools/readability_check.py                       # 扫默认范围
     python3 tools/readability_check.py template-backend      # 扫指定目录
-    python3 tools/readability_check.py --changed-only origin/main   # 只查改动（PR/CI）
+    python3 tools/readability_check.py --changed-only origin/master   # 只查改动（PR/CI）
     python3 tools/readability_check.py --json out.json       # 结果另存 JSON
     python3 tools/readability_check.py --fail-on warn        # 严格模式
     python3 tools/readability_check.py --rules               # 打印规则清单

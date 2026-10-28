@@ -6,7 +6,7 @@
   python3 tools/check_commit.py --message "feat(qc): 新增质控标准模块"   # 校验一条（commit-msg 钩子用）
   python3 tools/check_commit.py --file .git/COMMIT_EDITMSG              # 校验 message 文件（钩子亦可传文件）
   python3 tools/check_commit.py --latest 5                              # 校验最近 5 条
-  python3 tools/check_commit.py --range origin/main..HEAD                # 校验一个区间
+  python3 tools/check_commit.py --range origin/master..HEAD                # 校验一个区间
   python3 tools/check_commit.py --rules                                 # 打印规则清单
 
 退出码：0 通过；1 有不合规。
@@ -112,7 +112,7 @@ def main() -> int:
     ap.add_argument("--message", help="直接校验一条提交信息")
     ap.add_argument("--file", help="校验一个提交信息文件（如 .git/COMMIT_EDITMSG）")
     ap.add_argument("--latest", type=int, help="校验最近 N 条提交")
-    ap.add_argument("--range", dest="rev_range", help="校验一个区间，如 origin/main..HEAD")
+    ap.add_argument("--range", dest="rev_range", help="校验一个区间，如 origin/master..HEAD")
     ap.add_argument("--rules", action="store_true", help="打印规则清单")
     args = ap.parse_args()
 

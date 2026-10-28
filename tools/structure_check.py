@@ -17,7 +17,7 @@ import 了不存在的 modules 组件、不用项目 hooks 自己造轮子）**�
 用法（在仓库根目录执行）：
 
     python3 tools/structure_check.py                      # 全量扫描 template-frontend/src
-    python3 tools/structure_check.py --changed-only origin/main   # 只查本次改动触及的页面
+    python3 tools/structure_check.py --changed-only origin/master   # 只查本次改动触及的页面
     python3 tools/structure_check.py --rules              # 打印规则清单
     python3 tools/structure_check.py --json out.json      # 机器可读输出
     python3 tools/structure_check.py path/to/views        # 只扫指定目录
@@ -235,7 +235,7 @@ def gather(root, explicit):
 
 
 def changed_only(root, ref):
-    # 传 "A...B" 比两点之间的提交；传单个 ref（HEAD / origin/main）连带工作区未提交改动
+    # 传 "A...B" 比两点之间的提交；传单个 ref（HEAD / origin/master）连带工作区未提交改动
     # —— pre-commit 用 --changed-only HEAD 就是「本次要提交的东西」。
     try:
         out = subprocess.run(["git", "-C", root, "diff", "--name-only", ref],
