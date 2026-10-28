@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS `sample_file` (
 
 
 -- ============================================================================
--- 2. 菜单：报告管理（一级目录）> 样本信息
+-- 2. 菜单：样本信息 —— 2026-10-21 从「报告管理」迁到「样本管理」（原质控管理）目录下，order=1
 --    幂等：每段都用 NOT EXISTS 包一层派生表（MySQL 5.7 不支持相关派生表，用 @变量传值）
 -- ============================================================================
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
@@ -176,17 +176,20 @@ WHERE NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
 
 SET @report_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'report' LIMIT 1);
 
+-- 父目录是「样本管理」（一级目录 path='qc'），由 qc-menu.sql 建/改名，所以这里必须排在它之后执行
+SET @qc_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = 'qc' LIMIT 1);
+
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT 'route.report_sample-info', @report_id, 1, 'sample-info', 'report/sample-info/index', 1, 0,
+SELECT 'route.report_sample-info', @qc_id, 1, 'sample-info', 'report/sample-info/index', 1, 0,
     'C', '0', '0', 'report:sampleInfo:list', 'local-icon-clipboard', 1, NOW(), '样本信息'
 FROM (SELECT 1) AS dummy
-WHERE @report_id IS NOT NULL
+WHERE @qc_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
-      WHERE parent_id = @report_id AND path = 'sample-info') AS exists_check);
+      WHERE parent_id = @qc_id AND path = 'sample-info') AS exists_check);
 
 SET @menu_id = (SELECT menu_id FROM sys_menu
-    WHERE parent_id = @report_id AND path = 'sample-info' LIMIT 1);
+    WHERE parent_id = @qc_id AND path = 'sample-info' LIMIT 1);
 
 
 -- ============================================================================

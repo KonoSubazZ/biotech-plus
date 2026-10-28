@@ -279,7 +279,7 @@ const local: App.I18n.Schema = {
     system: 'System Management',
     system_tenant: 'Pharmaceutical Company Management',
     project: 'Project Management',
-    qc: 'Quality Management',
+    qc: 'Sample Management',
     'qc_wet-lab': 'Wet Lab QC',
     qc_bioinfo: 'Bioinformatics QC',
     'project_qc-standard': 'QC Standard',

@@ -275,7 +275,7 @@ const local: App.I18n.Schema = {
     system: '系统管理',
     system_tenant: '药企管理',
     project: '项目管理',
-    qc: '质控管理',
+    qc: '样本管理',
     'qc_wet-lab': '湿实验质控',
     qc_bioinfo: '生信质控',
     'project_qc-standard': '质控标准',

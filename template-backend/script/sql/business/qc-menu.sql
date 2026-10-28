@@ -1,9 +1,9 @@
--- 「质控管理」菜单（一级目录 + 湿实验质控 / 生信质控 两个页面 + 按钮权限点位）
+-- 「样本管理」菜单（一级目录 + 湿实验质控 / 生信质控 两个页面 + 按钮权限点位）
 -- 来历：本文件原为 qc-record.sql（含 qc_record 建表与菜单）。2026-10-12 起：
 --   · qc_record 表与它的 CRUD 模块整体下线，湿实验质控改走 wet_lab_qc（见 business/wet-lab-qc.sql，
 --     接口灌数据的那套：POST /qc/wetLabQc/receive）；
---   · 本文件只负责「质控管理」菜单层级与权限点位，perms 与各 Controller 的 @SaCheckPermission 逐字一致。
--- 菜单位置：「质控管理」是根目录下的一级菜单，前端页面 /qc/wet-lab、/qc/bioinfo
+--   · 本文件只负责「样本管理」菜单层级与权限点位，perms 与各 Controller 的 @SaCheckPermission 逐字一致。
+-- 菜单位置：「样本管理」是根目录下的一级菜单，前端页面 /qc/wet-lab、/qc/bioinfo
 --   （与设计文档原写的 /qc/quality-control 同一层，路径以本文件为准）。
 -- 幂等：按 path/perms 定位 + NOT EXISTS 包一层派生表（MySQL 5.7 不能相关派生表），脚本可重复执行。
 -- 注意：本文件按文件名排在 wet-lab-qc.sql、bioinfo-qc.sql 之前，所以这里用**最终**的权限点建行；
@@ -21,7 +21,7 @@ DROP TABLE IF EXISTS `qc_record`;
 
 
 -- ============================================================================
--- 1. 一级目录：质控管理（parent_id=0、path='qc'、component='Layout'）
+-- 1. 一级目录：样本管理（parent_id=0、path='qc'、component='Layout'）
 --    历史数据（原先挂在「项目管理 > 质量管理」下）用 UPDATE 收敛过来，保留 menu_id → 角色授权不用重做
 -- ============================================================================
 SET @project_id = (SELECT menu_id FROM sys_menu WHERE path = 'project' AND parent_id = 0 LIMIT 1);
@@ -30,16 +30,16 @@ SET @legacy_id = (SELECT menu_id FROM sys_menu
     WHERE parent_id = @project_id AND path = 'quality' LIMIT 1);
 
 UPDATE sys_menu
-SET parent_id = 0, menu_name = '质控管理', path = 'qc', component = 'Layout', order_num = 3,
-    menu_type = 'M', visible = '0', status = '0', remark = '质控管理（一级目录）',
+SET parent_id = 0, menu_name = '样本管理', path = 'qc', component = 'Layout', order_num = 3,
+    menu_type = 'M', visible = '0', status = '0', remark = '样本管理（一级目录）',
     update_by = 1, update_time = NOW()
 WHERE menu_id = @legacy_id;
 
 -- 新装：没有历史行时新建（已迁过的库这里自然跳过）
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT '质控管理', 0, 3, 'qc', 'Layout', 1, 0,
-    'M', '0', '0', '', 'local-icon-skill', 1, NOW(), '质控管理（一级目录）'
+SELECT '样本管理', 0, 3, 'qc', 'Layout', 1, 0,
+    'M', '0', '0', '', 'local-icon-skill', 1, NOW(), '样本管理（一级目录）'
 FROM (SELECT 1) AS dummy
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
     WHERE parent_id = 0 AND path = 'qc') AS exists_check);
@@ -49,8 +49,8 @@ SET @quality_id = (SELECT menu_id FROM sys_menu WHERE parent_id = 0 AND path = '
 -- 收敛到当前定义：无论这行是刚搬过来的旧行还是已迁过的库，这里都把字段刷成同一份定义
 -- （旧行的 UPDATE 只认「旧位置」，第二次执行就查不到了，所以必须按当前位置再刷一次）
 UPDATE sys_menu
-SET parent_id = 0, menu_name = '质控管理', path = 'qc', component = 'Layout', order_num = 3,
-    menu_type = 'M', visible = '0', status = '0', remark = '质控管理（一级目录）',
+SET parent_id = 0, menu_name = '样本管理', path = 'qc', component = 'Layout', order_num = 3,
+    menu_type = 'M', visible = '0', status = '0', remark = '样本管理（一级目录）',
     update_by = 1, update_time = NOW()
 WHERE menu_id = @quality_id;
 
@@ -61,7 +61,7 @@ WHERE menu_id = @quality_id;
 -- ============================================================================
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT 'route.qc_wet-lab', @quality_id, 1, 'wet-lab', 'qc/wet-lab/index', 1, 0,
+SELECT 'route.qc_wet-lab', @quality_id, 2, 'wet-lab', 'qc/wet-lab/index', 1, 0,
     'C', '0', '0', 'qc:wetLabQc:list', 'local-icon-documentation', 1, NOW(), '湿实验质控'
 FROM (SELECT 1) AS dummy
 WHERE @quality_id IS NOT NULL
@@ -70,13 +70,13 @@ WHERE @quality_id IS NOT NULL
 
 UPDATE sys_menu
 SET parent_id = @quality_id, menu_name = 'route.qc_wet-lab', component = 'qc/wet-lab/index',
-    path = 'wet-lab', order_num = 1, menu_type = 'C', perms = 'qc:wetLabQc:list',
+    path = 'wet-lab', order_num = 2, menu_type = 'C', perms = 'qc:wetLabQc:list',
     visible = '0', status = '0', update_by = 1, update_time = NOW()
 WHERE parent_id = @quality_id AND path = 'wet-lab';
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
-SELECT 'route.qc_bioinfo', @quality_id, 2, 'bioinfo', 'qc/bioinfo/index', 1, 0,
+SELECT 'route.qc_bioinfo', @quality_id, 3, 'bioinfo', 'qc/bioinfo/index', 1, 0,
     'C', '0', '0', 'qc:bioinfo:list', 'local-icon-code', 1, NOW(), '生信质控'
 FROM (SELECT 1) AS dummy
 WHERE @quality_id IS NOT NULL
@@ -85,7 +85,7 @@ WHERE @quality_id IS NOT NULL
 
 UPDATE sys_menu
 SET parent_id = @quality_id, menu_name = 'route.qc_bioinfo', component = 'qc/bioinfo/index',
-    path = 'bioinfo', order_num = 2, menu_type = 'C', perms = 'qc:bioinfo:list',
+    path = 'bioinfo', order_num = 3, menu_type = 'C', perms = 'qc:bioinfo:list',
     visible = '0', status = '0', update_by = 1, update_time = NOW()
 WHERE parent_id = @quality_id AND path = 'bioinfo';
 
