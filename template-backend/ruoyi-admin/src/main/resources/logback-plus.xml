@@ -117,6 +117,25 @@
 <!--        </encoder>-->
 <!--    </appender>-->
 
+    <!-- CDC 数据变更日志：一行一条 JSON，独立文件、独立滚动，不混进 sys-info -->
+    <appender name="CDC_CHANGE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.path}/cdc/cdc-change.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.path}/cdc/cdc-change.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>200MB</maxFileSize>
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>20GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%msg%n</pattern>
+            <charset>utf-8</charset>
+        </encoder>
+    </appender>
+
+    <logger name="CDC_CHANGE" level="INFO" additivity="false">
+        <appender-ref ref="CDC_CHANGE"/>
+    </logger>
+
     <!--系统操作日志-->
     <root level="info">
         <appender-ref ref="console" />
