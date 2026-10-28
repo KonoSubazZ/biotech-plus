@@ -34,6 +34,8 @@ Monorepo，两个可独立构建的子项目：
 - 后端 6 个业务模块（与 RuoYi 自带的 system/generator/job 并存）：
   `ruoyi-project`(18 类) · `ruoyi-qc`(38) · `ruoyi-report`(137) · `ruoyi-compliance`(24) ·
   `ruoyi-audit`(5) · `ruoyi-drive`(29)。
+- 报告域 2026-10-27 起的新口径（制品目录按 analysis_date、数字状态码、生信认领、62 只读、历史改到审核通过才冻结）
+  集中在 §3.3，权威细节在 `docs/context/report/report-module-design.md` §0.7。
 - 前端已实现页面：`report/`（解读 9 页签 / 样本流转 / 样本信息 / 模板 / 邮件配置 / 位点历史）、
   `qc/`（湿实验质控、生信质控）、`project/`（产品配置、质控标准）、
   `compliance/`（3Q 文档、开发记录、验证记录）。
@@ -69,6 +71,9 @@ Monorepo，两个可独立构建的子项目：
 | `docs/context/设计文档/<模块>.md` | 其余 11 篇模块设计文档，格式统一为「数据模型 + API + 功能流程 + 角色权限」 | 改对应模块前 |
 | `docs/context/流程图/<模块>-flow.md` | 5 条业务流程（wetlab-qc / report / company-access / data-retention / system-management） | 理业务流程 |
 | `docs/context/设计文档/task_implement.json` | 文档生成过程记录；其 `write_scope` / `read_scope` 指向外部项目路径，**勿依赖** | 仅追溯来源 |
+| `docs/context/report/report-module-design.md` | 报告域实现基线；**§0 是权威快照**，§0.7 = 状态码/认领/只读/冻结时机/驳回（2026-10-27） | 改报告域任何一处之前 |
+| `docs/context/report/report-module-flow.md`、`report-docx-renderer.md` | 流程图（旧枚举图另有数字码注释）、docx 渲染与**制品目录** | 改流程 / 改产物落盘 |
+| `docs/deliverables/`（gitignore） | 甲方交付文档（功能设计 / 数据库设计 / 测试用例 / SOP）。**由 `/home/liushangzhi/project/qa/biotech-plus/gen_docs_*.py` 生成**，手改会被覆盖；截图由同目录 `capture_interpretation.py` 采集 | 改交付文档口径时改生成器再重跑 |
 
 设计文档里出现的 `classDef unimplemented stroke-dasharray: 5 5` 表示该节点**未实现**，不是笔误。
 
@@ -94,7 +99,7 @@ ruoyi-modules/
   ruoyi-report/         报告全流程：解读 9 页签 / 样本流转 / 样本信息 / 模板 / 邮件 / 位点历史 /
                         报告生成渲染 / 复审与版本 / 上上签签名（137 个类，最重的模块）
   ruoyi-drive/          数据驱动入库：解析上传文件 → analysis_data / analysis_file_status / file_* 明细
-                        （4 个接口，见 §3.3；**不依赖 ruoyi-report**，依赖方向只能 report → drive）
+                        （4 个接口，见 §3.2；**不依赖 ruoyi-report**，依赖方向只能 report → drive）
   ruoyi-compliance/     3Q 文档 / 开发记录 / 验证记录
   ruoyi-audit/          审计日志（Canal CDC 入库）
 ruoyi-extend/           monitor-admin（Spring Boot Admin 9090）、snailjob-server（17888）
@@ -143,7 +148,42 @@ Python 驱动仓（`docs/context/report/report-driver/`，独立 git）现在只
   共用 `application.yml` 只放与环境无关的项（create-by / operator-name / 批量行数 / file_text 上限）。
   生产必须把该目录挂进后端容器，`deploy.sh` 的 `DRIVER_UPLOAD_DIR` 要与之一致。
 
-### 3.3 前端 `template-frontend/`
+### 3.3 报告制品目录与状态机（report 域，2026-10-27 口径，改这块前必读）
+
+**制品根** = `report.artifact.root`（容器 `/app/reports`，宿主 `/home/liushangzhi/project/reports`），
+日期目录**统一取 `analysis_report.analysis_date`**（不是生成当天），空或非 8 位数字直接报错、不猜：
+
+```text
+report/{json,docx,pdf,signed}/<yyyyMMdd>/   四个阶段，同一轮共用一个文件名前缀
+report/rejected/<yyyyMMdd>/<subbarcode>_V<n>/{json,docx,pdf,signed}/ + manifest.json
+.work/<tenant>_<reportId>_<轮次>/           临时区，成功后逐阶段 move，失败直接丢弃
+```
+
+- 文件名 = `客户_样本_模板名_V<版本>`；同 reportId+version+analysis_date 重生成 → **同名覆盖**；
+  只有「发送成功」（sent_version+1）之后版本号才递增。不再有 `report/<tenant>/<reportId>/V<n>/current` 那一层。
+- 生成失败：只丢临时区（不建 `failed/`、不留半成品、不落库），状态落 33。
+- 审核驳回：先把制品 move 到 `report/rejected/...`（+ `manifest.json`），再 `clearReportArtifact`
+  把库里 4 个路径字段置空，状态回退 31；归档失败则抛错、状态不变。
+
+**状态机**（权威定义 `utils/ReportStatus.java`，数字码，不写英文枚举）：
+
+```text
+20 生信看点 → 21 生信审核 → 30 报告待解读 → 31 报告解读中 →（32 生成成功 / 33 生成失败）
+  → 40 报告待审核 → 41 报告审核中 →（43 审核成功，瞬时）→ 50 签名中 → 60 报告待发送
+  →（61 发送失败 / 62 发送成功终态）；40/41 驳回 → 归档后回退 31
+```
+
+- 42（审核失败）、53（签名成功）**只是定义了、代码不落库**：驳回直接回 31，签名件到手直接写 60。
+- 生信认领（2026-10-27，方案 B，未加列）：点「处理」把 `report_bioinfo_viewed_by` / `report_bioinfo_reviewed_by`
+  置为当前用户（`WHERE report_status=20/21 AND (字段 IS NULL OR 字段=当前用户)`，0 行 → 「已被他人认领」），
+  点「完成」再校验认领人并推进状态；认领不是审核的硬前置，也不自动释放。
+- 62 报告的「查看解读」走 `POST /report/interpretation/enter` 的 `readonly=true`：只返回该批次已有报告，
+  不新建/不补快照/不校验流转状态；前端详情只读（`pointer-events:none` + 置灰），「重新解读」才是重扫出新批次。
+- **位点历史只在「审核通过」时冻结**：提交审核（32→40/41）不写 `history_somatic/history_germline`、
+  不写 `report_variant_history`、不登记 `history_reuse_log`；驳回也不写。详细口径与代码落点见
+  `docs/context/report/report-module-design.md` §0.7。
+
+### 3.4 前端 `template-frontend/`
 
 ```
 src/views/        页面（about / _builtin / home / monitor / system / tool + 业务页 report / qc / project / compliance）
@@ -191,11 +231,11 @@ docs/             模板代码生成模板（*.vm）+ 建表 SQL
 | 质控标准 | `/project/qc-standard` | 实现时新增，设计文档未单列 |
 | 数据周期管理 | `/system/data-retention` | `设计文档/data-retention.md` |
 | 系统管理 | `/system/role`、`/system/user`、`/system/menu` | `设计文档/system-management.md` |
-| 报告解读 | `/report/interpretation` | 已实现，9 页签状态机（生信看点 → … → 报告发送） |
-| 样本流转 | `/report/sample-flow` | 已实现，9 页签 + 处理 / 重新驱动；口径见 `docs/context/report/report-module-flow.md` |
+| 报告解读 | `/report/interpretation` | 已实现，9 页签状态机（20 生信看点 → … → 62 报告发送）；制品/状态/冻结口径见 §3.3 |
+| 样本流转 | `/report/sample-flow` | 已实现，9 页签 + 处理（含生信认领）/ 重新驱动；口径见 §3.3 与 `docs/context/report/report-module-flow.md` |
 | 样本信息 | `/report/sample-info` | 已实现（LIMS 侧录单样本，表 `sample_file`） |
 | 报告模板 / 邮件配置 / 位点历史 | `/report/template`、`/report/mail-config`、`/report/variant-history` | 已实现 |
-| 数据驱动（无页面） | `POST /report/drive/*` | 已实现，口径见 §3.3，外部由生信流程调用 |
+| 数据驱动（无页面） | `POST /report/drive/*` | 已实现，口径见 §3.2，外部由生信流程调用 |
 
 角色：`wet_lab`（湿实验员）· `bioinformatician`（生信分析师）· `interpreter`（报告解读员）· `operation_admin`（运营管理员）。
 权限点位形如 `read:QcControl` / `manage:ProductConfig` / `apply:CompanyAccess` / `approve:CompanyAccess`。
@@ -307,6 +347,14 @@ pnpm gen-route    # 生成路由
 - **部分设计文档与实现已偏离**：产品配置实际路由是 `/project/product-config`（不是 `/system/product-config`），
   质控标准页 `/project/qc-standard` 是新增的。**以代码为准**，文档只当需求输入。
 - **`sample_qc_info` 字段未穷举**：文档写"另有 20+ 项指标"，缺完整清单。
+- **交付文档里的截图是上一版行为拍的**：`docs/deliverables/10报告解读/截图/图18-提交审核核对.png` 等仍是
+  「提交审核即冻结位点历史」的旧画面（文案已改、图未换）。重拍前先看
+  `/home/liushangzhi/project/qa/biotech-plus/CAPTURE-RESHOT-TODO.md`（capture 脚本已改成数字状态码，
+  但尚未在 QA 实跑验证）。
+- **报告生成会在 docx 目录留下隐藏文件**：`.<报告名>.docx.renderer.log`（`ReportDocxRenderer` 的诊断副产物，
+  随 docx 一起 move 进成品目录）。不想要就改它写到 `.work` 或应用日志。
+- **「报告解读」列表默认按「分析日期=当天」过滤**：跨天回看历史批次会显示“无数据”，
+  先展开搜索区改日期——这是既有默认值，不是接口没返回。
 - **本仓库没有根 README**：本文件即入口；两个子项目 README 是 RuoYi / Soybean 模板自带的。
 
 ---

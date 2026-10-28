@@ -91,6 +91,8 @@ status varchar(20) NOT NULL DEFAULT 'active' COMMENT '状态（active 启用 / i
   质控 `pending/passed/failed`、邮件 `SENDING/SUCCESS/FAILED`）—— 那是另一码事，
   取值按各自流程定义写进列注释，**不要硬套 active/inactive**；这类列优先起具体列名
   （`qc_status` / `notify_status` / `report_status`），别笼统叫 `status`。
+  `report_status` 的取值是**数字码 20~62**（权威 `ruoyi-report/utils/ReportStatus.java`），
+  别照旧设计文档写 `PENDING_REVIEW` / `APPROVED` / `REJECTED` 这类字符串枚举；口径见根目录 `AGENTS.md` §3.3。
 - 闸门（`tools/check_db_schema.py`）**不校验这条** —— 它分不清「开关状态」和「工作流状态」，
   硬校验会把 `pending/passed/failed` 这类全判成错。靠本规范 + 评审。
 

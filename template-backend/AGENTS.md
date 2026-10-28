@@ -3,8 +3,11 @@
 作用范围：本目录及子目录。修改前阅读 `docs/backend-code-standard.md`，与现有代码保持一致。
 
 > 仓库级规则（可读性判据 / 评审契约 / 多人协作）见 `../ai-rules/`，
-> 机械闸门：在仓库根目录执行 `python3 tools/readability_check.py --changed-only origin/main`。
-> 新模块从 `../ai-templates/backend-module/` 复制，不要从零写。
+> 机械闸门：在仓库根目录执行 `python3 tools/readability_check.py --changed-only origin/master`
+> （本仓默认分支是 `master`，**没有 `main`**）。
+> 新模块从 `../ai-templates/backend-module/` 复制，不要从零写；注册新模块要同时改 3 处 POM：
+> `template-backend/pom.xml`（dependencyManagement）、`ruoyi-modules/pom.xml`（`<modules>`）、
+> `ruoyi-admin/pom.xml`（依赖），漏一处会在 `mvn` 解析 POM 阶段直接失败。
 
 ## 开发约定
 
@@ -27,12 +30,20 @@
 - SQL 值参数使用 `#{}` 或 Wrapper 参数绑定；动态列名、排序字段须白名单校验。复杂 XML 查询需验证租户/数据权限、分页总数及空集合边界。涉及数据库变更时提供可追踪迁移脚本。
 - 不硬编码密钥、密码、Token；从环境或外部配置读取。不在日志输出密码、Token 或完整敏感请求。
 - 按 `.editorconfig` 使用 UTF-8、LF、四空格缩进；自动检查以 `config/checkstyle/checkstyle.xml` 为准，不为通过检查直接关闭规则。
+- **报告域（`ruoyi-report`）状态与制品口径**：`analysis_report.report_status` 是数字码，唯一权威是
+  `utils/ReportStatus.java`（**不要写英文枚举常量**）；制品目录、生信认领、62 只读、「历史只在审核通过时冻结」
+  这四条见根目录 `AGENTS.md` §3.3，细节见 `docs/context/report/report-module-design.md` §0.7。
+  `report.artifact.root` 按环境放在 profile（dev=`/app/reports`），不要写进共用 `application.yml`。
 
 ## 验证与交付
 
-- 终端使用 PowerShell 兼容命令；执行前说明目的，先确认 `mvn -version` 使用 JDK 17。
-- 从本后端仓库根目录执行 `mvn -B -ntp validate`；定向模块使用根目录的 `-pl` 参数。
+- **本机没有 JDK / Maven**（`mvn: command not found`），一律用 Docker 构建，命令见根目录 `AGENTS.md` §6：
+  `docker run --rm -v "$PWD":/src -v ~/.m2:/root/.m2 -w /src maven:3.9-eclipse-temurin-17 mvn -B -ntp -o -Pdev -DskipTests package`。
+- 只编译单模块：加 `-pl ruoyi-modules/<模块> -am`；全量打包产出 `ruoyi-admin/target/ruoyi-admin.jar`，
+  它是 bind mount 到后端容器 `/app/app.jar` 的，**重建后需 `docker restart biotech-plus-backend`** 才生效。
 - 功能逻辑变更增加断言测试，覆盖正常路径及空值、越权、重复请求等相关边界。
-- 测试默认被父 POM 跳过；运行测试须显式传 `-DskipTests=false`，并匹配 Surefire 的环境标签筛选，核实实际执行数量。
+- 跑测试：父 POM 默认 `skipTests=true`，必须 `-DskipTests=false`；Surefire 按 `${profiles.active}` 过滤 `@Tag`，
+  写 `@Tag("local")` 的测试**只有 `-Plocal` 才会执行**（用 `-Pdev` 会得到 `Tests run: 0`，别当通过）。
+  建议：`-Plocal -Dtest=<类名> -Dsurefire.failIfNoSpecifiedTests=false`。
 - 修改检查规则后运行 `script/tests/checkstyle-regression.ps1`，验证通过和拒绝两类样例。
 - 交付按“改了什么、验证了什么、真实终端输出、最终结论”汇报；未运行或受阻的验证必须明确说明。
