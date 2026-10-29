@@ -11,7 +11,7 @@ SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS `backup_db_full` (
   `id`              bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
   `instance`        varchar(64)   NOT NULL DEFAULT 'biotech-plus-mysql' COMMENT '实例标识',
-  `db_name`         varchar(64)   NOT NULL COMMENT '库名',
+  `db_scope`        varchar(200)  NOT NULL COMMENT '本包覆盖的库（逗号分隔；绑定备份=一组库一个包）',
   `backup_date`     date          NOT NULL COMMENT '备份日期',
   `backup_type`     varchar(16)   NOT NULL DEFAULT 'weekly' COMMENT '类型：weekly 周定 / manual 手工补跑',
   `excluded_tables` varchar(1000) NOT NULL DEFAULT '' COMMENT '本份 dump 排除的表（脚本按配置展开后的实际表名，逗号分隔）',
@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS `backup_db_full` (
   `update_time`     datetime      DEFAULT NULL COMMENT '更新时间',
   `tenant_id`       varchar(20)   NOT NULL DEFAULT '000000' COMMENT '租户编号',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_bdf_db_date_type` (`db_name`, `backup_date`, `backup_type`),
+  UNIQUE KEY `uk_bdf_inst_date_type` (`instance`, `backup_date`, `backup_type`),
+  KEY `idx_bdf_scope` (`db_scope`),
   KEY `idx_bdf_date` (`backup_date`),
   KEY `idx_tenant_id` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ROW_FORMAT=DYNAMIC COMMENT='数据库全量备份记录';
