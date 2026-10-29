@@ -7,18 +7,28 @@ import lombok.RequiredArgsConstructor;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.utils.MapstructUtils;
 import org.dromara.common.core.utils.StringUtils;
+import org.dromara.common.excel.utils.ExcelUtil;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.project.domain.ProjectConfig;
 import org.dromara.project.domain.bo.ProjectConfigBo;
 import org.dromara.project.domain.bo.ProjectCenterBo;
+import org.dromara.project.domain.vo.CenterExcelRow;
+import org.dromara.project.domain.vo.CenterImportResultVo;
 import org.dromara.project.domain.vo.ProjectConfigVo;
 import org.dromara.project.mapper.ProjectConfigMapper;
 import org.dromara.project.service.IProjectConfigService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 项目配置 业务层处理
@@ -32,6 +42,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @Service
 public class ProjectConfigServiceImpl implements IProjectConfigService {
+
+    /** 单次导入行数上限：一个项目的研究中心是几十的量级，2000 是防御值，不是业务上限 */
+    private static final int IMPORT_MAX_ROWS = 2000;
 
     private final ProjectConfigMapper baseMapper;
 
@@ -197,6 +210,255 @@ public class ProjectConfigServiceImpl implements IProjectConfigService {
         }
         baseMapper.deleteByIds(ids);
         return Boolean.TRUE;
+    }
+
+    @Override
+    public List<CenterExcelRow> exportCenters(Long parentId) {
+        List<ProjectConfigVo> centers = selectCentersByParentId(parentId);
+        List<CenterExcelRow> rows = new ArrayList<>(centers.size());
+        for (ProjectConfigVo center : centers) {
+            CenterExcelRow row = new CenterExcelRow();
+            row.setResearchCenterNo(center.getResearchCenterNo());
+            row.setResearchCenterName(center.getResearchCenterName());
+            row.setReceiveEmail(center.getReceiveEmail());
+            row.setRemark(center.getRemark());
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /**
+     * 批量导入研究中心：先全量校验，任一行不通过就整体不导入。
+     * <p>
+     * 两阶段写法是刻意的 —— 校验阶段只读库、不写库，错误一次性全部返回；
+     * 只有零错误才进入写库阶段，并且整体包在一个事务里（写库阶段理论上不该失败，
+     * 事务是兜底：异常时不会留下半批数据）。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CenterImportResultVo importCenters(Long parentId, MultipartFile file) {
+        ProjectConfigVo project = requireImportProject(parentId, file);
+        ImportBatch batch = new ImportBatch(project, readCenterRows(file));
+        loadExistingCenters(batch);
+
+        // ---------- 第一阶段：全量校验（只读，不写库） ----------
+        for (int i = 0; i < batch.rows.size(); i++) {
+            // Excel 第 1 行是表头，所以数据行号从 2 开始
+            validateCenterRow(batch.rows.get(i), i + 2, batch);
+        }
+        batch.result.setFailed(batch.result.getErrors().size());
+        if (!batch.result.getErrors().isEmpty()) {
+            // 整体不导入：committed 保持 false，inserted / updated 都是 0
+            return batch.result;
+        }
+
+        // ---------- 第二阶段：写库（整体一个事务） ----------
+        for (CenterExcelRow row : batch.rows) {
+            writeCenterRow(batch, row);
+        }
+        batch.result.setCommitted(true);
+        return batch.result;
+    }
+
+    /** 导入前置校验：主键、文件、以及「导入目标必须是项目行」 */
+    private ProjectConfigVo requireImportProject(Long parentId, MultipartFile file) {
+        if (parentId == null) {
+            throw new ServiceException("缺少项目主键");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ServiceException("请选择要导入的 Excel 文件");
+        }
+        ProjectConfigVo project = queryById(parentId);
+        if (project.getParentId() != null && project.getParentId() != 0L) {
+            throw new ServiceException("只能给项目导入研究中心，不能导入到研究中心下");
+        }
+        return project;
+    }
+
+    /** 现有中心（未删）按编号归类：同一编号下有多条，说明历史数据编号重了，导入无法按编号匹配 */
+    private void loadExistingCenters(ImportBatch batch) {
+        List<ProjectConfig> existing = baseMapper.selectList(Wrappers.<ProjectConfig>lambdaQuery()
+            .eq(ProjectConfig::getParentId, batch.project.getId())
+            .orderByAsc(ProjectConfig::getId));
+        for (ProjectConfig center : existing) {
+            String centerNo = StringUtils.trim(center.getResearchCenterNo());
+            batch.centersByNo.computeIfAbsent(centerNo, key -> new ArrayList<>()).add(center);
+        }
+    }
+
+    /** 写一行：编号能对上就改这一行，对不上就新增（同键的软删行先恢复再写值，避免撞唯一键） */
+    private void writeCenterRow(ImportBatch batch, CenterExcelRow row) {
+        String centerNo = StringUtils.trim(row.getResearchCenterNo());
+        String centerName = StringUtils.trim(row.getResearchCenterName());
+        String receiveEmail = StringUtils.trim(row.getReceiveEmail());
+        String remark = StringUtils.trim(row.getRemark());
+
+        List<ProjectConfig> matched = batch.centersByNo.get(centerNo);
+        if (matched != null && matched.size() == 1) {
+            // 只动名称/邮箱/备注，归属与项目级字段保持原样
+            ProjectConfig center = matched.get(0);
+            center.setResearchCenterName(centerName);
+            center.setReceiveEmail(receiveEmail);
+            center.setRemark(remark);
+            baseMapper.updateById(center);
+            batch.result.setUpdated(batch.result.getUpdated() + 1);
+            return;
+        }
+        Long deletedId = baseMapper.selectDeletedCenterId(batch.project.getProjectNo(), centerNo, centerName);
+        if (deletedId != null) {
+            baseMapper.restoreById(deletedId);
+            ProjectConfig restored = baseMapper.selectById(deletedId);
+            restored.setResearchCenterName(centerName);
+            restored.setReceiveEmail(receiveEmail);
+            restored.setRemark(remark);
+            baseMapper.updateById(restored);
+            batch.result.setInserted(batch.result.getInserted() + 1);
+            return;
+        }
+        baseMapper.insert(buildCenterEntity(batch.project, centerNo, centerName, receiveEmail, remark));
+        batch.result.setInserted(batch.result.getInserted() + 1);
+    }
+
+    /**
+     * 一次导入的上下文：把「项目行 + 数据行 + 现有中心索引 + 结果」打包，
+     * 免得校验方法一路传 8 个参数。
+     */
+    private static final class ImportBatch {
+
+        private final ProjectConfigVo project;
+
+        private final List<CenterExcelRow> rows;
+
+        /** 未删中心按编号归类（同一编号正常只有 1 条） */
+        private final Map<String, List<ProjectConfig>> centersByNo = new LinkedHashMap<>();
+
+        /** 编号 → 它在文件里第一次出现的 Excel 行号，用于「同文件内编号重复」提示 */
+        private final Map<String, Integer> firstRowOfNo = new HashMap<>();
+
+        private final CenterImportResultVo result = new CenterImportResultVo();
+
+        private ImportBatch(ProjectConfigVo project, List<CenterExcelRow> rows) {
+            this.project = project;
+            this.rows = rows;
+            this.result.setTotal(rows.size());
+        }
+    }
+
+    /** 读 Excel 并去掉整行空白的行（用户在模板末尾多敲的空行不算数据） */
+    private List<CenterExcelRow> readCenterRows(MultipartFile file) {
+        List<CenterExcelRow> rows;
+        try (InputStream inputStream = file.getInputStream()) {
+            rows = ExcelUtil.importExcel(inputStream, CenterExcelRow.class);
+        } catch (IOException e) {
+            throw new ServiceException("Excel 读取失败：" + e.getMessage());
+        } catch (RuntimeException e) {
+            throw new ServiceException("Excel 解析失败：" + e.getMessage());
+        }
+        if (rows == null) {
+            rows = new ArrayList<>();
+        }
+        rows.removeIf(row -> row == null
+            || (StringUtils.isBlank(row.getResearchCenterNo())
+            && StringUtils.isBlank(row.getResearchCenterName())
+            && StringUtils.isBlank(row.getReceiveEmail())
+            && StringUtils.isBlank(row.getRemark())));
+        if (rows.isEmpty()) {
+            throw new ServiceException("Excel 里没有数据行（第 1 行是表头，请从第 2 行开始填）");
+        }
+        if (rows.size() > IMPORT_MAX_ROWS) {
+            throw new ServiceException("单次最多导入 " + IMPORT_MAX_ROWS + " 行，请拆成多份再导");
+        }
+        return rows;
+    }
+
+    /**
+     * 单行校验：只往 result 里记错误，不抛异常 —— 这样一次能把所有问题行都列出来，
+     * 用户一次改完再导，而不是改一条传一次。
+     */
+    private void validateCenterRow(CenterExcelRow row, int excelRowNo, ImportBatch batch) {
+        String centerNo = StringUtils.trim(row.getResearchCenterNo());
+        String centerName = StringUtils.trim(row.getResearchCenterName());
+        String receiveEmail = StringUtils.trim(row.getReceiveEmail());
+        String remark = StringUtils.trim(row.getRemark());
+
+        String fieldError = checkCenterFields(excelRowNo, centerNo, centerName, receiveEmail, remark);
+        if (!fieldError.isEmpty()) {
+            batch.result.addError(fieldError);
+            return;
+        }
+        Integer firstRow = batch.firstRowOfNo.putIfAbsent(centerNo, excelRowNo);
+        if (firstRow != null) {
+            batch.result.addError("第 " + excelRowNo + " 行：研究中心编号 " + centerNo + " 与第 " + firstRow + " 行重复");
+            return;
+        }
+        String conflictError = checkCenterConflict(batch, centerNo, centerName);
+        if (!conflictError.isEmpty()) {
+            batch.result.addError("第 " + excelRowNo + " 行：" + conflictError);
+        }
+    }
+
+    /** 必填与长度校验：返回第一条错误，空串 = 通过（同一行只报一条，避免刷屏） */
+    private String checkCenterFields(int excelRowNo, String centerNo, String centerName,
+                                     String receiveEmail, String remark) {
+        String prefix = "第 " + excelRowNo + " 行：";
+        if (StringUtils.isBlank(centerNo)) {
+            return prefix + "研究中心编号为空";
+        }
+        if (centerNo.length() > 100) {
+            return prefix + centerNo + " 研究中心编号超过 100 字";
+        }
+        if (StringUtils.isBlank(centerName)) {
+            return prefix + centerNo + " 研究中心名称为空";
+        }
+        if (centerName.length() > 200) {
+            return prefix + centerNo + " 研究中心名称超过 200 字";
+        }
+        if (StringUtils.isBlank(receiveEmail)) {
+            return prefix + centerNo + " 报告接收邮箱为空";
+        }
+        if (receiveEmail.length() > 500) {
+            return prefix + centerNo + " 报告接收邮箱超过 500 字";
+        }
+        if (remark != null && remark.length() > 500) {
+            return prefix + centerNo + " 备注超过 500 字";
+        }
+        return "";
+    }
+
+    /** 与库里现有中心/已删中心的冲突校验（唯一键是「项目 + 编号 + 名称」成对） */
+    private String checkCenterConflict(ImportBatch batch, String centerNo, String centerName) {
+        List<ProjectConfig> matched = batch.centersByNo.get(centerNo);
+        if (matched != null && matched.size() > 1) {
+            return "编号 " + centerNo + " 在该项目下已有多条研究中心，无法按编号匹配，请先在列表里整理编号";
+        }
+        if (matched == null) {
+            return "";
+        }
+        // 改名时若 (编号, 新名称) 这个组合的正是一条已删除的中心，唯一键仍被它占着 → 提前说清
+        Long deletedTwinId = baseMapper.selectDeletedCenterId(batch.project.getProjectNo(), centerNo, centerName);
+        if (deletedTwinId != null) {
+            return "编号 " + centerNo + " / " + centerName + " 与一条已删除的中心重复，请先在列表里恢复它或换个名称";
+        }
+        return "";
+    }
+
+    /** 导入新增时组装中心行：项目级字段一律留空，只写中心自己的字段 */
+    private ProjectConfig buildCenterEntity(ProjectConfigVo project, String centerNo, String centerName,
+                                            String receiveEmail, String remark) {
+        ProjectConfig entity = new ProjectConfig();
+        entity.setParentId(project.getId());
+        entity.setProjectNo(project.getProjectNo());
+        entity.setProjectName("");
+        entity.setCustomer("");
+        entity.setContractName(null);
+        entity.setContractCode(null);
+        entity.setStudyPlanNo(null);
+        entity.setResearchCenterNo(centerNo);
+        entity.setResearchCenterName(centerName);
+        entity.setReceiveEmail(receiveEmail);
+        entity.setProjectNotifyEmail("");
+        entity.setRemark(remark);
+        return entity;
     }
 
     /**

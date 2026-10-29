@@ -4,7 +4,10 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.project.domain.bo.ProjectConfigBo;
 import org.dromara.project.domain.bo.ProjectCenterBo;
+import org.dromara.project.domain.vo.CenterExcelRow;
+import org.dromara.project.domain.vo.CenterImportResultVo;
 import org.dromara.project.domain.vo.ProjectConfigVo;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -87,4 +90,23 @@ public interface IProjectConfigService {
      * @return 是否成功
      */
     Boolean deleteCentersByIds(List<Long> ids);
+
+    /**
+     * 导出某项目下的研究中心清单（同一份文件即导入模板；空项目导出只有表头）
+     *
+     * @param parentId 项目行主键
+     * @return 中心行（保持录入顺序）
+     */
+    List<CenterExcelRow> exportCenters(Long parentId);
+
+    /**
+     * 批量导入研究中心：<b>先全量校验，任一行不通过就整体不导入</b>。
+     * <p>
+     * 按「研究中心编号」匹配：能对上就改这一行，对不上就新增在末尾；永不删除。
+     *
+     * @param parentId 项目行主键
+     * @param file     xlsx/xls（导出的那份文件，改完/追加后原样传回）
+     * @return 导入结果（committed=false 表示校验没过、一行都没写）
+     */
+    CenterImportResultVo importCenters(Long parentId, MultipartFile file);
 }
