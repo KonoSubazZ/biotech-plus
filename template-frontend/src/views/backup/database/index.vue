@@ -1,17 +1,22 @@
 <script setup lang="tsx">
-import { onMounted, ref } from 'vue';
-import { NButton, NCard, NDataTable, NTag } from 'naive-ui';
-import { fetchGetDbBackupSummary, fetchGetDbBinlogList, fetchGetDbFullList } from '@/service/api/backup/db-backup';
+import { computed, ref } from 'vue';
+import { NButton, NCard, NDataTable, NTab, NTabs, NTag } from 'naive-ui';
+import { fetchGetDbBinlogList, fetchGetDbFullList } from '@/service/api/backup/db-backup';
+import { useAppStore } from '@/store/modules/app';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
-import DbBackupSearch from './modules/db-backup-search.vue';
+import { $t } from '@/locales';
 import BinlogFilesDrawer from './modules/binlog-files-drawer.vue';
+import DbBackupSearch from './modules/db-backup-search.vue';
 
+// name 必须与路由名一致，否则 keep-alive 失效
 defineOptions({
   name: 'BackupDatabaseList'
 });
 
-/** 汇总（四张卡片）：全部后端现算，页面不落任何数据 */
-const summary = ref<Api.Backup.DbSummary>({});
+const appStore = useAppStore();
+
+/** 两个数据集分两个页签（同一张卡片里切，不并排堆两张表） */
+const activeTab = ref<'full' | 'binlog'>('full');
 
 /** 类型：weekly 周定 / manual 手工补跑（配置 full.type 决定默认值） */
 const TYPE_META: Record<string, string> = { weekly: '每周', manual: '手工' };
@@ -48,7 +53,7 @@ function cfgShort(hash?: string | null) {
 }
 
 /** 表数：dump 内表数 / 库实际表数（括号里是排除数） */
-function tableCell(row: Api.Backup.DbFull) {
+function renderTableCount(row: Api.Backup.DbFull) {
   const total = row.dbTableTotal ?? 0;
   const dumped = row.tableCount ?? 0;
   const excluded = Math.max(total - dumped, 0);
@@ -62,6 +67,7 @@ function tableCell(row: Api.Backup.DbFull) {
 
 const {
   columns: fullColumns,
+  columnChecks: fullColumnChecks,
   data: fullData,
   getData: getFullData,
   getDataByPage: getFullDataByPage,
@@ -70,6 +76,7 @@ const {
   scrollX: fullScrollX
 } = useNaivePaginatedTable({
   api: () => fetchGetDbFullList(searchParams.value),
+  // RuoYi 的分页响应是顶层 rows/total，需要用 defaultTransform 适配成 hook 期望的结构
   transform: response => defaultTransform(response),
   onPaginationParamsChange: params => {
     searchParams.value.pageNum = params.page;
@@ -77,7 +84,13 @@ const {
   },
   columns: () => [
     { key: 'dbName', title: '库', align: 'center', width: 100 },
-    { key: 'backupDate', title: '备份日期', align: 'center', width: 118, render: row => <span class="whitespace-nowrap">{row.backupDate}</span> },
+    {
+      key: 'backupDate',
+      title: '备份日期',
+      align: 'center',
+      width: 118,
+      render: row => <span class="whitespace-nowrap">{row.backupDate}</span>
+    },
     {
       key: 'backupType',
       title: '类型',
@@ -85,7 +98,7 @@ const {
       width: 80,
       render: row => TYPE_META[row.backupType] ?? row.backupType
     },
-    { key: 'tableCount', title: '表数(排除)', align: 'right', width: 120, render: row => tableCell(row) },
+    { key: 'tableCount', title: '表数(排除)', align: 'right', width: 120, render: row => renderTableCount(row) },
     { key: 'localSize', title: '压缩包', align: 'right', width: 100, render: row => fmtSize(row.localSize) },
     {
       key: 'binlogPos',
@@ -106,9 +119,8 @@ const {
       key: 'localPruned',
       title: '本地',
       align: 'center',
-      width: 110,
-      render: row =>
-        row.localPruned === 1 ? <NTag type="warning">已清理</NTag> : <NTag type="success">在本地</NTag>
+      width: 100,
+      render: row => (row.localPruned === 1 ? <NTag type="warning">已清理</NTag> : <NTag type="success">在本地</NTag>)
     },
     {
       key: 'ossPath',
@@ -124,6 +136,7 @@ const {
 
 const {
   columns: binlogColumns,
+  columnChecks: binlogColumnChecks,
   data: binlogData,
   getData: getBinlogData,
   getDataByPage: getBinlogDataByPage,
@@ -145,8 +158,20 @@ const {
       width: 118,
       render: row => <span class="whitespace-nowrap">{row.backupDate}</span>
     },
-    { key: 'startFile', title: '起点 file @ pos', align: 'left', minWidth: 230, render: row => `${row.startFile} @ ${row.startPos}` },
-    { key: 'endFile', title: '终点 file @ pos', align: 'left', minWidth: 230, render: row => `${row.endFile} @ ${row.endPos}` },
+    {
+      key: 'startFile',
+      title: '起点 file @ pos',
+      align: 'left',
+      minWidth: 230,
+      render: row => `${row.startFile} @ ${row.startPos}`
+    },
+    {
+      key: 'endFile',
+      title: '终点 file @ pos',
+      align: 'left',
+      minWidth: 230,
+      render: row => `${row.endFile} @ ${row.endPos}`
+    },
     { key: 'fileCount', title: '文件数', align: 'right', width: 90 },
     { key: 'totalSize', title: '大小', align: 'right', width: 100, render: row => fmtSize(row.totalSize) },
     {
@@ -162,7 +187,7 @@ const {
     { key: 'configHash', title: '配置版本', align: 'center', width: 100, render: row => cfgShort(row.configHash) },
     {
       key: 'operate',
-      title: '操作',
+      title: $t('common.operate'),
       align: 'center',
       width: 100,
       render: row => (
@@ -174,6 +199,20 @@ const {
   ]
 });
 
+/** toolbar 的列设置按钮跟当前页签走（两个表各自一套可见列配置） */
+const columnChecks = computed<NaiveUI.TableColumnCheck[]>({
+  get: () => (activeTab.value === 'full' ? fullColumnChecks.value : binlogColumnChecks.value),
+  set: value => {
+    if (activeTab.value === 'full') {
+      fullColumnChecks.value = value;
+    } else {
+      binlogColumnChecks.value = value;
+    }
+  }
+});
+
+const activeLoading = computed(() => (activeTab.value === 'full' ? fullLoading.value : binlogLoading.value));
+
 const filesVisible = ref(false);
 const filesRow = ref<Api.Backup.DbBinlog | null>(null);
 
@@ -182,13 +221,8 @@ function openFiles(row: Api.Backup.DbBinlog) {
   filesVisible.value = true;
 }
 
-async function loadSummary() {
-  const { data } = await fetchGetDbBackupSummary();
-  summary.value = data ?? {};
-}
-
-/** 搜索：两个表都回第一页，卡片一起刷新（卡片是聚合，条件变了必须重算） */
-function handleSearch() {
+/** 查询：两个表都回第一页（切页签看到的是同一组条件） */
+function queryNow() {
   searchParams.value.pageNum = 1;
   binlogSearchParams.value.pageNum = 1;
   binlogSearchParams.value.dbName = searchParams.value.dbName;
@@ -196,108 +230,81 @@ function handleSearch() {
   binlogSearchParams.value.endDate = searchParams.value.endDate;
   getFullDataByPage();
   getBinlogDataByPage();
-  loadSummary();
 }
 
-function refreshAll() {
-  getFullData();
-  getBinlogData();
-  loadSummary();
+function handleTabChange(name: 'full' | 'binlog') {
+  activeTab.value = name;
+  if (name === 'full') {
+    getFullDataByPage();
+  } else {
+    getBinlogDataByPage();
+  }
 }
 
-onMounted(() => {
-  loadSummary();
-});
+function handleRefresh() {
+  if (activeTab.value === 'full') {
+    getFullData();
+  } else {
+    getBinlogData();
+  }
+}
 </script>
 
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <NGrid responsive="screen" item-responsive :x-gap="16" :y-gap="16">
-      <NGridItem span="24 s:12 m:12 l:6">
-        <NCard :bordered="false" size="small" class="card-wrapper">
-          <div class="text-12px op-60">最近一次全量（每周日）</div>
-          <div class="mt-8px text-18px font-600">
-            {{ summary.latestFullOk ?? 0 }}/{{ summary.latestFullTotal ?? 0 }} 库成功
-          </div>
-          <div class="mt-4px text-12px op-60">
-            {{ summary.latestFullDate ?? '还没跑过' }}
-            <span v-if="summary.latestFullSize"> · {{ fmtSize(summary.latestFullSize) }}</span>
-          </div>
-        </NCard>
-      </NGridItem>
-      <NGridItem span="24 s:12 m:12 l:6">
-        <NCard :bordered="false" size="small" class="card-wrapper">
-          <div class="text-12px op-60">最近一次增量（每日）</div>
-          <div class="mt-8px text-18px font-600">{{ summary.lastBinlogDate ?? '还没跑过' }}</div>
-          <div class="mt-4px text-12px op-60">
-            <span v-if="summary.lastBinlogAt">{{ summary.lastBinlogAt }} 执行 · </span>
-            <span v-if="summary.lastBinlogSize">{{ fmtSize(summary.lastBinlogSize) }}</span>
-            <span v-if="summary.lastBinlogFileCount"> · {{ summary.lastBinlogFileCount }} 个 binlog 文件</span>
-          </div>
-        </NCard>
-      </NGridItem>
-      <NGridItem span="24 s:12 m:12 l:6">
-        <NCard :bordered="false" size="small" class="card-wrapper">
-          <div class="text-12px op-60">备份范围（backup.yml）</div>
-          <div class="mt-8px text-18px font-600">{{ summary.dbCount ?? 0 }} 库 {{ summary.dbTableTotal ?? 0 }} 表</div>
-          <div class="mt-4px text-12px op-60">
-            <span v-if="summary.excludedTableCount">按配置排除 {{ summary.excludedTableCount }} 表</span>
-            <span v-else>全部表都备（exclude_tables 为空）</span>
-          </div>
-        </NCard>
-      </NGridItem>
-      <NGridItem span="24 s:12 m:12 l:6">
-        <NCard :bordered="false" size="small" class="card-wrapper">
-          <div class="text-12px op-60">保留策略</div>
-          <div class="mt-8px text-18px font-600">本地全量 {{ summary.localFullCopies ?? 0 }} 份</div>
-          <div class="mt-4px text-12px op-60">
-            增量本地 {{ summary.localBinlogDays ?? 0 }} 天
-            <span v-if="summary.ossLatestAt"> · OSS 已上传（{{ summary.ossLatestAt }}）</span>
-            <span v-else> · OSS 未上传</span>
-          </div>
-        </NCard>
-      </NGridItem>
-    </NGrid>
+    <DbBackupSearch v-model:model="searchParams" @search="queryNow" />
 
-    <DbBackupSearch v-model:model="searchParams" @search="handleSearch" />
-
-    <NCard :bordered="false" size="small" class="card-wrapper">
-      <template #header>全量备份</template>
+    <NCard title="数据库备份" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
       <template #header-extra>
-        <NButton size="small" @click="refreshAll">
-          <template #icon>
-            <SvgIcon icon="ic:round-refresh" />
-          </template>
-          刷新
-        </NButton>
+        <TableHeaderOperation
+          v-model:columns="columnChecks"
+          :loading="activeLoading"
+          :show-add="false"
+          :show-delete="false"
+          :show-export="false"
+          @refresh="handleRefresh"
+        />
       </template>
-      <NDataTable
-        :columns="fullColumns"
-        :data="fullData"
-        :loading="fullLoading"
-        :pagination="fullPagination"
-        :row-key="row => row.id"
-        :scroll-x="fullScrollX"
-        remote
-        size="small"
-      />
-    </NCard>
 
-    <NCard :bordered="false" size="small" class="card-wrapper">
-      <template #header>binlog 增量</template>
-      <template #header-extra>
-        <span class="text-12px op-60">起点必须等于上一条的终点 —— 这就是「链」</span>
-      </template>
-      <NDataTable
-        :columns="binlogColumns"
-        :data="binlogData"
-        :loading="binlogLoading"
-        :pagination="binlogPagination"
-        :row-key="row => row.id"
-        :scroll-x="binlogScrollX"
-        remote
-        size="small"
-      />
+      <!-- 卡片内容定高 flex 列：页签固定、表格自己滚（与 report/sample-flow 的页签页同一写法） -->
+      <div class="h-full min-h-0 flex-col-stretch gap-8px">
+        <div class="flex shrink-0 items-center justify-between gap-8px">
+          <NTabs :value="activeTab" class="min-w-0 flex-1" type="line" animated @update:value="handleTabChange">
+            <NTab name="full">全量备份</NTab>
+            <NTab name="binlog">binlog 增量</NTab>
+          </NTabs>
+          <span class="shrink-0 text-12px op-60">起点必须等于上一条的终点 —— 这就是「链」</span>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-auto">
+          <NDataTable
+            v-if="activeTab === 'full'"
+            :columns="fullColumns"
+            :data="fullData"
+            :flex-height="!appStore.isMobile"
+            :loading="fullLoading"
+            :pagination="fullPagination"
+            :row-key="row => row.id"
+            :scroll-x="fullScrollX"
+            remote
+            size="small"
+            class="sm:h-full"
+          />
+          <NDataTable
+            v-else
+            :columns="binlogColumns"
+            :data="binlogData"
+            :flex-height="!appStore.isMobile"
+            :loading="binlogLoading"
+            :pagination="binlogPagination"
+            :row-key="row => row.id"
+            :scroll-x="binlogScrollX"
+            remote
+            size="small"
+            class="sm:h-full"
+          />
+        </div>
+      </div>
     </NCard>
 
     <BinlogFilesDrawer v-model:visible="filesVisible" :row="filesRow" />
