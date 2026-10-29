@@ -10,8 +10,8 @@ declare namespace Api {
     interface DbFull {
       id: number;
       instance: string;
-      /** 库名 */
-      dbName: string;
+      /** 本包覆盖的库（逗号分隔；绑定备份=一组库一个包） */
+      dbScope: string;
       /** 备份日期（yyyy-MM-dd） */
       backupDate: string;
       /** weekly 周定 / manual 手工补跑 */
@@ -96,7 +96,8 @@ declare namespace Api {
     /** 查询参数（全量与增量共用） */
     type DbBackupSearchParams = CommonType.RecordNullable<
       {
-        dbName?: string;
+        /** 覆盖的库（包含该值即命中） */
+        dbScope?: string;
         beginDate?: string;
         endDate?: string;
       } & Common.CommonSearchParams

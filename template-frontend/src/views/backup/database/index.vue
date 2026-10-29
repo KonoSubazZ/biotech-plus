@@ -34,7 +34,7 @@ const CHAIN_META: Record<string, { label: string; type: 'success' | 'default' | 
 const searchParams = ref<Api.Backup.DbBackupSearchParams>({
   pageNum: 1,
   pageSize: 10,
-  dbName: null,
+  dbScope: null,
   beginDate: null,
   endDate: null,
   params: {}
@@ -83,7 +83,7 @@ const {
     searchParams.value.pageSize = params.pageSize;
   },
   columns: () => [
-    { key: 'dbName', title: '库', align: 'center', width: 100 },
+    { key: 'dbScope', title: '覆盖库', align: 'center', width: 140 },
     {
       key: 'backupDate',
       title: '备份日期',
@@ -225,7 +225,7 @@ function openFiles(row: Api.Backup.DbBinlog) {
 function queryNow() {
   searchParams.value.pageNum = 1;
   binlogSearchParams.value.pageNum = 1;
-  binlogSearchParams.value.dbName = searchParams.value.dbName;
+  binlogSearchParams.value.dbScope = searchParams.value.dbScope;
   binlogSearchParams.value.beginDate = searchParams.value.beginDate;
   binlogSearchParams.value.endDate = searchParams.value.endDate;
   getFullDataByPage();
