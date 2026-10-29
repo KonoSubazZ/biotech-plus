@@ -128,7 +128,7 @@ const {
       align: 'left',
       minWidth: 200,
       ellipsis: { tooltip: true },
-      render: row => (row.ossPath ? row.ossPath : <span class="op-50">未上传</span>)
+      render: row => row.ossPath ?? '-'
     },
     { key: 'configHash', title: '配置版本', align: 'center', width: 100, render: row => cfgShort(row.configHash) }
   ]
@@ -268,12 +268,11 @@ function handleRefresh() {
 
       <!-- 卡片内容定高 flex 列：页签固定、表格自己滚（与 report/sample-flow 的页签页同一写法） -->
       <div class="h-full min-h-0 flex-col-stretch gap-8px">
-        <div class="flex shrink-0 items-center justify-between gap-8px">
+        <div class="flex shrink-0 items-center gap-8px">
           <NTabs :value="activeTab" class="min-w-0 flex-1" type="line" animated @update:value="handleTabChange">
             <NTab name="full">全量备份</NTab>
             <NTab name="binlog">binlog 增量</NTab>
           </NTabs>
-          <span class="shrink-0 text-12px op-60">起点必须等于上一条的终点 —— 这就是「链」</span>
         </div>
 
         <div class="min-h-0 flex-1 overflow-auto">

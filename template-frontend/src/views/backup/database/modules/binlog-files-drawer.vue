@@ -32,7 +32,7 @@ function fmtSize(size?: number) {
 
 <template>
   <NDrawer v-model:show="visible" :width="720" placement="right">
-    <NDrawerContent :title="`binlog 文件清单 · ${row?.backupDate ?? ''}`" closable>
+    <NDrawerContent title="文件清单" closable>
       <NSpace vertical :size="12">
         <NDescriptions :column="2" label-placement="left" size="small" bordered>
           <NDescriptionsItem label="起点">
@@ -56,10 +56,6 @@ function fmtSize(size?: number) {
           size="small"
         />
 
-        <NText depth="3" class="text-12px">
-          数据来源：backup_db_binlog.files_json。页面只展示，不提供下载/删除；
-          恢复时按 起点 → 终点 顺序回放，终点取备份瞬间的 SHOW MASTER STATUS。
-        </NText>
       </NSpace>
     </NDrawerContent>
   </NDrawer>
