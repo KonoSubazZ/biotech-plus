@@ -54,19 +54,24 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       {
         type: 'expand',
         align: 'center',
-        width: 40,
+        width: 36,
         renderExpand: (row: Api.Project.ProjectConfig) => <ProjectCenterPanel project={row} />
       },
-      { type: 'selection', align: 'center', width: 44 },
-      { key: 'projectNo', title: '项目编号', align: 'center', width: 100 },
-      { key: 'projectName', title: '项目名称', align: 'center', minWidth: 130 },
-      { key: 'customer', title: '客户名称', align: 'center', minWidth: 110 },
-      // 合同三项各自一列（项目级展示字段）；长文本一律省略 + 悬浮看全文，避免把列撑变形
-      { key: 'contractName', title: '合同名称', align: 'center', width: 150, ellipsis: { tooltip: true } },
-      { key: 'contractCode', title: '合同编号', align: 'center', width: 130, ellipsis: { tooltip: true } },
-      { key: 'studyPlanNo', title: '研究方案编号', align: 'center', width: 130, ellipsis: { tooltip: true } },
-      { key: 'receiveEmail', title: '项目收件邮箱', align: 'center', minWidth: 150, ellipsis: { tooltip: true } },
-      { key: 'ccEmail', title: '项目抄送邮箱', align: 'center', minWidth: 130, ellipsis: { tooltip: true } },
+      { type: 'selection', align: 'center', width: 40 },
+      // 列宽按「1440 宽屏一屏放得下、不出现横向滚动条」定：固定列合计约 1134，
+      // 项目名称吃剩余宽度（minWidth 兜底）；1366 以下若还要再窄，就得砍列而不是压列。
+      // 长文本（合同三项 / 两个邮箱）一律 ellipsis + tooltip，不靠加宽列来解决。
+      // 创建人/更新人是「姓名 + 时间」两行，列宽 120 时时间刚好一行不折行。
+      { key: 'projectNo', title: '项目编号', align: 'center', width: 76 },
+      { key: 'projectName', title: '项目名称', align: 'center', width: 96 },
+      { key: 'customer', title: '客户名称', align: 'center', width: 88 },
+      { key: 'contractName', title: '合同名称', align: 'center', width: 92, ellipsis: { tooltip: true } },
+      { key: 'contractCode', title: '合同编号', align: 'center', width: 82, ellipsis: { tooltip: true } },
+      { key: 'studyPlanNo', title: '研究方案编号', align: 'center', width: 102, ellipsis: { tooltip: true } },
+      // 项目收件邮箱仍按 report-driver 口径保留在库里，但页面不再展示（2026-10-29）
+      // 报告抄送邮箱在前、通知接收邮箱在后（2026-10-29 口径调整）
+      { key: 'ccEmail', title: '报告抄送邮箱', align: 'center', width: 102, ellipsis: { tooltip: true } },
+      { key: 'projectNotifyEmail', title: '通知接收邮箱', align: 'center', width: 102, ellipsis: { tooltip: true } },
       {
         key: 'createByName',
         title: '创建人',
@@ -85,7 +90,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 90,
+        width: 76,
         // 操作列固定在右侧：横向滚动时「修改 / 删除」始终可见（与 report/*、qc/* 同一套）
         fixed: 'right',
         render: row => {

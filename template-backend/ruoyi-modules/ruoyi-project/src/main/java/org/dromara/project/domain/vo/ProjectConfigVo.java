@@ -54,6 +54,9 @@ public class ProjectConfigVo {
     /** 收件邮箱（项目行=项目自身，研究中心行=该中心） */
     private String receiveEmail;
 
+    /** 项目通知收件邮箱（;分隔；仅项目行使用，与报告收件邮箱分开维护） */
+    private String projectNotifyEmail;
+
     /** 抄送邮箱（项目行=项目自身，研究中心行=该中心） */
     private String ccEmail;
 

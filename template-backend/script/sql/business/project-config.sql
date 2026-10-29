@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS `project_config` (
     research_center_no   varchar(100) NOT NULL DEFAULT ''        COMMENT '研究中心编号（仅中心行有值；项目行为空串，与名称成对参与唯一键）',
     research_center_name varchar(200) NOT NULL DEFAULT ''        COMMENT '研究中心名称（仅中心行有值；项目行为空串，参与唯一键）',
     receive_email varchar(500) NOT NULL DEFAULT ''               COMMENT '收件邮箱（;分隔）；项目行=项目自身，中心行=该中心',
+    project_notify_email varchar(500) NOT NULL DEFAULT ''        COMMENT '项目通知收件邮箱（;分隔；仅项目行使用，与报告收件邮箱分开）',
     cc_email      varchar(500)                                   COMMENT '抄送邮箱（;分隔）；项目行=项目自身，中心行=该中心',
     remark        varchar(500)                                   COMMENT '备注',
 
@@ -91,6 +92,20 @@ SELECT '删除', @menu_id, 4, '', NULL, 1, 0, 'F', '0', '0', 'project:projectCon
 FROM (SELECT 1) AS dummy
 WHERE @menu_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
     WHERE parent_id = @menu_id AND perms = 'project:projectConfig:remove') AS c4);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '导出', @menu_id, 5, '', NULL, 1, 0, 'F', '0', '0', 'project:projectConfig:export', '#', 1, NOW(), '研究中心导出'
+FROM (SELECT 1) AS dummy
+WHERE @menu_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @menu_id AND perms = 'project:projectConfig:export') AS c5);
+
+INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
+    menu_type, visible, status, perms, icon, create_by, create_time, remark)
+SELECT '导入', @menu_id, 6, '', NULL, 1, 0, 'F', '0', '0', 'project:projectConfig:import', '#', 1, NOW(), '研究中心导入'
+FROM (SELECT 1) AS dummy
+WHERE @menu_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM (SELECT menu_id FROM sys_menu
+    WHERE parent_id = @menu_id AND perms = 'project:projectConfig:import') AS c6);
 
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, m.menu_id FROM sys_menu m

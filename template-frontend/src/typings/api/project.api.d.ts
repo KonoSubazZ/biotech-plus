@@ -73,8 +73,10 @@ declare namespace Api {
       researchCenterNo?: string | null;
       /** 研究中心名称（仅研究中心行有值） */
       researchCenterName?: string | null;
-      /** 收件邮箱（多个用分号分隔） */
+      /** 收件邮箱（多个用分号分隔；报告发送用，页面已隐藏，仅接口保留） */
       receiveEmail: string;
+      /** 项目通知收件邮箱（多个用分号分隔；页面上的「项目通知（收件）邮箱」） */
+      projectNotifyEmail?: string | null;
       /** 抄送邮箱（多个用分号分隔） */
       ccEmail?: string | null;
       remark?: string | null;
@@ -105,6 +107,8 @@ declare namespace Api {
       contractCode?: string | null;
       studyPlanNo?: string | null;
       receiveEmail: string;
+      /** 项目通知收件邮箱（可空） */
+      projectNotifyEmail?: string | null;
       ccEmail?: string | null;
       remark?: string | null;
     }
@@ -123,6 +127,22 @@ declare namespace Api {
       receiveEmail: string;
       ccEmail?: string | null;
       remark?: string | null;
+    }
+
+    /** 研究中心导入结果（= 后端 CenterImportResultVo）：先全量校验，任一行不过就整体不导入 */
+    interface CenterImportResult {
+      /** 解析到的数据行数（不含表头与整行空白） */
+      total: number;
+      /** 实际新增（committed=false 时恒为 0） */
+      inserted: number;
+      /** 实际修改（committed=false 时恒为 0） */
+      updated: number;
+      /** 校验失败条数 */
+      failed: number;
+      /** 是否真正写库 */
+      committed: boolean;
+      /** 每条失败原因（含 Excel 行号与编号） */
+      errors: string[];
     }
 
     // ------------------------------------------------------------------ 产品关联基因

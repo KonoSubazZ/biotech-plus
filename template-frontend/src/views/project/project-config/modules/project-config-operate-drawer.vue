@@ -52,6 +52,7 @@ function createDefaultModel(): Api.Project.ProjectConfigForm {
     contractCode: null,
     studyPlanNo: null,
     receiveEmail: '',
+    projectNotifyEmail: null,
     ccEmail: null,
     remark: null
   };
@@ -60,8 +61,7 @@ function createDefaultModel(): Api.Project.ProjectConfigForm {
 const rules = {
   projectNo: createRequiredRule('项目编号不能为空'),
   projectName: createRequiredRule('项目名称不能为空'),
-  customer: createRequiredRule('客户名称不能为空'),
-  receiveEmail: createRequiredRule('收件邮箱不能为空')
+  customer: createRequiredRule('客户名称不能为空')
 };
 
 function handleUpdateModelWhenEdit() {
@@ -138,10 +138,11 @@ watch(visible, () => {
           <NFormItem label="研究方案编号" path="studyPlanNo">
             <NInput v-model:value="model.studyPlanNo" placeholder="可空；仅展示用" />
           </NFormItem>
-          <NFormItem class="md:col-span-2" label="项目收件邮箱" path="receiveEmail">
-            <NInput v-model:value="model.receiveEmail" placeholder="多个邮箱用分号分隔，如 a@x.com;b@y.com" />
+          <!-- 项目收件邮箱已隐藏（2026-10-29）：字段保留在库里给报告发送用，页面上只维护「通知接收邮箱」 -->
+          <NFormItem class="md:col-span-2" label="通知接收邮箱" path="projectNotifyEmail">
+            <NInput v-model:value="model.projectNotifyEmail" placeholder="可空；多个邮箱用分号分隔，如 a@x.com;b@y.com" />
           </NFormItem>
-          <NFormItem class="md:col-span-2" label="项目抄送邮箱" path="ccEmail">
+          <NFormItem class="md:col-span-2" label="报告抄送邮箱" path="ccEmail">
             <NInput v-model:value="model.ccEmail" placeholder="可空；多个邮箱用分号分隔" />
           </NFormItem>
           <NFormItem class="md:col-span-2" label="备注" path="remark">

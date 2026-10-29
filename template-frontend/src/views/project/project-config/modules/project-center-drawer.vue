@@ -117,12 +117,10 @@ watch(visible, () => {
           <NFormItem label="研究中心名称" path="researchCenterName">
             <NInput v-model:value="model.researchCenterName" placeholder="与样本上的送检机构保持一致" />
           </NFormItem>
-          <NFormItem class="md:col-span-2" label="收件邮箱" path="receiveEmail">
+          <NFormItem class="md:col-span-2" label="报告接收邮箱" path="receiveEmail">
             <NInput v-model:value="model.receiveEmail" placeholder="多个邮箱用分号分隔，如 a@x.com;b@y.com" />
           </NFormItem>
-          <NFormItem class="md:col-span-2" label="抄送邮箱" path="ccEmail">
-            <NInput v-model:value="model.ccEmail" placeholder="可空；多个邮箱用分号分隔" />
-          </NFormItem>
+          <!-- 抄送邮箱已隐藏（2026-10-29）：字段与历史数据保留，页面不再维护 -->
           <NFormItem class="md:col-span-2" label="备注" path="remark">
             <NInput v-model:value="model.remark" type="textarea" placeholder="请输入备注" />
           </NFormItem>

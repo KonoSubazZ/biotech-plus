@@ -52,10 +52,18 @@ public class ProjectConfigBo extends BaseEntity {
     @Size(max = 100, message = "研究方案编号长度不能超过 100")
     private String studyPlanNo;
 
-    /** 收件邮箱 */
-    @NotBlank(message = "收件邮箱不能为空")
+    /**
+     * 收件邮箱（报告发送用）
+     * <p>
+     * 页面上已隐藏（2026-10-29），只保留存储：历史数据与 report-driver 取数仍按这一列走。
+     * 因为界面不再展示/编辑，这里不能要求必填 —— 新增项目时前端根本不会传值。
+     */
     @Size(max = 500, message = "收件邮箱长度不能超过 500")
     private String receiveEmail;
+
+    /** 项目通知收件邮箱（页面上的「项目通知（收件）邮箱」，可空） */
+    @Size(max = 500, message = "项目通知邮箱长度不能超过 500")
+    private String projectNotifyEmail;
 
     /** 抄送邮箱 */
     @Size(max = 500, message = "抄送邮箱长度不能超过 500")
