@@ -28,9 +28,11 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * 数据库备份 业务层实现
@@ -88,7 +90,7 @@ public class BackupDbServiceImpl implements IBackupDbService {
     @Transactional(rollbackFor = Exception.class)
     public Boolean markPruned(BackupDbPruneBo bo) {
         LambdaQueryWrapper<BackupDbFull> wrapper = Wrappers.lambdaQuery(BackupDbFull.class)
-            .eq(BackupDbFull::getDbName, bo.getDbName())
+            .eq(BackupDbFull::getDbScope, bo.getDbScope())
             .eq(BackupDbFull::getBackupDate, bo.getBackupDate());
         if (StringUtils.isNotBlank(bo.getBackupType())) {
             wrapper.eq(BackupDbFull::getBackupType, bo.getBackupType());
@@ -103,12 +105,12 @@ public class BackupDbServiceImpl implements IBackupDbService {
     @Override
     public TableDataInfo<BackupDbFullVo> selectFullPage(BackupDbQueryBo bo, PageQuery pageQuery) {
         LambdaQueryWrapper<BackupDbFull> wrapper = Wrappers.lambdaQuery(BackupDbFull.class)
-            .eq(StringUtils.isNotBlank(bo.getDbName()), BackupDbFull::getDbName, bo.getDbName())
+            .like(StringUtils.isNotBlank(bo.getDbScope()), BackupDbFull::getDbScope, bo.getDbScope())
             .eq(StringUtils.isNotBlank(bo.getInstance()), BackupDbFull::getInstance, bo.getInstance())
             .ge(StringUtils.isNotBlank(bo.getBeginDate()), BackupDbFull::getBackupDate, toDate(bo.getBeginDate()))
             .le(StringUtils.isNotBlank(bo.getEndDate()), BackupDbFull::getBackupDate, toDate(bo.getEndDate()))
             .orderByDesc(BackupDbFull::getBackupDate)
-            .orderByAsc(BackupDbFull::getDbName);
+            .orderByAsc(BackupDbFull::getDbScope);
         Page<BackupDbFullVo> page = fullMapper.selectVoPage(pageQuery.build(), wrapper);
         return TableDataInfo.build(page);
     }
@@ -193,8 +195,22 @@ public class BackupDbServiceImpl implements IBackupDbService {
         vo.setLatestFullOk(latestRows.size());
         vo.setLatestFullTotal(latestRows.size());
         vo.setLatestFullSize(latestRows.stream().mapToLong(x -> longOf(x.getLocalSize())).sum());
-        vo.setDbCount((int) allFulls.stream().map(BackupDbFullVo::getDbName).distinct().count());
+        vo.setDbCount(countScopeDbs(latestRows));
         fillScopeSummary(vo, latestRows);
+    }
+
+    /**
+     * 覆盖库数：db_scope 是逗号分隔的一组库（绑定备份），一行可能含多个库，
+     * 所以不能直接 distinct 行数，要把 scope 拆开去重。
+     */
+    private int countScopeDbs(List<BackupDbFullVo> rows) {
+        Stream<String> scopes = rows.stream().map(BackupDbFullVo::getDbScope);
+        return (int) scopes.filter(StringUtils::isNotBlank)
+            .flatMap(scope -> Arrays.stream(scope.split(",")))
+            .map(String::trim)
+            .filter(StringUtils::isNotBlank)
+            .distinct()
+            .count();
     }
 
     /** 备份范围：库表总数 + 排除数（用最近一次全量的行对账） */
@@ -220,9 +236,11 @@ public class BackupDbServiceImpl implements IBackupDbService {
             vo.setLastBinlogFileCount(intOf(last.getFileCount()));
             vo.setLastBinlogAt(formatTime(last.getFinishedAt()));
         }
-        Date from = Date.from(LocalDate.now().minusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant());
-        vo.setLocalBinlogDays(Math.toIntExact(binlogMapper.selectCount(
-            Wrappers.lambdaQuery(BackupDbBinlog.class).ge(BackupDbBinlog::getBackupDate, from))));
+        LocalDate fromDay = LocalDate.now().minusDays(7);
+        Date from = Date.from(fromDay.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        LambdaQueryWrapper<BackupDbBinlog> recent = Wrappers.lambdaQuery(BackupDbBinlog.class)
+            .ge(BackupDbBinlog::getBackupDate, from);
+        vo.setLocalBinlogDays(Math.toIntExact(binlogMapper.selectCount(recent)));
     }
 
     private void fillOssSummary(BackupDbSummaryVo vo, List<BackupDbFullVo> allFulls) {
@@ -260,6 +278,7 @@ public class BackupDbServiceImpl implements IBackupDbService {
         return value == null ? 0L : value;
     }
 
+    /** 查询条件里的空日期 = 不限制区间，所以这里返回 null 由 Wrapper 的 condition 跳过，不是缺数据。 */
     private static Date toDate(String yyyyMmDd) {
         if (StringUtils.isBlank(yyyyMmDd)) {
             return null;

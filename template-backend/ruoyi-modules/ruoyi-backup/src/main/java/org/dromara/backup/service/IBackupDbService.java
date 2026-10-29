@@ -21,7 +21,7 @@ import org.dromara.common.mybatis.core.page.TableDataInfo;
 public interface IBackupDbService {
 
     /**
-     * 上报一份全量备份记录（按 db_name + backup_date + backup_type 幂等）
+     * 上报一份全量备份记录（按实例 + 日期 + 类型幂等；一组库一个包）
      *
      * @param bo 上报内容
      * @return 是否成功

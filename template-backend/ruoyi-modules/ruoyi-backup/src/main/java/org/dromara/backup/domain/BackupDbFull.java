@@ -29,8 +29,8 @@ public class BackupDbFull extends BaseEntity {
     /** 实例标识（backup.yml 的 host + 容器名口径） */
     private String instance;
 
-    /** 库名 */
-    private String dbName;
+    /** 本包覆盖的库（逗号分隔；绑定备份=一组库一个包） */
+    private String dbScope;
 
     /** 备份日期 */
     private Date backupDate;

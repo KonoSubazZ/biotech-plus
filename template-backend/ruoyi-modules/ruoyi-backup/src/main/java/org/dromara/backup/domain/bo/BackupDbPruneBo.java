@@ -17,10 +17,10 @@ import java.util.Date;
 @Data
 public class BackupDbPruneBo {
 
-    /** 库名 */
-    @NotBlank(message = "库名不能为空")
-    @Size(max = 64, message = "库名长度不能超过 64")
-    private String dbName;
+    /** 本包覆盖的库（逗号分隔，与该份全量记录一致） */
+    @NotBlank(message = "覆盖库不能为空")
+    @Size(max = 200, message = "覆盖库长度不能超过 200")
+    private String dbScope;
 
     /** 备份日期（yyyy-MM-dd） */
     @NotNull(message = "备份日期不能为空")

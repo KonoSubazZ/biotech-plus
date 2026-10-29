@@ -12,8 +12,8 @@ import lombok.Data;
 @Data
 public class BackupDbQueryBo {
 
-    /** 库名（精确） */
-    private String dbName;
+    /** 覆盖的库（包含该值即命中，用于按单库筛备份记录） */
+    private String dbScope;
 
     /** 实例标识（精确） */
     private String instance;

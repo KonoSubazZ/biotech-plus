@@ -8,17 +8,18 @@
 
   <insert id="upsert" parameterType="org.dromara.backup.domain.BackupDbFull">
     INSERT INTO backup_db_full
-      (instance, db_name, backup_date, backup_type, excluded_tables, table_count, db_table_total,
+      (instance, db_scope, backup_date, backup_type, excluded_tables, table_count, db_table_total,
        binlog_file, binlog_pos, local_path, local_md5, local_size, local_pruned,
        oss_path, oss_meta_md5, duration_ms, config_hash, script_version, backup_status,
        started_at, finished_at, create_by, create_time, update_by, update_time)
     VALUES
-      (#{instance}, #{dbName}, #{backupDate}, #{backupType}, #{excludedTables}, #{tableCount}, #{dbTableTotal},
+      (#{instance}, #{dbScope}, #{backupDate}, #{backupType}, #{excludedTables}, #{tableCount}, #{dbTableTotal},
        #{binlogFile}, #{binlogPos}, #{localPath}, #{localMd5}, #{localSize}, #{localPruned},
        #{ossPath}, #{ossMetaMd5}, #{durationMs}, #{configHash}, #{scriptVersion}, #{backupStatus},
        #{startedAt}, #{finishedAt}, #{createBy}, #{createTime}, #{updateBy}, #{updateTime})
     ON DUPLICATE KEY UPDATE
       instance = VALUES(instance),
+      db_scope = VALUES(db_scope),
       excluded_tables = VALUES(excluded_tables),
       table_count = VALUES(table_count),
       db_table_total = VALUES(db_table_total),

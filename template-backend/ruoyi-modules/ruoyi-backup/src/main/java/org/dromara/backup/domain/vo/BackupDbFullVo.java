@@ -24,8 +24,8 @@ public class BackupDbFullVo {
     /** 实例标识 */
     private String instance;
 
-    /** 库名 */
-    private String dbName;
+    /** 本包覆盖的库（逗号分隔） */
+    private String dbScope;
 
     /** 备份日期 */
     @JsonFormat(pattern = "yyyy-MM-dd")
