@@ -70,14 +70,19 @@ public class ApiTokenInterceptor implements HandlerInterceptor {
      * 命中固定 token 的调用才建立身份；任何一步不满足都直接放行（不伪装、不放行越权）
      */
     private void authenticate(HttpServletRequest request) {
-        if (!isTokenCall(request)) {
+        if (!Boolean.TRUE.equals(properties.getEnabled())) {
             return;
         }
         if (LoginHelper.isLogin()) {
             // 已带正常登录态（管理员在页面/接口工具里直接调）—— 不覆盖真实身份
             return;
         }
-        String account = StringUtils.trim(properties.getAccount());
+        ApiTokenProperties.TokenRule rule = matchRule(request);
+        if (rule == null) {
+            // 不是固定 token 调用：原样放行，交回 Sa-Token 按未登录处理
+            return;
+        }
+        String account = StringUtils.trim(rule.getAccount());
         if (StringUtils.isBlank(account)) {
             // 没配账号：不建立身份，交回 Sa-Token 按未登录处理
             return;
@@ -90,7 +95,7 @@ public class ApiTokenInterceptor implements HandlerInterceptor {
             log.warn("固定 token 调用：账号 {} 不存在或已停用，按未登录处理", account);
             return;
         }
-        String clientId = clientIdOf(request);
+        String clientId = clientIdOf(request, rule.getClientId());
         SysClientVo client = StringUtils.isBlank(clientId) ? null : clientService.queryByClientId(clientId);
         if (client == null) {
             // 没有可用客户端：同样不建立身份
@@ -127,19 +132,40 @@ public class ApiTokenInterceptor implements HandlerInterceptor {
             account, client.getClientId(), request.getMethod(), request.getRequestURI());
     }
 
-    /** 开关打开 + 请求头 token 一致 + 路径在配置列表里 */
-    private boolean isTokenCall(HttpServletRequest request) {
-        if (!Boolean.TRUE.equals(properties.getEnabled()) || StringUtils.isBlank(properties.getValue())) {
-            return false;
+    /**
+     * 找出本次请求命中的规则：请求头 token 一致 且 路径在该规则自己的 paths 里。
+     * <p>
+     * 先比既有的单账号配置（兼容老调用方），再按序比 {@link ApiTokenProperties#getTokens()}。
+     * 命中第一条即返回；都不命中返回 null（等价于「不是固定 token 调用」）。
+     */
+    private ApiTokenProperties.TokenRule matchRule(HttpServletRequest request) {
+        String token = request.getHeader(HEADER);
+        if (StringUtils.isBlank(token)) {
+            return null;
         }
-        if (!properties.getValue().equals(request.getHeader(HEADER))) {
-            return false;
+        String uri = request.getRequestURI();
+        if (token.equals(properties.getValue()) && matches(properties.getPaths(), uri)) {
+            ApiTokenProperties.TokenRule legacy = new ApiTokenProperties.TokenRule();
+            legacy.setValue(properties.getValue());
+            legacy.setAccount(properties.getAccount());
+            legacy.setPaths(properties.getPaths());
+            legacy.setClientId(properties.getClientId());
+            return legacy;
         }
-        return matchesConfiguredPath(request.getRequestURI());
+        List<ApiTokenProperties.TokenRule> rules = properties.getTokens();
+        if (rules == null) {
+            return null;
+        }
+        for (ApiTokenProperties.TokenRule rule : rules) {
+            if (StringUtils.isNotBlank(rule.getValue()) && rule.getValue().equals(token)
+                && matches(rule.getPaths(), uri)) {
+                return rule;
+            }
+        }
+        return null;
     }
 
-    private boolean matchesConfiguredPath(String uri) {
-        List<String> paths = properties.getPaths();
+    private boolean matches(List<String> paths, String uri) {
         if (paths == null || paths.isEmpty()) {
             return false;
         }
@@ -151,11 +177,11 @@ public class ApiTokenInterceptor implements HandlerInterceptor {
         return false;
     }
 
-    private String clientIdOf(HttpServletRequest request) {
+    private String clientIdOf(HttpServletRequest request, String fallbackClientId) {
         String headerClientId = request.getHeader(LoginHelper.CLIENT_KEY);
         if (StringUtils.isNotBlank(headerClientId)) {
             return headerClientId;
         }
-        return properties.getClientId();
+        return StringUtils.isNotBlank(fallbackClientId) ? fallbackClientId : properties.getClientId();
     }
 }

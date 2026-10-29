@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  binlog 增量归档：唯一键 (instance, backup_date)，同一天重跑覆盖。
+  tenant_id 由多租户插件自动补。
+-->
+<mapper namespace="org.dromara.backup.mapper.BackupDbBinlogMapper">
+
+  <insert id="upsert" parameterType="org.dromara.backup.domain.BackupDbBinlog">
+    INSERT INTO backup_db_binlog
+      (instance, backup_date, db_scope, start_file, start_pos, end_file, end_pos,
+       file_count, total_size, files_json, local_dir, local_pruned, oss_prefix,
+       duration_ms, config_hash, script_version, backup_status, started_at, finished_at,
+       create_by, create_time, update_by, update_time)
+    VALUES
+      (#{instance}, #{backupDate}, #{dbScope}, #{startFile}, #{startPos}, #{endFile}, #{endPos},
+       #{fileCount}, #{totalSize}, #{filesJson}, #{localDir}, #{localPruned}, #{ossPrefix},
+       #{durationMs}, #{configHash}, #{scriptVersion}, #{backupStatus}, #{startedAt}, #{finishedAt},
+       #{createBy}, #{createTime}, #{updateBy}, #{updateTime})
+    ON DUPLICATE KEY UPDATE
+      db_scope = VALUES(db_scope),
+      start_file = VALUES(start_file),
+      start_pos = VALUES(start_pos),
+      end_file = VALUES(end_file),
+      end_pos = VALUES(end_pos),
+      file_count = VALUES(file_count),
+      total_size = VALUES(total_size),
+      files_json = VALUES(files_json),
+      local_dir = VALUES(local_dir),
+      local_pruned = VALUES(local_pruned),
+      oss_prefix = VALUES(oss_prefix),
+      duration_ms = VALUES(duration_ms),
+      config_hash = VALUES(config_hash),
+      script_version = VALUES(script_version),
+      backup_status = VALUES(backup_status),
+      started_at = VALUES(started_at),
+      finished_at = VALUES(finished_at),
+      update_by = VALUES(update_by),
+      update_time = VALUES(update_time)
+  </insert>
+
+</mapper>

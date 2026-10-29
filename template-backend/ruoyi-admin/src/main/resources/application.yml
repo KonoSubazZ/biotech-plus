@@ -316,4 +316,13 @@ api:
       - /report/drive/**
     # 调用方没带 clientid 请求头时使用的客户端编号（sys_client.client_key）
     clientId: e5cd7e4891bf95d1d19206ce24a7b32e
+    # 多账号（2026-10-29）：一条 = 一个固定 token 对应用一个账号 + 它自己的生效路径。
+    # 数据库备份脚本（宿主 backupctl）用 sys_backup，角色只授 backup:db:report，
+    # 不继承上面 tumor 的权限；换密钥用环境变量 API_TOKEN_BACKUP 覆盖。
+    tokens:
+      - value: ${API_TOKEN_BACKUP:9f3c7a1e5b2d4806af17c9e3b6d05a74}
+        account: sys_backup
+        paths:
+          - /backup/**
+        clientId: e5cd7e4891bf95d1d19206ce24a7b32e
 

@@ -36,4 +36,30 @@ public class ApiTokenProperties {
     /** 调用方没带 clientid 请求头时使用的客户端编号（对应 sys_client.client_key） */
     private String clientId;
 
+    /**
+     * 多账号：一条 = 一个固定 token + 一个执行账号 + 它自己的生效路径。
+     * <p>
+     * 为什么需要：{@link #account} 是全局单账号，若备份脚本也复用它，
+     * 上报就会记到 tumor 名下、并继承 tumor 的全部权限。给每类调用方一个独立账号做不到最小权限，
+     * 所以这里加一维「按 token 分账号」。既有的单账号配置保持原样，不用改老调用方。
+     */
+    private List<TokenRule> tokens = new ArrayList<>();
+
+    /** 单条多账号规则 */
+    @Data
+    public static class TokenRule {
+
+        /** 请求头 X-Api-Token 的值 */
+        private String value;
+
+        /** 以哪个登录账号执行（账号不存在/停用则按未登录处理） */
+        private String account;
+
+        /** 该 token 的生效路径（Ant 风格） */
+        private List<String> paths = new ArrayList<>();
+
+        /** 调用方没带 clientid 请求头时使用的客户端编号 */
+        private String clientId;
+    }
+
 }

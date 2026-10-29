@@ -134,6 +134,11 @@
             <artifactId>ruoyi-drive</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-backup</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>
