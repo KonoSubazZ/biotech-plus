@@ -289,6 +289,8 @@ const local: App.I18n.Schema = {
     'report_mail-config': '邮件配置',
     'report_sample-flow': '样本流转',
     compliance: '合规管理',
+    backup: '数据备份',
+    backup_database: '数据库备份',
     'compliance_dev-log': '开发记录',
     'compliance_validation-records': '3Q 验证记录',
     compliance_documents: '3Q 文档管理',

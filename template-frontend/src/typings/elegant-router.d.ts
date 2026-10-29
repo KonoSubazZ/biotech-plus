@@ -25,6 +25,8 @@ declare module "@elegant-router/types" {
     "404": "/404";
     "500": "/500";
     "about": "/about";
+    "backup": "/backup";
+    "backup_database": "/backup/database";
     "compliance": "/compliance";
     "compliance_dev-log": "/compliance/dev-log";
     "compliance_documents": "/compliance/documents";
@@ -105,6 +107,7 @@ declare module "@elegant-router/types" {
     | "404"
     | "500"
     | "about"
+    | "backup"
     | "compliance"
     | "home"
     | "iframe-page"
@@ -142,6 +145,7 @@ declare module "@elegant-router/types" {
     | "social-callback"
     | "user-center"
     | "about"
+    | "backup_database"
     | "compliance_dev-log"
     | "compliance_documents"
     | "compliance_validation-records"
