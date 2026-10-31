@@ -66,9 +66,9 @@ declare namespace Api {
       /** 合同名称（项目级展示字段，不参与业务逻辑） */
       contractName?: string | null;
       /** 合同编号（项目级展示字段） */
-      contractCode?: string | null;
+      contractNo?: string | null;
       /** 研究方案编号（项目级展示字段） */
-      studyPlanNo?: string | null;
+      schemeNo?: string | null;
       /** 研究中心编号（仅研究中心行有值） */
       researchCenterNo?: string | null;
       /** 研究中心名称（仅研究中心行有值） */
@@ -104,8 +104,8 @@ declare namespace Api {
       projectName: string;
       customer: string;
       contractName?: string | null;
-      contractCode?: string | null;
-      studyPlanNo?: string | null;
+      contractNo?: string | null;
+      schemeNo?: string | null;
       receiveEmail: string;
       /** 项目通知收件邮箱（可空） */
       projectNotifyEmail?: string | null;

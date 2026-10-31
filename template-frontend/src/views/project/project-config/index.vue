@@ -66,8 +66,8 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
       { key: 'projectName', title: '项目名称', align: 'center', width: 96 },
       { key: 'customer', title: '客户名称', align: 'center', width: 88 },
       { key: 'contractName', title: '合同名称', align: 'center', width: 92, ellipsis: { tooltip: true } },
-      { key: 'contractCode', title: '合同编号', align: 'center', width: 82, ellipsis: { tooltip: true } },
-      { key: 'studyPlanNo', title: '研究方案编号', align: 'center', width: 102, ellipsis: { tooltip: true } },
+      { key: 'contractNo', title: '合同编号', align: 'center', width: 82, ellipsis: { tooltip: true } },
+      { key: 'schemeNo', title: '研究方案编号', align: 'center', width: 102, ellipsis: { tooltip: true } },
       // 项目收件邮箱仍按 report-driver 口径保留在库里，但页面不再展示（2026-10-29）
       // 报告抄送邮箱在前、通知接收邮箱在后（2026-10-29 口径调整）
       { key: 'ccEmail', title: '报告抄送邮箱', align: 'center', width: 102, ellipsis: { tooltip: true } },

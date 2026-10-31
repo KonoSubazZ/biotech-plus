@@ -49,8 +49,8 @@ function createDefaultModel(): Api.Project.ProjectConfigForm {
     projectName: '',
     customer: '',
     contractName: null,
-    contractCode: null,
-    studyPlanNo: null,
+    contractNo: null,
+    schemeNo: null,
     receiveEmail: '',
     projectNotifyEmail: null,
     ccEmail: null,
@@ -132,11 +132,11 @@ watch(visible, () => {
           <NFormItem class="md:col-span-2" label="合同名称" path="contractName">
             <NInput v-model:value="model.contractName" placeholder="可空；仅展示用，不改变报告上的合同" />
           </NFormItem>
-          <NFormItem label="合同编号" path="contractCode">
-            <NInput v-model:value="model.contractCode" placeholder="可空；仅展示用" />
+          <NFormItem label="合同编号" path="contractNo">
+            <NInput v-model:value="model.contractNo" placeholder="可空；仅展示用" />
           </NFormItem>
-          <NFormItem label="研究方案编号" path="studyPlanNo">
-            <NInput v-model:value="model.studyPlanNo" placeholder="可空；仅展示用" />
+          <NFormItem label="研究方案编号" path="schemeNo">
+            <NInput v-model:value="model.schemeNo" placeholder="可空；仅展示用" />
           </NFormItem>
           <!-- 项目收件邮箱已隐藏（2026-10-29）：字段保留在库里给报告发送用，页面上只维护「通知接收邮箱」 -->
           <NFormItem class="md:col-span-2" label="通知接收邮箱" path="projectNotifyEmail">
