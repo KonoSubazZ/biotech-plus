@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 不合格通知「处理」弹窗的预填数据
  * <p>
- * 表头字段按 subbarcode 从 sample_file 回填；若该样本已经生成过通知，则用**最新一条记录**的值覆盖
+ * 表头字段按 subbarcode 从 cms_sample 回填；若该样本已经生成过通知，则用**最新一条记录**的值覆盖
  * （lastGenerated* 带上一次生成的单据信息，前端据此提示「已生成」并可直接改后重新生成）。
  *
  * @author <你的名字>

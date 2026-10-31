@@ -63,7 +63,7 @@ declare namespace Api {
      */
     interface WetLabQc {
       id: number;
-      /** 样本条码（sample_file.subbarcode） */
+      /** 样本条码（cms_sample.subbarcode） */
       subbarcode: string;
       /** 肿瘤纯度（列名 patho_tumor_purity） */
       pathoTumorPurity?: string | null;
@@ -119,7 +119,7 @@ declare namespace Api {
      */
     interface BioinfoQc {
       id: number;
-      /** 样本编号（= sample_file.subbarcode）；接口按它解析归属药企 */
+      /** 样本编号（= cms_sample.subbarcode）；接口按它解析归属药企 */
       subbarcode: string | null;
       /** 上游记录 id（幂等/追溯用，页面不展示） */
       sourceId?: string | null;
@@ -176,7 +176,7 @@ declare namespace Api {
     /** 样本编号 → 药企解析结果（= 后端 BioinfoQcTenantVo） */
     interface BioinfoQcTenant {
       subbarcode: string | null;
-      /** sample_file.customer_name（= 药企名） */
+      /** cms_sample.customer_name（= 药企名） */
       customerName: string | null;
       /** 解析出的药企编号 */
       tenantId: string | null;
@@ -200,7 +200,7 @@ declare namespace Api {
      * 勾选项传 boolean：页面用多选框，落库时服务端转中文名，渲染时模板用 box() 出 ☑/□。
      */
     interface NotifyForm {
-      /** 样本编号（后面所有回填都按它查 sample_file） */
+      /** 样本编号（后面所有回填都按它查 cms_sample） */
       subbarcode: string | null;
       /** 质控类型（wet_lab 湿实验 / bioinfo 生信）—— 在哪个质控页点处理；落库区分通知来源 */
       qcCategory: string | null;
@@ -248,10 +248,10 @@ declare namespace Api {
     /**
      * 处理弹窗预填（= 后端 QcFailedNotifyPrefillVo）
      * <p>
-     * 表单字段先按 sample_file 回填、再用最近一条生成记录覆盖；generated=true 表示已生成过。
+     * 表单字段先按 cms_sample 回填、再用最近一条生成记录覆盖；generated=true 表示已生成过。
      */
     interface NotifyPrefill extends NotifyForm {
-      /** sample_file.id（一定有） */
+      /** cms_sample.id（一定有） */
       sampleFileId: number | null;
       /** 生信质控 id */
       bioinfoQcId: number | null;

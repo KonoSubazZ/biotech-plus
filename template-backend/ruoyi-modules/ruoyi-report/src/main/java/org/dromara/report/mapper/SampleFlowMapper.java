@@ -8,7 +8,7 @@ import org.dromara.report.domain.vo.SampleFlowRowVo;
 import java.util.Map;
 
 /**
- * 样本流转 Mapper（跨 analysis_data / sample_file / analysis_report / sys_user，SQL 见
+ * 样本流转 Mapper（跨 analysis_data / cms_sample / analysis_report / sys_user，SQL 见
  * resources/mapper/report/SampleFlowMapper.xml）
  *
  * @author <你的名字>
@@ -16,7 +16,7 @@ import java.util.Map;
 public interface SampleFlowMapper {
 
     /**
-     * 分页查询样本流转列表：analysis_data ⟕ sample_file ⟕ 该批次最新一份 analysis_report。
+     * 分页查询样本流转列表：analysis_data ⟕ cms_sample ⟕ 该批次最新一份 analysis_report。
      * <p>
      * 页签状态过滤与「只看自己的 / 只看别人的」可见性过滤都在 XML 里按 tab 分支，
      * 当前用户ID由调用方传入（不用 XML 里调 Sa-Token，SQL 保持纯查询）。

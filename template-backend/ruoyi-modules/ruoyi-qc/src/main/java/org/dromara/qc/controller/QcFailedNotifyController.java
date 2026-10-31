@@ -44,7 +44,7 @@ public class QcFailedNotifyController extends BaseController {
     private final IQcFailedNotifyService notifyService;
 
     /**
-     * 处理弹窗预填：表头按样本编号回填 sample_file 字段 + 默认值 + 上次生成内容
+     * 处理弹窗预填：表头按样本编号回填 cms_sample 字段 + 默认值 + 上次生成内容
      *
      * @param subbarcode  样本编号
      * @param qcCategory  质控类型（wet_lab 湿实验 / bioinfo 生信；为空按 bioinfo）

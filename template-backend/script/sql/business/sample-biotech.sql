@@ -1,4 +1,4 @@
--- 药企样本信息表：一条正式订单 × 一个正式样本，不替换现有 sample_file。
+-- 药企样本信息表：一条正式订单 × 一个正式样本，不替换现有 cms_sample。
 -- 依据：药企生信订单查询接口_iPaaS对接说明.md（2026-10-27，schemaVersion=1.0）
 --       及用户提供的 CMS 字段截图；逐项映射见 docs/context/设计文档/sample-biotech.md。
 -- 规范：ai-rules/04-db-schema.md、ai-templates/db/table-template.sql。

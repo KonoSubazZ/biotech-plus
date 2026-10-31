@@ -98,7 +98,7 @@ class CdcRowDecoderTest {
             .setStoreValue(rowChange.toByteString())
             .setHeader(CanalEntry.Header.newBuilder()
                 .setSchemaName("ry-vue")
-                .setTableName("sample_file")
+                .setTableName("cms_sample")
                 .setLogfileName("mysql-bin.000001")
                 .setLogfileOffset(1024L)
                 .setExecuteTime(System.currentTimeMillis()))

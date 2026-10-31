@@ -5,7 +5,7 @@
 三个动作（都可重复执行，幂等）
   ① 样本信息  （CRM 接口，未实现）
        源：LIMS 库 192.168.20.131:8806 / omics.sample_file（按 BARCODE 取）
-       落：本系统 sample_file —— 本仓「样本信息」表就是生产录单表 myapp_webcrmsample 的
+       落：本系统 cms_sample —— 本仓「样本信息」表就是生产录单表 myapp_webcrmsample 的
            122 列全量镜像；本仓/本地库里没有名为 web_crm_sample 的表（已全仓 grep 确认）。
   ② 湿实验质控（LIMS 接口，未实现）
        源：<root>/<date>/<product>/<barcode>/<barcode>T/10.Upload/<barcode>T.qc.txt（样本）
@@ -29,7 +29,7 @@
 依赖：pymysql（系统 python3 已装 2.2.8）
 
 口径（2026-10-12 定）
-  · 归属：租户 0000001「圣域药企-测试」；sample_file.customer_name 写「圣域药企-测试」
+  · 归属：租户 0000001「圣域药企-测试」；cms_sample.customer_name 写「圣域药企-测试」
     （生信接收按 customer_name → sys_tenant 解析药企，写别的名字会整行拒收）
   · 缺项补值：qc_standard 配了阈值但 qc.txt 里没有的项编一个达标值（终文库浓度、peak_size、
     probe_capture_ratio、血液样本缺的 Q30），输出里打 [编] 标记；--no-fabricate 可关掉
@@ -67,7 +67,7 @@ WET_RECEIVE = "/qc/wetLabQc/receive"
 BIO_RECEIVE = "/qc/bioinfo/receive"
 
 # ---------------------------------------------------------------- 映射表
-# ① LIMS omics.sample_file 列 → 本系统 sample_file 列（同名列/规范化后同名的不再重复写）
+# ① LIMS omics.sample_file 列 → 本系统 cms_sample 列（同名列/规范化后同名的不再重复写）
 SAMPLE_COL_MAP = {
     "subbarcode": "subbarcode",              # 业务键（源表 BARCODE 与它同值）
     "person_name": "patient_name",
@@ -223,13 +223,13 @@ def local_columns(table: str) -> set:
 # ---------------------------------------------------------------- ① 样本信息
 def fetch_lims_sample(subbarcode: str):
     with conn(**LIMS) as cn, cn.cursor(pymysql.cursors.DictCursor) as cur:
-        cur.execute("SELECT * FROM sample_file WHERE BARCODE=%s OR subbarcode=%s "
+        cur.execute("SELECT * FROM cms_sample WHERE BARCODE=%s OR subbarcode=%s "
                     "ORDER BY sample_id DESC LIMIT 1", (subbarcode, subbarcode))
         return cur.fetchone()
 
 
 def build_sample_row(lims: dict, tenant: str, customer_name: str, cols: set):
-    """LIMS 行 → 本系统 sample_file 的一行（只填映射得到且本表存在的列）"""
+    """LIMS 行 → 本系统 cms_sample 的一行（只填映射得到且本表存在的列）"""
     row, used, unmapped = {}, [], []
     for src, dst in SAMPLE_COL_MAP.items():
         if src in lims and dst in cols:
@@ -249,8 +249,8 @@ def build_sample_row(lims: dict, tenant: str, customer_name: str, cols: set):
         if src in SAMPLE_COL_MAP or src in SAMPLE_SAME_NAME:
             continue
         unmapped.append(src)
-    # 租户：湿实验质控接收按 sample_file.tenant_id 落库；
-    #       生信质控接收按 sample_file.customer_name → sys_tenant(tenant_id 或 tenant_name) 解析租户。
+    # 租户：湿实验质控接收按 cms_sample.tenant_id 落库；
+    #       生信质控接收按 cms_sample.customer_name → sys_tenant(tenant_id 或 tenant_name) 解析租户。
     # 所以两者都指到目标药企（customer_name 用 sys_tenant.tenant_name，如「圣域药企-测试」→ 0000001）。
     row["tenant_id"] = tenant
     row["customer_name"] = customer_name
@@ -264,11 +264,11 @@ def upsert_sample(row: dict, apply: bool):
     cols = list(row)
     placeholders = ", ".join(["%s"] * len(cols))
     updates = ", ".join("%s=VALUES(%s)" % (c, c) for c in cols if c not in ("tenant_id", "subbarcode"))
-    sql = ("INSERT INTO sample_file (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s, update_time=NOW()"
+    sql = ("INSERT INTO cms_sample (%s) VALUES (%s) ON DUPLICATE KEY UPDATE %s, update_time=NOW()"
            % (", ".join(cols), placeholders, updates))
     with conn(**LOCAL) as cn:
         with cn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM sample_file WHERE tenant_id=%%s AND subbarcode=%%s"
+            cur.execute("SELECT COUNT(*) FROM cms_sample WHERE tenant_id=%%s AND subbarcode=%%s"
                         % (), (row["tenant_id"], row["subbarcode"]))
             existed = cur.fetchone()[0] > 0
             cur.execute(sql, [row[c] for c in cols])
@@ -332,8 +332,8 @@ def verify(subbarcode: str):
     sql = [
         ("analysis_data", "SELECT analysis_id,analysis_date,product,drive_status FROM analysis_data "
                           "WHERE subbarcode=%s"),
-        ("sample_file", "SELECT id,patient_name,sex,cancer_type,erp_test_name,customer_name,tenant_id "
-                        "FROM sample_file WHERE subbarcode=%s"),
+        ("cms_sample", "SELECT id,patient_name,sex,cancer_type,erp_test_name,customer_name,tenant_id "
+                        "FROM cms_sample WHERE subbarcode=%s"),
         ("wet_lab_qc", "SELECT id,patho_tumor_purity,dna_total_ng,dna_degradation,pre_lib_total_ng,"
                        "dna_total_ng_normal,pre_lib_total_ng_normal,status,tenant_id FROM wet_lab_qc "
                        "WHERE subbarcode=%s"),
@@ -360,7 +360,7 @@ def check_interfaces(token: str):
                                 "已存在（登录态新增，非上游推送）"))
     print("  %-26s %-24s %s" % ("/report/sampleInfo/importData", "report:sampleInfo:import",
                                 "已存在（Excel 导入，122 列按序）"))
-    print("  缺：样本信息的『上游推送接收』接口 —— 本脚本第①步直接写 sample_file 兜住这一步")
+    print("  缺：样本信息的『上游推送接收』接口 —— 本脚本第①步直接写 cms_sample 兜住这一步")
 
 
 # ---------------------------------------------------------------- main
@@ -370,7 +370,7 @@ def main():
     parser.add_argument("--barcode", action="append", help="只处理指定样本编号（可多次）")
     parser.add_argument("--tenant", default=DEFAULT_TENANT, help="样本归属租户，默认 %s（圣域）" % DEFAULT_TENANT)
     parser.add_argument("--customer-name", default=DEFAULT_CUSTOMER_NAME,
-                        help="sample_file.customer_name（生信接收靠它解析药企），默认 %s" % DEFAULT_CUSTOMER_NAME)
+                        help="cms_sample.customer_name（生信接收靠它解析药企），默认 %s" % DEFAULT_CUSTOMER_NAME)
     parser.add_argument("--no-fabricate", action="store_true", help="缺项不编值，qc.txt 没有的就不写")
     parser.add_argument("--data-root", default=DATA_ROOT, help="上传根目录，默认 %s" % DATA_ROOT)
     parser.add_argument("--check-interfaces", action="store_true", help="只探接收接口")
@@ -390,7 +390,7 @@ def main():
 
     print("模式：%s   租户：%s   样本数：%d\n" % ("APPLY（真写）" if args.apply else "干跑（--apply 才写）",
                                               args.tenant, len(samples)))
-    cols = local_columns("sample_file")
+    cols = local_columns("cms_sample")
 
     summary = []
     for s in samples:
@@ -398,14 +398,14 @@ def main():
         print("=" * 78)
         print("样本 %s   产品=%s   分析日期=%s" % (bc, s["product"], s["analysis_date"]))
 
-        # ---------- ① 样本信息：LIMS omics.sample_file → 本系统 sample_file
+        # ---------- ① 样本信息：LIMS omics.sample_file → 本系统 cms_sample
         lims = fetch_lims_sample(bc)
         if not lims:
             print("  [①] LIMS 里查不到该条码 → 跳过整条样本")
             continue
         row, used, unmapped = build_sample_row(lims, args.tenant, args.customer_name, cols)
         outcome = upsert_sample(row, args.apply)
-        print("  [①] 样本信息 ← %s:%s/%s.sample_file   →  sample_file (%s)" % (
+        print("  [①] 样本信息 ← %s:%s/%s.sample_file   →  cms_sample (%s)" % (
             LIMS["host"], LIMS["port"], LIMS["database"], outcome))
         print("      写入 %d 列：%s" % (len(used), ", ".join("%s=%s" % (d, str(v)[:22]) for _, d, v in used)))
         print("      未映射（保留 NULL）%d 列：%s" % (len(unmapped), ", ".join(unmapped)))

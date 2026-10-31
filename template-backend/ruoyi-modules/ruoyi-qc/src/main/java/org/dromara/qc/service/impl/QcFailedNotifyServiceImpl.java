@@ -118,7 +118,7 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
         String category = normalizeCategory(qcCategory);
         QcNotifySampleVo sample = TenantContext.withoutTenant(() -> notifyMapper.selectSampleForNotify(code));
         if (sample == null) {
-            throw new ServiceException("sample_file 里查不到该样本编号：" + code);
+            throw new ServiceException("cms_sample 里查不到该样本编号：" + code);
         }
         // 归属药企与两个质控接口同一口径：取样本自身的 cms_sample.tenant_id
         // （不走「客户名 → sys_tenant」那条 —— 客户名对不上时会让通知也生成不了）
@@ -154,11 +154,11 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
         bo.setQcCategory(category);
         QcNotifySampleVo sample = TenantContext.withoutTenant(() -> notifyMapper.selectSampleForNotify(code));
         if (sample == null) {
-            throw new ServiceException("sample_file 里查不到该样本编号：" + code);
+            throw new ServiceException("cms_sample 里查不到该样本编号：" + code);
         }
         String tenantId = TenantContext.withoutTenant(() -> notifyMapper.selectTenantIdBySubbarcode(code));
         if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException("sample_file 里查不到该样本编号的归属药企（tenant_id 为空），无法生成通知");
+            throw new ServiceException("cms_sample 里查不到该样本编号的归属药企（tenant_id 为空），无法生成通知");
         }
         // 通知单归属「样本所属药企」：整段在它的租户作用域里跑，落库的 tenant_id 也由拦截器按它补
         return TenantContext.withTenant(tenantId, () -> renderAndSave(bo, sample));
@@ -219,7 +219,7 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
         }
     }
 
-    /** 预填：先按 sample_file 回填，再用最近一条通知记录覆盖（并标记已生成） */
+    /** 预填：先按 cms_sample 回填，再用最近一条通知记录覆盖（并标记已生成） */
     private QcFailedNotifyPrefillVo buildPrefill(QcNotifySampleVo sample, String qcCategory, Long wetLabQcId,
                                                  Long bioinfoQcId, String analysisTime, String failureReason) {
         QcFailedNotifyPrefillVo vo = new QcFailedNotifyPrefillVo();
@@ -261,7 +261,7 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
     /**
      * 带上一次生成的内容（重新生成时不用重填）
      * <p>
-     * 只带「人工填写」的字段：表头那几项永远以 sample_file 的最新值为准（样本信息后来可能被补全），
+     * 只带「人工填写」的字段：表头那几项永远以 cms_sample 的最新值为准（样本信息后来可能被补全），
      * 多选位从落库的中文名反解回来。
      */
     private void applyLatest(QcFailedNotifyPrefillVo vo, QcFailedNotifyPrefillVo latest) {

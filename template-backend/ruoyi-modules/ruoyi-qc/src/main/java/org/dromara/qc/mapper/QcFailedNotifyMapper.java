@@ -11,14 +11,14 @@ import org.dromara.qc.domain.vo.QcFailedNotifyVo;
  * 样本质控不合格通知 数据层
  * <p>
  * 单表增删改查用继承来的 BaseMapperPlus 能力；
- * 「按样本编号回填样本信息」是跨表只读查询（sample_file），写在 resources/mapper/qc/QcFailedNotifyMapper.xml。
+ * 「按样本编号回填样本信息」是跨表只读查询（cms_sample），写在 resources/mapper/qc/QcFailedNotifyMapper.xml。
  *
  * @author <你的名字>
  */
 public interface QcFailedNotifyMapper extends BaseMapperPlus<QcFailedNotify, QcFailedNotifyVo> {
 
     /**
-     * 按样本编号取通知单要回填的样本字段（sample_file）
+     * 按样本编号取通知单要回填的样本字段（cms_sample）
      * <p>
      * 调用方必须放在 {@code TenantContext.withoutTenant(...)} 里：样本可能属于别的药企，
      * 带租户条件会查不到。

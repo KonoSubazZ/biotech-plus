@@ -32,7 +32,7 @@ public class ReportModuleContext {
     /** 报告 + 分析行（selectReportRow） */
     private Map<String, Object> report;
 
-    /** LIMS 信息（sample_file 映射） */
+    /** LIMS 信息（cms_sample 映射） */
     private InterpretationLimsVo lims;
 
     /** 已算好的体细胞报出位点（含匹配结果） */

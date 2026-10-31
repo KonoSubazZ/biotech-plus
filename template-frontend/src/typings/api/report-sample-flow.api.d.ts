@@ -6,7 +6,7 @@
 declare namespace Api {
   namespace Report {
     // ---------------------------------------------------------------------
-    // 样本流转：一行 = 一个分析批次（analysis_data）⟕ sample_file ⟕ 最新一份报告
+    // 样本流转：一行 = 一个分析批次（analysis_data）⟕ cms_sample ⟕ 最新一份报告
     // ---------------------------------------------------------------------
 
     /** 样本流转列表行（= 后端 SampleFlowRowVo） */
@@ -25,7 +25,7 @@ declare namespace Api {
       driveStatus: number | null;
       /** 驱动执行时间 */
       driveExecutedAt: string | null;
-      /** 送检单位 / 客户（sample_file.customer_name） */
+      /** 送检单位 / 客户（cms_sample.customer_name） */
       customerName: string | null;
       /** 患者姓名 */
       patientName: string | null;
@@ -84,7 +84,7 @@ declare namespace Api {
       /** 回退来源状态（审核失败回退时非空） */
       revertFrom: number | null;
       /**
-       * 本行最新更新时间（analysis_data / analysis_report / sample_file 三者 update_time 的最大值）。
+       * 本行最新更新时间（analysis_data / analysis_report / cms_sample 三者 update_time 的最大值）。
        * 前端轮询对比它 + 行集合判断「有没有变化」，没变化就不替换表格。
        */
       latestUpdateTime: string | null;

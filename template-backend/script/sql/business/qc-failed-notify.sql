@@ -1,7 +1,7 @@
 -- 样本质控不合格通知（处理记录）：生信/湿实验质控判定不合格后，走「处理」弹窗生成通知文档时留痕
--- 为什么单独一张表：通知文档的字段来自 sample_file + 质控记录 + 人工填写三处，
+-- 为什么单独一张表：通知文档的字段来自 cms_sample + 质控记录 + 人工填写三处，
 --   且生成出来的 JSON / DOCX 路径要能追溯（合规要求「生成记录流存」）。
--- 关系（用户口径）：sample_file 一定有；湿实验不合格 → 没有生信质控；湿实验合格 → 生信可能合格/不合格。
+-- 关系（用户口径）：cms_sample 一定有；湿实验不合格 → 没有生信质控；湿实验合格 → 生信可能合格/不合格。
 -- 每次「生成」追加一条记录（流水留痕），同一张通知单可重新生成多份；按 subbarcode 取最新一条做回显。
 -- 体检：python3 tools/check_db_schema.py
 
@@ -10,7 +10,7 @@ SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS `qc_failed_notify` (
     id                bigint        NOT NULL AUTO_INCREMENT  COMMENT '主键',
 
-    subbarcode        varchar(100)  NOT NULL                 COMMENT '样本编号（= sample_file.subbarcode）',
+    subbarcode        varchar(100)  NOT NULL                 COMMENT '样本编号（= cms_sample.subbarcode）',
     sample_file_id    bigint                  DEFAULT NULL   COMMENT '样本信息 id（一定有）',
     wet_lab_qc_id     bigint                  DEFAULT NULL   COMMENT '湿实验质控 id（湿实验不合格时才有）',
     bioinfo_qc_id     bigint                  DEFAULT NULL   COMMENT '生信质控 id（湿实验合格后才可能有）',

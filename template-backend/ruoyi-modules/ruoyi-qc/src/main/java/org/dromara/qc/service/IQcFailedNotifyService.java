@@ -14,7 +14,7 @@ import java.io.File;
  */
 public interface IQcFailedNotifyService {
     /**
-     * 处理弹窗预填：表头按样本编号回填 sample_file 字段 + 默认值 + 上次生成内容
+     * 处理弹窗预填：表头按样本编号回填 cms_sample 字段 + 默认值 + 上次生成内容
      * <p>
      * 按 {@code qcCategory} 取对应质控表（wet_lab → wet_lab_qc / bioinfo → bioinfo_qc）的
      * 质控记录 id、分析时间与不达标原因；为空按 bioinfo 处理（老调用方兼容）。

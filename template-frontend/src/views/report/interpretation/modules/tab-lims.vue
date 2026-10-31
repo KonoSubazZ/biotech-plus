@@ -6,7 +6,7 @@ defineOptions({
 });
 
 interface Props {
-  /** 后端 InterpretationLimsVo：字段已按设计书 5.2 从 sample_file 映射好 */
+  /** 后端 InterpretationLimsVo：字段已按设计书 5.2 从 cms_sample 映射好 */
   lims: Api.Report.InterpretationLims;
 }
 
@@ -23,7 +23,7 @@ function show(value: string | null | undefined) {
     <NAlert v-if="props.lims.found === false" type="error" :bordered="false" title="未找到样本信息">
       按样本编号
       <b>{{ props.lims.subbarcode }}</b>
-      在样本信息（sample_file.subbarcode）里没有查到记录 —— LIMS 信息缺失，无法继续解读。
+      在样本信息（cms_sample.subbarcode）里没有查到记录 —— LIMS 信息缺失，无法继续解读。
     </NAlert>
 
     <template v-else>

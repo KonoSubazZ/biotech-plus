@@ -92,7 +92,7 @@ declare namespace Api {
       subbarcode: string | null;
       productBio: string | null;
       productId: number | null;
-      /** 项目编号（= sample_file.project_no） */
+      /** 项目编号（= cms_sample.project_no） */
       projectNo: string | null;
       /** 上传批次目录名（= analysis_data.analysis_batch_date） */
       analysisBatchDate: string | null;
@@ -117,7 +117,7 @@ declare namespace Api {
       reportSentAt: string | null;
     }
 
-    /** 解读页 Tab① LIMS 信息（= 后端 InterpretationLimsVo；数据源 sample_file） */
+    /** 解读页 Tab① LIMS 信息（= 后端 InterpretationLimsVo；数据源 cms_sample） */
     interface InterpretationLims {
       /** 是否找到该样本编号的样本信息；false = 没有 LIMS 数据（会阻止生成） */
       found: boolean | null;

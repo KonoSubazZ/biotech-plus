@@ -51,7 +51,7 @@ import org.dromara.report.service.impl.revision.ReportOperationLock;
  *   <li>列表 = analysis_data ⟕ 该批次最新一份 analysis_report（一个批次可有多份报告，列表只显示最新那份的状态）。</li>
  *   <li>进入解读 = 复用该批次「未完成」（report_status ≠ 62）的报告；没有才新建（状态 20 生信看点），
  *       样本/产品信息从 analysis_data 复制。</li>
- *   <li>上下文 = 报告头 + LIMS 信息（读 sample_file，按 subbarcode = subbarcode）+ 生成前校验结论。</li>
+ *   <li>上下文 = 报告头 + LIMS 信息（读 cms_sample，按 subbarcode = subbarcode）+ 生成前校验结论。</li>
  * </ul>
  * 位点筛选、预览、审核、发送属于后续页面的能力，不在这里实现。
  *
@@ -201,7 +201,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
         report.setSubbarcode(snapshot.getSubbarcode());
         report.setProductBio(snapshot.getProduct());
         report.setProductId(resolveProductId(snapshot.getProductId(), snapshot.getProduct()));
-        // 录单癌种 + 项目编号：进入解读时就带上（LIMS sample_file，按样本编号取）
+        // 录单癌种 + 项目编号：进入解读时就带上（LIMS cms_sample，按样本编号取）
         SampleInfo lims = selectSample(snapshot.getSubbarcode());
         report.setCancerType(lims == null ? null : lims.getCancerType());
         // 项目编号是报告必填字段（用户 2026-10-22）：样本没维护项目号就不让建报告，避免出现空项目
@@ -389,7 +389,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
     }
 
     /**
-     * LIMS 信息：按 subbarcode = analysis_data.subbarcode 读 sample_file（本仓已把生产库录单样本表
+     * LIMS 信息：按 subbarcode = analysis_data.subbarcode 读 cms_sample（本仓已把生产库录单样本表
      * myapp_webcrmsample 的 122 列全量落成这张表），再按设计书 5.2 的字段映射挑出报告需要的列。
      * <p>
      * 校验口径（设计书 5.2「关键校验」）：
@@ -420,7 +420,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
         return lims;
     }
 
-    /** sample_file → LIMS 字段映射（设计书 5.2 的字段对照表） */
+    /** cms_sample → LIMS 字段映射（设计书 5.2 的字段对照表） */
     private void fillLims(InterpretationLimsVo lims, SampleInfo sample) {
         lims.setPatientId(sample.getPcode());
         lims.setPatientName(sample.getPatientName());

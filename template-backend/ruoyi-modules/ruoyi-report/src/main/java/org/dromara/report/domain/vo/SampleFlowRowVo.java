@@ -7,10 +7,10 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 样本流转列表行（analysis_data ⟕ sample_file ⟕ analysis_report）。
+ * 样本流转列表行（analysis_data ⟕ cms_sample ⟕ analysis_report）。
  * <p>
  * 一行 = 一个分析批次；报告的可见状态、处理人在 analysis_report 上，样本侧展示字段来自
- * analysis_data 与 sample_file。字段名与前端 typings 的 Api.Report.SampleFlowRow 一一对应。
+ * analysis_data 与 cms_sample。字段名与前端 typings 的 Api.Report.SampleFlowRow 一一对应。
  *
  * @author <你的名字>
  */
@@ -135,7 +135,7 @@ public class SampleFlowRowVo implements Serializable {
     private Integer revertFrom;
 
     /**
-     * 本行最新更新时间：取 analysis_data / analysis_report / sample_file 三者 update_time 的最大值。
+     * 本行最新更新时间：取 analysis_data / analysis_report / cms_sample 三者 update_time 的最大值。
      * <p>
      * 前端轮询用它做「有没有变化」的对比（行集合 + 该时间戳），没变就不动表格，避免整表闪动、丢失滚动位置。
      */

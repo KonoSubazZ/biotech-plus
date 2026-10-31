@@ -25,7 +25,7 @@ export function fetchGetBioinfoQc(id: number) {
   });
 }
 
-/** 样本编号 → 药企解析（排查「接口推数据被拒收」用，静默查 sample_file 与 sys_tenant） */
+/** 样本编号 → 药企解析（排查「接口推数据被拒收」用，静默查 cms_sample 与 sys_tenant） */
 export function fetchResolveBioinfoQcTenant(subbarcode: string) {
   return request<Api.Qc.BioinfoQcTenant>({
     url: '/qc/bioinfo/tenant',

@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import org.dromara.report.domain.SampleInfo;
 
 /**
- * 样本信息视图对象 sample_file
+ * 样本信息视图对象 cms_sample
  *
  * @author <你的名字>
  */

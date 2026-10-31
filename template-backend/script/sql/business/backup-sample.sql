@@ -12,11 +12,11 @@ SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `backup_sample_file` (
   `id`              bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `sample_id`       bigint(20)    NOT NULL COMMENT 'sample_file.id',
+  `sample_id`       bigint(20)    NOT NULL COMMENT 'cms_sample.id',
   `report_id`       bigint(20)    DEFAULT NULL COMMENT 'analysis_report.report_id（一样本多报告时用于归属）',
   `subbarcode`      varchar(100)  NOT NULL COMMENT '样本编号',
-  `project_no`      varchar(100)  DEFAULT NULL COMMENT '项目编号（sample_file.project_no）',
-  `order_code`      varchar(100)  DEFAULT NULL COMMENT '订单批次编号（sample_file.order_code）',
+  `project_no`      varchar(100)  DEFAULT NULL COMMENT '项目编号（cms_sample.project_no）',
+  `order_code`      varchar(100)  DEFAULT NULL COMMENT '订单批次编号（cms_sample.order_code）',
   `product_bio`     varchar(120)  DEFAULT NULL COMMENT '生信产品编码（analysis_data.product_bio）',
   `research_center` varchar(200)  DEFAULT NULL COMMENT '研究中心/客户名称',
   `file_category`   varchar(32)   NOT NULL COMMENT 'report_docx/report_pdf/report_json/report_signed_pdf/notify_*/fastq/bam/vcf/other',

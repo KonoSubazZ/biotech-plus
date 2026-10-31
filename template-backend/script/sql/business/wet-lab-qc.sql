@@ -2,7 +2,7 @@
 -- 湿实验质控 wet_lab_qc —— **宽表：一行一个样本，每个质控项一列**（形态对齐生信质控 bioinfo_qc）
 -- 列名 = 质控标准里的 qc_param（英文原始字段名），中文名在 qc_standard.qc_item 里维护
 --   （qc_param 既是标准与实测值的对齐键，也是本表的列名 —— 判定时按它取阈值比对）
--- 数据来源：上游湿实验流程推送（POST /qc/wetLabQc/receive），落库按 sample_file 解析归属药企
+-- 数据来源：上游湿实验流程推送（POST /qc/wetLabQc/receive），落库按 cms_sample 解析归属药企
 -- 当前列（与 qc_standard 里启用的 wet_lab 标准一一对应；新增质控项要同时加列 + 加标准）：
 --   patho_tumor_purity        肿瘤纯度
 --   dna_total_ng              DNA总量（ng）
@@ -21,7 +21,7 @@ SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `wet_lab_qc` (
     `id`                     bigint       NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `subbarcode`             varchar(80)  NOT NULL                COMMENT '样本条码（关联 sample_file.subbarcode）',
+    `subbarcode`             varchar(80)  NOT NULL                COMMENT '样本条码（关联 cms_sample.subbarcode）',
 
     -- 业务字段：一个质控项一列，列名 = qc_standard.qc_param（英文原始字段名）
     `patho_tumor_purity`     varchar(50)                          COMMENT '肿瘤纯度',

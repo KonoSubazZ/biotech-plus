@@ -9,7 +9,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 样本信息业务对象 sample_file
+ * 样本信息业务对象 cms_sample
  * <p>
  * 122 个业务字段与实体一一对应（列名见 SampleInfo 的字段注释）；text 列不校验长度，
  * varchar 列按源表长度加 @Size。样本编号（subbarcode，源表列 BARCODE）是业务键，见 Service 的查重 / upsert。

@@ -21,7 +21,7 @@ public class QcFailedNotifyBo implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 样本编号（必填；后面所有回填都按它查 sample_file） */
+    /** 样本编号（必填；后面所有回填都按它查 cms_sample） */
     @NotBlank(message = "样本编号不能为空")
     @Size(max = 100, message = "样本编号长度不能超过 100")
     private String subbarcode;

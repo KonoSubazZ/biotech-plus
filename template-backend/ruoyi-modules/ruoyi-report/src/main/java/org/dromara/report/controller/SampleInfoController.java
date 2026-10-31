@@ -37,7 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 样本信息（sample_file）
+ * 样本信息（cms_sample）
  * <p>
  * 路由前缀沿用 RuoYi 的 /{模块}/{实体} 约定。
  * 字段按生产库录单样本表的 122 列全量建（见 SampleInfo 的字段注释）；

@@ -3,7 +3,7 @@ package org.dromara.qc.domain.vo;
 import lombok.Data;
 
 /**
- * 不合格通知要回填的样本字段（来自 sample_file，按 subbarcode 取）
+ * 不合格通知要回填的样本字段（来自 cms_sample，按 subbarcode 取）
  * <p>
  * 只取通知单表头用得上的几个列（示例口径）：研究方案编号 ← contracts_no、诺禾项目编号 ← order_code、
  * 试验参与者编号 ← pcode、研究中心名称 ← testing_institution、样本接收日期 ← collect_date、

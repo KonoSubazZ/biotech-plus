@@ -95,7 +95,7 @@ declare namespace Api {
 
     /** 样本备份列表行（= 后端 BackupSampleRowVo，按 sample_id 聚合） */
     interface SampleRow {
-      /** sample_file.id */
+      /** cms_sample.id */
       sampleId: number;
       subbarcode: string;
       projectNo?: string | null;

@@ -11,7 +11,7 @@
 --   ④ 去掉参考 SQL 全部物理外键（fk_report_analysis / fk_file_analysis / fk_report_email_*）；
 --      product_template 改代理主键 id + uk_product_template(tenant_id, product_id, template_id)
 --   ⑤ 产品外键语义：product_id → product_config.id（本仓产品主数据，不再建 product 表）
---   ⑥ LIMS 不建表：复用 sample_file（已含 myapp_webcrmsample 全量 122 列）
+--   ⑥ LIMS 不建表：复用 cms_sample（已含 myapp_webcrmsample 全量 122 列）
 --      基因不建表：复用 product_gene（gene_id 指向跨库 nkb.ncbi_gene）
 -- 幂等：CREATE TABLE IF NOT EXISTS / NOT EXISTS，可反复执行
 -- ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS `analysis_report` (
   `subbarcode` varchar(80) NOT NULL COMMENT '样本编号',
   `product_bio` varchar(120) NOT NULL COMMENT '生信产品编码快照（= analysis_data.product_bio）',
   `product_id` bigint(20) DEFAULT NULL COMMENT '产品ID',
-  `project_no` varchar(60) NOT NULL COMMENT '项目编号快照（= sample_file.project_no）',
+  `project_no` varchar(60) NOT NULL COMMENT '项目编号快照（= cms_sample.project_no）',
   `analysis_disease_id` bigint(20) DEFAULT NULL COMMENT '解读癌种ID',
   `analysis_disease` varchar(255) DEFAULT NULL,
   `cancer_type` varchar(256) DEFAULT NULL COMMENT 'LIMS癌种（myapp_webcrmsample.CANCERTYPE）',
