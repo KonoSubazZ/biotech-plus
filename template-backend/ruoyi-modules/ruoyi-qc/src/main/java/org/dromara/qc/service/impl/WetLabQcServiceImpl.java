@@ -104,6 +104,23 @@ public class WetLabQcServiceImpl implements IWetLabQcService {
         return Boolean.TRUE;
     }
 
+    /**
+     * 当前 token 绑定的账号自带的租户；平台账号（000000）或没有登录态时返回 null。
+     * <p>
+     * 有值时数据归属直接用它，不再反查样本 —— 这是「一个药企一个用户一个 token」的口径。
+     * 返回 null 表示调用方是历史平台账号（如 tumor），需要按样本解析租户兜底。
+     */
+    private String tokenTenantOrNull() {
+        if (TenantContext.isIgnored()) {
+            return null;
+        }
+        String tenantId = TenantContext.getTenantId();
+        if (StringUtils.isBlank(tenantId) || TenantContext.DEFAULT_TENANT_ID.equals(tenantId)) {
+            return null;
+        }
+        return tenantId;
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public WetLabQcReceiveResultVo receive(List<WetLabQcBo> items) {
@@ -120,17 +137,22 @@ public class WetLabQcServiceImpl implements IWetLabQcService {
                 skippedRows.add(new WetLabQcReceiveResultVo.SkippedRow(null, "subbarcode 为空"));
                 continue;
             }
-            // 归属药企：取样本自身的 cms_sample.tenant_id。这个查询必须静默 —— 此刻还没有该药企的
-            // 租户作用域，样本也可能属于别的药企；解析不出来就按行拒收，不静默丢数据、也不给默认租户。
-            String tenantId = TenantContext.withoutTenant(
-                () -> baseMapper.selectTenantIdBySubbarcode(subbarcode));
-            if (StringUtils.isBlank(tenantId)) {
-                skippedRows.add(new WetLabQcReceiveResultVo.SkippedRow(subbarcode,
-                    "sample_file 里查不到该样本编号（或其 tenant_id 为空）"));
-                continue;
+            // 归属租户：token 绑定的账号本身属于某个药企时（tenant_id ≠ 000000）直接用它的租户；
+            // 只有平台账号（历史的 tumor token）才回退到「按样本查 cms_sample.tenant_id」。
+            // 回退查询必须静默 —— 此刻还没有该药企的租户作用域，样本也可能属于别的药企。
+            String tenantId = tokenTenantOrNull();
+            if (tenantId == null) {
+                tenantId = TenantContext.withoutTenant(
+                    () -> baseMapper.selectTenantIdBySubbarcode(subbarcode));
+                if (StringUtils.isBlank(tenantId)) {
+                    skippedRows.add(new WetLabQcReceiveResultVo.SkippedRow(subbarcode,
+                        "cms_sample 里查不到该样本编号（或其 tenant_id 为空）"));
+                    continue;
+                }
             }
-            // 归属药企由服务端解析，调用方指定不了：withTenant 后租户拦截器会按该药企读写
-            SaveOutcome outcome = TenantContext.withTenant(tenantId, () -> saveOne(item, subbarcode));
+            // withTenant 后租户拦截器会按该租户读写；调用方指定不了归属
+            String resolved = tenantId;
+            SaveOutcome outcome = TenantContext.withTenant(resolved, () -> saveOne(item, subbarcode));
             if (outcome.reason() != null) {
                 skippedRows.add(new WetLabQcReceiveResultVo.SkippedRow(subbarcode, outcome.reason()));
                 continue;

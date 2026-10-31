@@ -104,6 +104,23 @@ public class BioinfoQcServiceImpl implements IBioinfoQcService {
         return Boolean.TRUE;
     }
 
+    /**
+     * 当前 token 绑定的账号自带的租户；平台账号（000000）或没有登录态时返回 null。
+     * <p>
+     * 有值时数据归属直接用它，不再反查样本 —— 这是「一个药企一个用户一个 token」的口径。
+     * 返回 null 表示调用方是历史平台账号（如 tumor），需要按样本解析租户兜底。
+     */
+    private String tokenTenantOrNull() {
+        if (TenantContext.isIgnored()) {
+            return null;
+        }
+        String tenantId = TenantContext.getTenantId();
+        if (StringUtils.isBlank(tenantId) || TenantContext.DEFAULT_TENANT_ID.equals(tenantId)) {
+            return null;
+        }
+        return tenantId;
+    }
+
     @Override
     public BioinfoQcTenantVo resolveTenant(String subbarcode) {
         BioinfoQcTenantVo result = new BioinfoQcTenantVo();
@@ -140,13 +157,20 @@ public class BioinfoQcServiceImpl implements IBioinfoQcService {
                 skippedRows.add(new BioinfoQcReceiveResultVo.SkippedRow(null, "subbarcode 为空"));
                 continue;
             }
-            BioinfoQcTenantVo tenant = resolveTenant(subbarcode);
-            if (!Boolean.TRUE.equals(tenant.getFound())) {
-                skippedRows.add(new BioinfoQcReceiveResultVo.SkippedRow(subbarcode, tenantSkipReason(tenant)));
-                continue;
+            // 归属租户：token 绑定的账号本身属于某个药企时（tenant_id ≠ 000000）直接用它的租户，
+            // 不再反查样本；只有平台账号（历史的 tumor token，tenant_id=000000）才回退到按样本解析。
+            String tenantId = tokenTenantOrNull();
+            if (tenantId == null) {
+                BioinfoQcTenantVo tenant = resolveTenant(subbarcode);
+                if (!Boolean.TRUE.equals(tenant.getFound())) {
+                    skippedRows.add(new BioinfoQcReceiveResultVo.SkippedRow(subbarcode, tenantSkipReason(tenant)));
+                    continue;
+                }
+                tenantId = tenant.getTenantId();
             }
-            // 归属药企由服务端解析，调用方指定不了：withTenant 后租户拦截器会按该药企读写
-            boolean isInsert = TenantContext.withTenant(tenant.getTenantId(), () -> saveOne(item, subbarcode));
+            // withTenant 后租户拦截器会按该租户读写；调用方指定不了归属
+            String resolved = tenantId;
+            boolean isInsert = TenantContext.withTenant(resolved, () -> saveOne(item, subbarcode));
             if (isInsert) {
                 inserted++;
             } else {
@@ -165,7 +189,7 @@ public class BioinfoQcServiceImpl implements IBioinfoQcService {
      */
     private String tenantSkipReason(BioinfoQcTenantVo tenant) {
         if (StringUtils.isBlank(tenant.getCustomerName())) {
-            return "sample_file 里查不到该样本编号（或其 customer_name 为空）";
+            return "cms_sample 里查不到该样本编号（或其 customer_name 为空）";
         }
         return "客户名 " + tenant.getCustomerName() + " 匹配不到启用中的药企（sys_tenant）";
     }
