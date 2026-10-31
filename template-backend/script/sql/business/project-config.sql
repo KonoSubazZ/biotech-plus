@@ -4,7 +4,7 @@
 --   单表自关联：parent_id=0 是项目行，parent_id=项目行 id 是研究中心行；
 --   不建中心主表/关联表。唯一键 uk_project_config_node(tenant_id, project_no,
 --   research_center_no, research_center_name) 同时管住「一个项目编号一行」与「同一项目下（编号,名称）不重复」。
---   contract_name / contract_code / study_plan_no 是项目级展示字段，不参与业务逻辑；
+--   contract_name / contract_no / scheme_no 是项目级展示字段，不参与业务逻辑；
 --   research_center_no 与 research_center_name 成对，中心行必填、项目行空串。
 -- 规范：ai-rules/04-db-schema.md     模板：ai-templates/db/table-template.sql
 -- 体检：python3 tools/check_db_schema.py   （error 必须为 0）
@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS `project_config` (
     project_name  varchar(200) NOT NULL DEFAULT ''               COMMENT '项目名称（仅项目行有值）',
     customer      varchar(200) NOT NULL DEFAULT ''               COMMENT '客户名称（仅项目行有值）',
     contract_name varchar(200)           DEFAULT NULL            COMMENT '合同名称（仅项目行有值；展示字段，不参与业务逻辑）',
-    contract_code varchar(100)           DEFAULT NULL            COMMENT '合同编号（仅项目行有值；展示字段）',
-    study_plan_no varchar(100)           DEFAULT NULL            COMMENT '研究方案编号（仅项目行有值；展示字段）',
+    contract_no varchar(100)           DEFAULT NULL            COMMENT '合同编号（仅项目行有值；展示字段）',
+    scheme_no varchar(100)           DEFAULT NULL            COMMENT '研究方案编号（仅项目行有值；展示字段）',
     research_center_no   varchar(100) NOT NULL DEFAULT ''        COMMENT '研究中心编号（仅中心行有值；项目行为空串，与名称成对参与唯一键）',
     research_center_name varchar(200) NOT NULL DEFAULT ''        COMMENT '研究中心名称（仅中心行有值；项目行为空串，参与唯一键）',
     receive_email varchar(500) NOT NULL DEFAULT ''               COMMENT '收件邮箱（;分隔）；项目行=项目自身，中心行=该中心',

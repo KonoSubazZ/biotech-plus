@@ -1,4 +1,4 @@
--- 样本信息表（sample_file）+「报告管理」菜单与权限点位
+-- 样本信息表（cms_sample）+「报告管理」菜单与权限点位
 -- 字段来源：**生产库的录单样本表 myapp_webcrmsample 全量 122 列**（不含主键 id）
 --           dump: ~/project/biotech/sql/biotech-structure-20261002.sql
 --           （设计文档 docs/context/设计文档/spec.md §1.4 只是它的裁剪子集，字段偏少，已按真实表补全）
@@ -18,7 +18,7 @@ SET NAMES utf8mb4;
 -- ============================================================================
 -- 1. 建表（列顺序与源表一致）
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS `sample_file` (
+CREATE TABLE IF NOT EXISTS `cms_sample` (
     id                            bigint        NOT NULL AUTO_INCREMENT  COMMENT '主键',
 
     age                           varchar(50)  COMMENT '年龄（源表列 AGE）',

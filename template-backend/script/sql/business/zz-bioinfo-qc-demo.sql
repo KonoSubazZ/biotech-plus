@@ -1,6 +1,6 @@
--- 生信质控演示数据：11 条样本（sample_file）
+-- 生信质控演示数据：11 条样本（cms_sample）
 -- 用途：让「上游推生信质控数据」和「质控不合格通知」两条链路都能跑通 ——
---       POST /qc/bioinfo/receive 只收 subbarcode，归属药企由服务端静默查 sample_file.customer_name（再匹配 sys_tenant）；
+--       POST /qc/bioinfo/receive 只收 subbarcode，归属药企由服务端静默查 cms_sample.customer_name（再匹配 sys_tenant）；
 --       通知单表头（研究方案编号/诺禾项目编号/试验参与者编号/研究中心名称/样本接收日期/样本类型/样本数量/检测产品）
 --       按 subbarcode 从这里回填（这几列是示例口径，真实系统里由 web_crm 源表同步）。
 -- 数据来源：/home/liushangzhi/project/sample_qc_info.sql 的 11 行样例，把源 sample_id 当作样本编号
@@ -11,7 +11,7 @@
 
 SET NAMES utf8mb4;
 
-INSERT IGNORE INTO `sample_file` (`id`, `subbarcode`, `customer_name`, `sample_type`, `tenant_id`,
+INSERT IGNORE INTO `cms_sample` (`id`, `subbarcode`, `customer_name`, `sample_type`, `tenant_id`,
     `contracts_no`, `order_code`, `pcode`, `testing_institution`, `collect_date`, `specimen_num`, `erp_test_name`)
 VALUES
     (1001, '2085f9ba-cec3-4512-91f3-4cc293a062f7', '0000001', '石蜡切片', '0000001',
@@ -38,7 +38,7 @@ VALUES
      'NGS-2026-011', 'P20260101', 'SUBJ-1011', '示例研究中心', '2026-06-10', '1', 'novopm2_tis_1238');
 
 -- 已经存在的老行也要补上示例列（显式主键的 INSERT IGNORE 不会更新已有行）
-UPDATE `sample_file` SET
+UPDATE `cms_sample` SET
     `contracts_no`        = CONCAT('NGS-2026-', LPAD(`id` % 1000, 3, '0')),
     `order_code`          = CONCAT('P2026010', `id` % 10),
     `pcode`               = CONCAT('SUBJ-', `id`),
@@ -50,4 +50,4 @@ WHERE `id` BETWEEN 1001 AND 1011;
 
 SELECT id, subbarcode, customer_name, contracts_no, order_code, pcode, testing_institution,
        collect_date, specimen_num, erp_test_name, tenant_id
-FROM `sample_file` WHERE id BETWEEN 1001 AND 1011;
+FROM `cms_sample` WHERE id BETWEEN 1001 AND 1011;
