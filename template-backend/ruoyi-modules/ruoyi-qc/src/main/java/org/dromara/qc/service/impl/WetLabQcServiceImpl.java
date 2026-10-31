@@ -36,7 +36,7 @@ import java.util.Map;
  * <p>
  * 表是**宽表：一行一个样本，每个质控项一列**（列名 = qc_standard.qc_param），形态对齐生信质控。
  * 数据来源只有一个：上游通过 {@code POST /qc/wetLabQc/receive} 推送（见 {@link #receive}），
- * 落库租户取样本自身的 sample_file.tenant_id；阈值留在 qc_standard，落库时按 qc_param 取来判定
+ * 落库租户取样本自身的 cms_sample.tenant_id；阈值留在 qc_standard，落库时按 qc_param 取来判定
  * {@code status}（passed 合格 / failed 不合格 / pending 待判定）。人工修改（{@link #updateByBo}）后同样重判。
  *
  * @author <你的名字>
@@ -120,7 +120,7 @@ public class WetLabQcServiceImpl implements IWetLabQcService {
                 skippedRows.add(new WetLabQcReceiveResultVo.SkippedRow(null, "subbarcode 为空"));
                 continue;
             }
-            // 归属药企：取样本自身的 sample_file.tenant_id。这个查询必须静默 —— 此刻还没有该药企的
+            // 归属药企：取样本自身的 cms_sample.tenant_id。这个查询必须静默 —— 此刻还没有该药企的
             // 租户作用域，样本也可能属于别的药企；解析不出来就按行拒收，不静默丢数据、也不给默认租户。
             String tenantId = TenantContext.withoutTenant(
                 () -> baseMapper.selectTenantIdBySubbarcode(subbarcode));

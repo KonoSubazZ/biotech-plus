@@ -15,7 +15,7 @@
                specimen_num        AS sampleCount,
                erp_test_name       AS product,
                customer_name       AS customerName
-        FROM sample_file
+        FROM cms_sample
         WHERE subbarcode = #{subbarcode}
           AND del_flag = '0'
         ORDER BY id DESC
@@ -23,13 +23,13 @@
     </select>
 
     <!--
-      按样本编号取归属药企（sample_file.tenant_id）。通知单与两个质控接口同一口径：
+      按样本编号取归属药企（cms_sample.tenant_id）。通知单与两个质控接口同一口径：
       取样本自身的归属，不用「客户名 → sys_tenant」二次翻译（客户名对不上时通知就生成不了）。
       调用方需 withoutTenant。
     -->
     <select id="selectTenantIdBySubbarcode" resultType="java.lang.String">
         SELECT tenant_id
-        FROM sample_file
+        FROM cms_sample
         WHERE subbarcode = #{subbarcode}
         ORDER BY id DESC
         LIMIT 1

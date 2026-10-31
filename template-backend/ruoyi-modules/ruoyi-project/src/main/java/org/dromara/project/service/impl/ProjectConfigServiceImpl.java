@@ -152,8 +152,8 @@ public class ProjectConfigServiceImpl implements IProjectConfigService {
         entity.setProjectName("");
         entity.setCustomer("");
         entity.setContractName(null);
-        entity.setContractCode(null);
-        entity.setStudyPlanNo(null);
+        entity.setContractNo(null);
+        entity.setSchemeNo(null);
         entity.setResearchCenterNo(centerNo);
         entity.setResearchCenterName(centerName);
 
@@ -189,8 +189,8 @@ public class ProjectConfigServiceImpl implements IProjectConfigService {
         entity.setProjectName(null);
         entity.setCustomer(null);
         entity.setContractName(null);
-        entity.setContractCode(null);
-        entity.setStudyPlanNo(null);
+        entity.setContractNo(null);
+        entity.setSchemeNo(null);
         entity.setResearchCenterNo(centerNo);
         entity.setResearchCenterName(centerName);
         return baseMapper.updateById(entity) > 0;
@@ -451,8 +451,8 @@ public class ProjectConfigServiceImpl implements IProjectConfigService {
         entity.setProjectName("");
         entity.setCustomer("");
         entity.setContractName(null);
-        entity.setContractCode(null);
-        entity.setStudyPlanNo(null);
+        entity.setContractNo(null);
+        entity.setSchemeNo(null);
         entity.setResearchCenterNo(centerNo);
         entity.setResearchCenterName(centerName);
         entity.setReceiveEmail(receiveEmail);

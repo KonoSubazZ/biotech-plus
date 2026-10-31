@@ -44,11 +44,11 @@ public class ProjectConfig extends BaseEntity {
 
     /** 合同编号（仅项目行有值；展示字段） */
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
-    private String contractCode;
+    private String contractNo;
 
     /** 研究方案编号（仅项目行有值；展示字段） */
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
-    private String studyPlanNo;
+    private String schemeNo;
 
     /** 研究中心编号（仅研究中心行有值；项目行为空串） */
     @TableField(updateStrategy = FieldStrategy.ALWAYS)

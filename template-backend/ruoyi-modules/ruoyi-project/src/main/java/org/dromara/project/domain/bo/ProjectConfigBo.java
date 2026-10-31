@@ -46,11 +46,11 @@ public class ProjectConfigBo extends BaseEntity {
 
     /** 合同编号（展示字段，不参与业务逻辑） */
     @Size(max = 100, message = "合同编号长度不能超过 100")
-    private String contractCode;
+    private String contractNo;
 
     /** 研究方案编号（展示字段，不参与业务逻辑） */
     @Size(max = 100, message = "研究方案编号长度不能超过 100")
-    private String studyPlanNo;
+    private String schemeNo;
 
     /**
      * 收件邮箱（报告发送用）

@@ -57,7 +57,7 @@ public class AnalysisReport extends BaseEntity {
     /** 产品ID（逻辑关联 product_config.id） */
     private Long productId;
 
-    /** 项目编号快照（= sample_file.project_no，报告创建时必填） */
+    /** 项目编号快照（= cms_sample.project_no，报告创建时必填） */
     private String projectNo;
 
     /** 解读癌种ID */

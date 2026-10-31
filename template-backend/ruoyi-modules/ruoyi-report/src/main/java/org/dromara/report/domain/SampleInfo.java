@@ -9,7 +9,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 样本信息对象 sample_file
+ * 样本信息对象 cms_sample
  * <p>
  * 字段按生产库的「录单样本表」<b>全量 122 列</b>搬过来（源表 myapp_webcrmsample，
  * 见 ~/project/biotech/sql/biotech-structure-20261002.sql），列名只做了大小写/下划线规范化：
@@ -22,7 +22,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("sample_file")
+@TableName("cms_sample")
 public class SampleInfo extends BaseEntity {
 
     /** 主键 */

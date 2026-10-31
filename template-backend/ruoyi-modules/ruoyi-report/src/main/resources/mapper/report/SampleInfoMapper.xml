@@ -19,7 +19,7 @@
     -->
     <select id="selectIdBySubbarcodeIncludeDeleted" resultType="java.lang.Long">
         SELECT id
-        FROM sample_file
+        FROM cms_sample
         WHERE subbarcode = #{subbarcode}
         ORDER BY id ASC
         LIMIT 1
@@ -27,7 +27,7 @@
 
     <!-- 把软删除的行恢复（导入命中已删行时用）；update_by 随后由 updateById 重写 -->
     <update id="restoreById">
-        UPDATE sample_file
+        UPDATE cms_sample
         SET del_flag = '0', update_time = NOW()
         WHERE id = #{id}
     </update>

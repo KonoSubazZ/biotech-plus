@@ -25,7 +25,7 @@ public class QcFailedNotify extends BaseEntity {
     private Long id;
 
     // @fields:start
-    /** 样本编号（= sample_file.subbarcode） */
+    /** 样本编号（= cms_sample.subbarcode） */
     private String subbarcode;
 
     /** 样本信息 id（一定有） */

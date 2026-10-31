@@ -14,7 +14,7 @@ import lombok.Data;
 public class QcFailedNotifyPrefillVo {
 
     // ── 关联关系（表头信息） ───────────────────────────────────────
-    /** sample_file.id（一定有） */
+    /** cms_sample.id（一定有） */
     private Long sampleFileId;
 
     /** 生信质控 id（湿实验合格后才可能有） */

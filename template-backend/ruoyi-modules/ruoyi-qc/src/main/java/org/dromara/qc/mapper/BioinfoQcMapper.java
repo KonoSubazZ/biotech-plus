@@ -30,7 +30,7 @@ public interface BioinfoQcMapper extends BaseMapperPlus<BioinfoQc, BioinfoQcVo> 
     /**
      * 按客户名解析药企编号：先按 tenant_id 精确匹配（客户名就是药企编号时），再按 tenant_name 精确匹配
      *
-     * @param customer 客户名（sample_file.customer_name）
+     * @param customer 客户名（cms_sample.customer_name）
      * @return 药企编号；匹配不到返回 null
      */
     String selectTenantIdByCustomer(@Param("customer") String customer);

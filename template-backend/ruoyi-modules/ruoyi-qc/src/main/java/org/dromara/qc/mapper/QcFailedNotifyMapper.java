@@ -29,7 +29,7 @@ public interface QcFailedNotifyMapper extends BaseMapperPlus<QcFailedNotify, QcF
     QcNotifySampleVo selectSampleForNotify(@Param("subbarcode") String subbarcode);
 
     /**
-     * 按样本编号取归属药企（sample_file.tenant_id）—— 通知单与质控接口同一口径：
+     * 按样本编号取归属药企（cms_sample.tenant_id）—— 通知单与质控接口同一口径：
      * 取样本自身的归属，不走「客户名 → sys_tenant」（客户名对不上时会让通知也生成不了）。
      * 调用方必须放在 {@code TenantContext.withoutTenant(...)} 里。
      *

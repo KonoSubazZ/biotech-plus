@@ -17,7 +17,7 @@ import java.util.Date;
 @NoArgsConstructor
 public class BackupSampleRowVo {
 
-    /** sample_file.id */
+    /** cms_sample.id */
     private Long sampleId;
 
     /** 样本编号 */

@@ -36,7 +36,7 @@ public interface IBioinfoQcService {
     BioinfoQcVo queryById(Long id);
 
     /**
-     * 样本编号 → 药企：查 sample_file.customer_name，再按它匹配 sys_tenant（静默，不限定租户）
+     * 样本编号 → 药企：查 cms_sample.customer_name，再按它匹配 sys_tenant（静默，不限定租户）
      *
      * @param subbarcode 样本编号
      * @return 解析结果（含 found 标记与命中的客户名）

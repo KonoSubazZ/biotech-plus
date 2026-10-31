@@ -49,7 +49,7 @@ public class AnalysisReportVo implements Serializable {
     /** 产品ID（product_config.id） */
     private Long productId;
 
-    /** 项目编号（= sample_file.project_no） */
+    /** 项目编号（= cms_sample.project_no） */
     private String projectNo;
 
     /** 上传批次目录名（= analysis_data.analysis_batch_date） */

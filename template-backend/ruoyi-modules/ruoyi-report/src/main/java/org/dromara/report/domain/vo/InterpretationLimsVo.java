@@ -9,7 +9,7 @@ import java.io.Serializable;
  * 解读页 Tab①：LIMS 信息（样本信息）
  * <p>
  * 数据源不另建 LIMS 表：本仓已把生产库录单样本表（myapp_webcrmsample，122 列）全量落成
- * {@code sample_file}，按 {@code sample_file.subbarcode = analysis_data.subbarcode} 取一条。
+ * {@code sample_file}，按 {@code cms_sample.subbarcode = analysis_data.subbarcode} 取一条。
  * 字段映射见 docs/context/report/report-module-design.md 第 5.2 节。
  *
  * @author <你的名字>
@@ -27,7 +27,7 @@ public class InterpretationLimsVo implements Serializable {
     private String subbarcode;
 
     // ---------------- 患者信息 ----------------
-    /** 患者编号（sample_file.pcode） */
+    /** 患者编号（cms_sample.pcode） */
     private String patientId;
     /** 患者姓名 */
     private String patientName;

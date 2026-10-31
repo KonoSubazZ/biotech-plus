@@ -41,16 +41,16 @@ public class SampleFlowRowVo implements Serializable {
     /** 驱动执行时间 */
     private Date driveExecutedAt;
 
-    /** 送检单位 / 客户（sample_file.customer_name） */
+    /** 送检单位 / 客户（cms_sample.customer_name） */
     private String customerName;
 
-    /** 患者姓名（sample_file.patient_name） */
+    /** 患者姓名（cms_sample.patient_name） */
     private String patientName;
 
-    /** 样本类型（sample_file.sample_type） */
+    /** 样本类型（cms_sample.sample_type） */
     private String sampleType;
 
-    /** 录单产品（sample_file.erp_test_name） */
+    /** 录单产品（cms_sample.erp_test_name） */
     private String erpTestName;
 
     /** 报告ID（为空 = 该批次还没有报告记录） */

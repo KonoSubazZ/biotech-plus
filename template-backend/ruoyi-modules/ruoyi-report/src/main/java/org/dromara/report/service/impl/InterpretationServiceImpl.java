@@ -411,7 +411,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
         SampleInfo sample = selectSample(subbarcode);
         lims.setFound(sample != null);
         if (sample == null) {
-            errors.add("未找到该样本编号的样本信息（sample_file.subbarcode）：" + subbarcode);
+            errors.add("未找到该样本编号的样本信息（cms_sample.subbarcode）：" + subbarcode);
             return lims;
         }
 

@@ -26,7 +26,7 @@ public class BackupSampleFile extends BaseEntity {
     private Long id;
 
     // @fields:start
-    /** sample_file.id */
+    /** cms_sample.id */
     private Long sampleId;
 
     /** analysis_report.report_id（一样本多报告时用于归属） */

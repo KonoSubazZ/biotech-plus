@@ -120,7 +120,7 @@ public class QcFailedNotifyServiceImpl implements IQcFailedNotifyService {
         if (sample == null) {
             throw new ServiceException("sample_file 里查不到该样本编号：" + code);
         }
-        // 归属药企与两个质控接口同一口径：取样本自身的 sample_file.tenant_id
+        // 归属药企与两个质控接口同一口径：取样本自身的 cms_sample.tenant_id
         // （不走「客户名 → sys_tenant」那条 —— 客户名对不上时会让通知也生成不了）
         String tenantId = TenantContext.withoutTenant(() -> notifyMapper.selectTenantIdBySubbarcode(code));
         if (StringUtils.isBlank(tenantId)) {

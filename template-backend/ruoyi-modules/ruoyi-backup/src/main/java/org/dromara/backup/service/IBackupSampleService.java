@@ -27,7 +27,7 @@ public interface IBackupSampleService {
     /**
      * 某个样本的文件明细
      *
-     * @param sampleId sample_file.id
+     * @param sampleId cms_sample.id
      * @return 文件列表
      */
     List<BackupSampleFileVo> selectFiles(Long sampleId);

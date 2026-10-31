@@ -40,10 +40,10 @@ public class ProjectConfigVo {
     private String contractName;
 
     /** 合同编号（仅项目行有值；展示字段） */
-    private String contractCode;
+    private String contractNo;
 
     /** 研究方案编号（仅项目行有值；展示字段） */
-    private String studyPlanNo;
+    private String schemeNo;
 
     /** 研究中心编号（仅研究中心行有值） */
     private String researchCenterNo;

@@ -28,7 +28,7 @@ public class WetLabQc extends BaseEntity {
     @TableId(value = "id")
     private Long id;
 
-    /** 样本条码（关联 sample_file.subbarcode） */
+    /** 样本条码（关联 cms_sample.subbarcode） */
     private String subbarcode;
 
     // @fields:start

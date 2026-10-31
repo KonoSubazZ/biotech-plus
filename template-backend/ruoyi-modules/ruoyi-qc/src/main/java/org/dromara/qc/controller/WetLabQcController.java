@@ -34,7 +34,7 @@ import java.util.List;
  * 表是宽表（一行一个样本，每个质控项一列），形态对齐生信质控。
  * 数据全部由上游通过 {@code POST /qc/wetLabQc/receive} 推送，故没有新增 / 修改接口，只有查询与删除。
  * 推送方带固定 token（见 ApiTokenInterceptor，路径配在 application.yml 的 api.token.paths）时无需登录，
- * 服务端按 sample_file.subbarcode 取样本自身归属药企，把行落在该药企名下。
+ * 服务端按 cms_sample.subbarcode 取样本自身归属药企，把行落在该药企名下。
  *
  * @author <你的名字>
  */

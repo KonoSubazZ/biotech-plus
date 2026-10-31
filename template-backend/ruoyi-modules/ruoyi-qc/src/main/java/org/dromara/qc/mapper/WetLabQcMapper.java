@@ -9,7 +9,7 @@ import org.dromara.qc.domain.vo.WetLabQcVo;
  * 湿实验质控 数据层
  * <p>
  * 单表增删改查、简单条件组合、排序、计数一律用继承来的 BaseMapperPlus 能力。
- * 下面几个是接口灌数据时用的：① 按样本编号取归属药企（sample_file.tenant_id）；
+ * 下面几个是接口灌数据时用的：① 按样本编号取归属药企（cms_sample.tenant_id）；
  * ② 「含已逻辑删除行」的取行 + 清理（唯一键 (tenant_id, subbarcode) 不含 del_flag）。
  * 写在 resources/mapper/qc/WetLabQcMapper.xml。
  *
@@ -18,7 +18,7 @@ import org.dromara.qc.domain.vo.WetLabQcVo;
 public interface WetLabQcMapper extends BaseMapperPlus<WetLabQc, WetLabQcVo> {
 
     /**
-     * 按样本编号取「归属药企编号」（sample_file.tenant_id）—— 样本自身的归属，服务端可信
+     * 按样本编号取「归属药企编号」（cms_sample.tenant_id）—— 样本自身的归属，服务端可信
      * <p>
      * 调用方必须放在 {@code TenantContext.withoutTenant(...)} 里：样本可能属于别的药企，
      * 带租户条件会查不到（此刻也还没有该药企的租户作用域）。

@@ -14,34 +14,34 @@ import lombok.Data;
 @Data
 public class QcNotifySampleVo {
 
-    /** sample_file.id */
+    /** cms_sample.id */
     private Long id;
 
     /** 样本编号 */
     private String subbarcode;
 
-    /** 研究方案编号（sample_file.contracts_no） */
+    /** 研究方案编号（cms_sample.contracts_no） */
     private String studyNo;
 
-    /** 诺禾项目编号（sample_file.order_code） */
+    /** 诺禾项目编号（cms_sample.order_code） */
     private String projectNo;
 
-    /** 试验参与者编号（sample_file.pcode） */
+    /** 试验参与者编号（cms_sample.pcode） */
     private String participantNo;
 
-    /** 研究中心名称（sample_file.testing_institution） */
+    /** 研究中心名称（cms_sample.testing_institution） */
     private String center;
 
-    /** 样本接收日期（sample_file.collect_date） */
+    /** 样本接收日期（cms_sample.collect_date） */
     private String receiveDate;
 
     /** 样本类型 */
     private String sampleType;
 
-    /** 样本数量（sample_file.specimen_num） */
+    /** 样本数量（cms_sample.specimen_num） */
     private String sampleCount;
 
-    /** 检测产品（sample_file.erp_test_name） */
+    /** 检测产品（cms_sample.erp_test_name） */
     private String product;
 
     /** 客户（= 药企名，用于解析归属药企） */

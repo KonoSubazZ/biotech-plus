@@ -40,7 +40,7 @@ public interface SampleInfoMapper extends BaseMapperPlus<SampleInfo, SampleInfoV
      * <p>
      * 跨模块只读查询：ruoyi-report 不依赖 ruoyi-qc，所以走一条只读 SQL，
      * 与 ruoyi-project 的 countQcStandardByProductId 同一口径。
-     * 湿实验质控（wet_lab_qc）把同一个样本编号叫 subbarcode，值是 sample_file.subbarcode
+     * 湿实验质控（wet_lab_qc）把同一个样本编号叫 subbarcode，值是 cms_sample.subbarcode
      * （原 qc_record 已于 2026-10-12 下线，湿实验质控改走 wet_lab_qc）。
      *
      * @param subbarcode 样本编号
