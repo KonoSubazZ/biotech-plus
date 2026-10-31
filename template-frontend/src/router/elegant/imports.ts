@@ -24,6 +24,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   "user-center": () => import("@/views/_builtin/user-center/index.vue"),
   about: () => import("@/views/about/index.vue"),
   backup_database: () => import("@/views/backup/database/index.vue"),
+  backup_sample: () => import("@/views/backup/sample/index.vue"),
   "compliance_dev-log": () => import("@/views/compliance/dev-log/index.vue"),
   compliance_documents: () => import("@/views/compliance/documents/index.vue"),
   "compliance_validation-records": () => import("@/views/compliance/validation-records/index.vue"),

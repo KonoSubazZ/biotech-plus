@@ -173,6 +173,7 @@ const routeMap: RouteMap = {
   "about": "/about",
   "backup": "/backup",
   "backup_database": "/backup/database",
+  "backup_sample": "/backup/sample",
   "compliance": "/compliance",
   "compliance_dev-log": "/compliance/dev-log",
   "compliance_documents": "/compliance/documents",

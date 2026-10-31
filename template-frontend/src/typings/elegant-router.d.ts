@@ -27,6 +27,7 @@ declare module "@elegant-router/types" {
     "about": "/about";
     "backup": "/backup";
     "backup_database": "/backup/database";
+    "backup_sample": "/backup/sample";
     "compliance": "/compliance";
     "compliance_dev-log": "/compliance/dev-log";
     "compliance_documents": "/compliance/documents";
@@ -146,6 +147,7 @@ declare module "@elegant-router/types" {
     | "user-center"
     | "about"
     | "backup_database"
+    | "backup_sample"
     | "compliance_dev-log"
     | "compliance_documents"
     | "compliance_validation-records"

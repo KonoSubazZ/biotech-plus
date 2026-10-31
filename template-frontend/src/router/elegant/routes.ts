@@ -67,6 +67,15 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'backup_database',
           i18nKey: 'route.backup_database'
         }
+      },
+      {
+        name: 'backup_sample',
+        path: '/backup/sample',
+        component: 'view.backup_sample',
+        meta: {
+          title: 'backup_sample',
+          i18nKey: 'route.backup_sample'
+        }
       }
     ]
   },

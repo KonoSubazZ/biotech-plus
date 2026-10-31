@@ -93,6 +93,61 @@ declare namespace Api {
       ossLatestAt?: string | null;
     }
 
+    /** 样本备份列表行（= 后端 BackupSampleRowVo，按 sample_id 聚合） */
+    interface SampleRow {
+      /** sample_file.id */
+      sampleId: number;
+      subbarcode: string;
+      projectNo?: string | null;
+      orderCode?: string | null;
+      productBio?: string | null;
+      researchCenter?: string | null;
+      /** 文件总数 */
+      fileTotal: number;
+      /** 已成功数（含跳过） */
+      fileDone: number;
+      /** 失败数 */
+      fileFailed: number;
+      /** 跳过数（OSS 已有同 MD5） */
+      fileSkipped: number;
+      totalBytes?: number | null;
+      backedBytes?: number | null;
+      /** 样本级状态：0 待备份 / 2 全部成功 / 3 部分成功 / 4 全部失败 */
+      backupStatus?: number | null;
+      lastBackupAt?: string | null;
+    }
+
+    /** 样本备份文件明细（= 后端 BackupSampleFileVo） */
+    interface SampleFile {
+      id: number;
+      reportId?: number | null;
+      fileCategory: string;
+      fileName?: string | null;
+      serverHost?: string | null;
+      serverPath?: string | null;
+      fileSize?: number | null;
+      fileMd5?: string | null;
+      ossPath?: string | null;
+      ossMetaMd5?: string | null;
+      /** 0 待备份 / 1 备份中 / 2 成功 / 3 失败 / 4 跳过 */
+      backupStatus?: number | null;
+      backupTime?: string | null;
+      failReason?: string | null;
+    }
+
+    /** 样本备份查询参数 */
+    type SampleSearchParams = CommonType.RecordNullable<
+      {
+        subbarcode?: string;
+        projectNo?: string;
+        orderCode?: string;
+        productBio?: string;
+        backupStatus?: number;
+        beginDate?: string;
+        endDate?: string;
+      } & Common.CommonSearchParams
+    >;
+
     /** 查询参数（全量与增量共用） */
     type DbBackupSearchParams = CommonType.RecordNullable<
       {
