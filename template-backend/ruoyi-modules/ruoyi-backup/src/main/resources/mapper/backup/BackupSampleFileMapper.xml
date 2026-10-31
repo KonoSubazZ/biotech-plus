@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  样本备份：表里只有文件级事实（一物理文件一行），列表页按 sample_id 聚合。
+  tenant_id 由多租户插件自动补，语句里不写；普通值一律 #{} 绑定。
+-->
+<mapper namespace="org.dromara.backup.mapper.BackupSampleFileMapper">
+
+  <!-- 样本级状态：全部成功=2 / 全部失败=4 / 有成功有失败=3 / 全未处理=0（跳过 4 视为已处理） -->
+  <sql id="sampleStatusCase">
+    CASE
+      WHEN SUM(CASE WHEN f.backup_status = 3 THEN 1 ELSE 0 END) = 0
+       AND SUM(CASE WHEN f.backup_status IN (2, 4) THEN 1 ELSE 0 END) = COUNT(*) THEN 2
+      WHEN SUM(CASE WHEN f.backup_status IN (2, 4) THEN 1 ELSE 0 END) = 0
+       AND SUM(CASE WHEN f.backup_status = 3 THEN 1 ELSE 0 END) = COUNT(*) THEN 4
+      WHEN SUM(CASE WHEN f.backup_status IN (2, 4) THEN 1 ELSE 0 END) > 0 THEN 3
+      ELSE 0
+    END
+  </sql>
+
+  <select id="selectSamplePage" resultType="org.dromara.backup.domain.vo.BackupSampleRowVo">
+    SELECT
+      f.sample_id                                              AS sampleId,
+      f.subbarcode                                             AS subbarcode,
+      MAX(f.project_no)                                        AS projectNo,
+      MAX(f.order_code)                                        AS orderCode,
+      MAX(f.product_bio)                                       AS productBio,
+      MAX(f.research_center)                                   AS researchCenter,
+      COUNT(*)                                                 AS fileTotal,
+      SUM(CASE WHEN f.backup_status IN (2, 4) THEN 1 ELSE 0 END) AS fileDone,
+      SUM(CASE WHEN f.backup_status = 3 THEN 1 ELSE 0 END)     AS fileFailed,
+      SUM(CASE WHEN f.backup_status = 4 THEN 1 ELSE 0 END)     AS fileSkipped,
+      COALESCE(SUM(f.file_size), 0)                            AS totalBytes,
+      COALESCE(SUM(CASE WHEN f.backup_status = 2 THEN f.file_size ELSE 0 END), 0) AS backedBytes,
+      MAX(f.backup_time)                                       AS lastBackupAt,
+      <include refid="sampleStatusCase"/>                      AS backupStatus
+    FROM backup_sample_file f
+    WHERE f.del_flag = '0'
+    <if test="bo.subbarcode != null and bo.subbarcode != ''">
+      AND f.subbarcode LIKE CONCAT('%', #{bo.subbarcode}, '%')
+    </if>
+    <if test="bo.projectNo != null and bo.projectNo != ''">
+      AND f.project_no LIKE CONCAT('%', #{bo.projectNo}, '%')
+    </if>
+    <if test="bo.orderCode != null and bo.orderCode != ''">
+      AND f.order_code LIKE CONCAT('%', #{bo.orderCode}, '%')
+    </if>
+    <if test="bo.productBio != null and bo.productBio != ''">
+      AND f.product_bio = #{bo.productBio}
+    </if>
+    <if test="bo.beginDate != null and bo.beginDate != ''">
+      AND f.create_time &gt;= CONCAT(#{bo.beginDate}, ' 00:00:00')
+    </if>
+    <if test="bo.endDate != null and bo.endDate != ''">
+      AND f.create_time &lt;= CONCAT(#{bo.endDate}, ' 23:59:59')
+    </if>
+    GROUP BY f.sample_id, f.subbarcode
+    <if test="bo.backupStatus != null">
+      HAVING backupStatus = #{bo.backupStatus}
+    </if>
+    ORDER BY lastBackupAt DESC, f.sample_id DESC
+  </select>
+
+  <select id="selectFilesBySampleId" resultType="org.dromara.backup.domain.vo.BackupSampleFileVo">
+    SELECT
+      f.id            AS id,
+      f.report_id     AS reportId,
+      f.file_category AS fileCategory,
+      f.file_name     AS fileName,
+      f.server_host   AS serverHost,
+      f.server_path   AS serverPath,
+      f.file_size     AS fileSize,
+      f.file_md5      AS fileMd5,
+      f.oss_path      AS ossPath,
+      f.oss_meta_md5  AS ossMetaMd5,
+      f.backup_status AS backupStatus,
+      f.backup_time   AS backupTime,
+      f.fail_reason   AS failReason
+    FROM backup_sample_file f
+    WHERE f.del_flag = '0'
+      AND f.sample_id = #{sampleId}
+    ORDER BY f.file_category, f.file_name
+  </select>
+
+  <select id="selectProductOptions" resultType="java.lang.String">
+    SELECT DISTINCT f.product_bio
+    FROM backup_sample_file f
+    WHERE f.del_flag = '0'
+      AND f.product_bio IS NOT NULL
+      AND f.product_bio != ''
+    ORDER BY f.product_bio
+  </select>
+
+</mapper>
