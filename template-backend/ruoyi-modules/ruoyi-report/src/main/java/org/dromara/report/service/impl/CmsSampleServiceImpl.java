@@ -23,8 +23,13 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 样本信息 业务层处理（cms_sample）
@@ -104,12 +109,61 @@ public class CmsSampleServiceImpl implements ICmsSampleService {
 
         CmsSampleImportResultVo result = new CmsSampleImportResultVo();
         result.setTotal(rows.size());
+
+        // 同一订单只能对应一个产品、一个样本名称（双样本组织 = 组织 + 血液对照，两行同产品同名称）
+        Map<Integer, String> orderErrors = findOrderConsistencyErrors(rows);
+
         for (int i = 0; i < rows.size(); i++) {
             // Excel 第 1 行是表头，所以数据行号从 2 开始
+            String orderError = orderErrors.get(i);
+            if (orderError != null) {
+                result.addError("第 " + (i + 2) + " 行：" + orderError);
+                continue;
+            }
             importOneRow(rows.get(i), i + 2, result);
         }
         result.setFailed(result.getErrors().size());
         return result;
+    }
+
+    /**
+     * 校验同一订单内的产品与样本名称是否一致。
+     * <p>
+     * 业务口径：一个订单的样本属于同一个产品；双样本组织（组织 + 血液对照）两行
+     * 除样本类型相关字段外，产品编码/产品名称/样本名称必须相同。
+     * 返回「数据行下标 -> 错误原因」，导入时整单跳过并逐行报错，避免脏数据落库。
+     */
+    private Map<Integer, String> findOrderConsistencyErrors(List<CmsSampleExcelRow> rows) {
+        Map<String, List<Integer>> rowsByOrder = new LinkedHashMap<>();
+        for (int i = 0; i < rows.size(); i++) {
+            String orderNo = StringUtils.trim(rows.get(i).getOrderNo());
+            if (StringUtils.isNotBlank(orderNo)) {
+                rowsByOrder.computeIfAbsent(orderNo, key -> new ArrayList<>()).add(i);
+            }
+        }
+
+        Map<Integer, String> errors = new HashMap<>();
+        rowsByOrder.forEach((orderNo, indexes) -> {
+            if (indexes.size() < 2) {
+                return;
+            }
+            Set<String> products = new HashSet<>();
+            Set<String> sampleNames = new HashSet<>();
+            for (Integer index : indexes) {
+                CmsSampleExcelRow row = rows.get(index);
+                String productCode = StringUtils.trim(row.getProductCode());
+                String productName = StringUtils.trim(row.getProductName());
+                String sampleName = StringUtils.trim(row.getSampleName());
+                products.add(StringUtils.isNotBlank(productCode) ? productCode : productName);
+                sampleNames.add(sampleName);
+            }
+            if (products.size() > 1 || sampleNames.size() > 1) {
+                String reason = "同一订单「" + orderNo + "」的样本产品/样本名称必须一致（产品数 "
+                    + products.size() + "、样本名称数 " + sampleNames.size() + "）";
+                indexes.forEach(index -> errors.put(index, reason));
+            }
+        });
+        return errors;
     }
 
     /** 读 Excel（FastExcel 按 CmsSampleExcelRow 的列序号映射并跳过表头行） */
