@@ -52,22 +52,22 @@ async function search() {
   <SearchCollapse name="sample-info-search" class="table-search">
     <NForm ref="formRef" :model="model" label-placement="left" :label-width="80">
       <NGrid responsive="screen" item-responsive>
-        <NFormItemGi span="24 s:12 m:6" label="诺禾编号" path="subbarcode" class="pr-24px">
+        <NFormItemGi span="24 s:12 m:8" label="诺禾编号" path="subbarcode" class="pr-24px">
           <NInput v-model:value="model.subbarcode" clearable placeholder="请输入诺禾编号" />
         </NFormItemGi>
-        <NFormItemGi span="24 s:12 m:6" label="订单编号" path="orderNo" class="pr-24px">
+        <NFormItemGi span="24 s:12 m:8" label="订单编号" path="orderNo" class="pr-24px">
           <NInput v-model:value="model.orderNo" clearable placeholder="请输入正式订单编号" />
         </NFormItemGi>
-        <NFormItemGi span="24 s:12 m:6" label="客户名称" path="customerName" class="pr-24px">
+        <NFormItemGi span="24 s:12 m:8" label="客户名称" path="customerName" class="pr-24px">
           <NInput v-model:value="model.customerName" clearable placeholder="请输入正式订单客户名称" />
         </NFormItemGi>
-        <NFormItemGi span="24 s:12 m:6" label="产品名称" path="productName" class="pr-24px">
+        <NFormItemGi span="24 s:12 m:8" label="产品名称" path="productName" class="pr-24px">
           <NInput v-model:value="model.productName" clearable placeholder="请输入产品名称" />
         </NFormItemGi>
-        <NFormItemGi span="24 s:12 m:6" label="样本类型" path="sampleType" class="pr-24px">
+        <NFormItemGi span="24 s:12 m:8" label="样本类型" path="sampleType" class="pr-24px">
           <NInput v-model:value="model.sampleType" clearable placeholder="请输入样本类型" />
         </NFormItemGi>
-        <NFormItemGi span="24 s:12 m:6" label="送检日期" path="params" class="pr-24px">
+        <NFormItemGi span="24 s:12 m:8" label="送检日期" path="params" class="pr-24px">
           <NDatePicker
             v-model:formatted-value="dateRangeSend"
             type="daterange"
@@ -77,7 +77,7 @@ async function search() {
             @update:formatted-value="onDateRangeSendUpdate"
           />
         </NFormItemGi>
-        <NFormItemGi span="24 s:12 m:12" class="pr-24px">
+        <NFormItemGi span="24" class="pr-24px">
           <NSpace class="w-full" justify="end">
             <NButton @click="reset">
               <template #icon>
