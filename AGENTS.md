@@ -233,7 +233,7 @@ docs/             模板代码生成模板（*.vm）+ 建表 SQL
 | 系统管理 | `/system/role`、`/system/user`、`/system/menu` | `设计文档/system-management.md` |
 | 报告解读 | `/report/interpretation` | 已实现，9 页签状态机（20 生信看点 → … → 62 报告发送）；制品/状态/冻结口径见 §3.3 |
 | 样本流转 | `/report/sample-flow` | 已实现，9 页签 + 处理（含生信认领）/ 重新驱动；口径见 §3.3 与 `docs/context/report/report-module-flow.md` |
-| 样本信息 | `/report/sample-info` | 已实现（LIMS 侧录单样本，表 `sample_file`） |
+| 样本信息 | `/sample/sample-info` | 已实现（CMS 样本信息，表 `cms_sample`；菜单归样本管理） |
 | 报告模板 / 邮件配置 / 位点历史 | `/report/template`、`/report/mail-config`、`/report/variant-history` | 已实现 |
 | 数据驱动（无页面） | `POST /report/drive/*` | 已实现，口径见 §3.2，外部由生信流程调用 |
 
