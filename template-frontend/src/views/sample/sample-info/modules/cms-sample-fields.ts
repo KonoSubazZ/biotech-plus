@@ -142,8 +142,24 @@ export const CMS_SAMPLE_GROUPS: CmsSampleGroup[] = [
 
 export const CMS_SAMPLE_FIELDS = CMS_SAMPLE_GROUPS.flatMap(group => group.fields);
 
-/** 列表默认展示的 9 个关键列 */
-export const DEFAULT_VISIBLE_COLUMNS: string[] = ["subbarcode", "orderNo", "customerName", "contractNo", "schemeNo", "productName", "sampleType", "collectionDate", "receiveConfirmStatus"];
+/** 列表默认展示的 15 个关键列（顺序即页面展示顺序） */
+export const DEFAULT_VISIBLE_COLUMNS: string[] = [
+  'subbarcode',
+  'sampleName',
+  'productName',
+  'birthYear',
+  'sex',
+  'sampleType',
+  'diseaseType',
+  'sampleAttribute',
+  'collectionSite',
+  'primaryTumorSite',
+  'customerName',
+  'projectNo',
+  'researchCenter',
+  'collectionDate',
+  'remark'
+];
 
 /** 空表单：只有业务键给空串，其余 null */
 export function createEmptyCmsSampleForm(): Api.Report.CmsSampleForm {

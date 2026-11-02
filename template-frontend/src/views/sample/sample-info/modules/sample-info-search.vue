@@ -49,25 +49,25 @@ async function search() {
 </script>
 
 <template>
-  <SearchCollapse name="sample-info-search">
-    <NForm ref="formRef" :model="model" label-placement="left" :label-width="90">
-      <div class="flex flex-wrap items-start">
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="样本编号" path="subbarcode">
+  <SearchCollapse name="sample-info-search" class="table-search">
+    <NForm ref="formRef" :model="model" label-placement="left" :label-width="80">
+      <NGrid responsive="screen" item-responsive>
+        <NFormItemGi span="24 s:12 m:6" label="诺禾编号" path="subbarcode" class="pr-24px">
           <NInput v-model:value="model.subbarcode" clearable placeholder="请输入诺禾编号" />
-        </NFormItem>
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="订单编号" path="orderNo">
+        </NFormItemGi>
+        <NFormItemGi span="24 s:12 m:6" label="订单编号" path="orderNo" class="pr-24px">
           <NInput v-model:value="model.orderNo" clearable placeholder="请输入正式订单编号" />
-        </NFormItem>
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="客户名称" path="customerName">
+        </NFormItemGi>
+        <NFormItemGi span="24 s:12 m:6" label="客户名称" path="customerName" class="pr-24px">
           <NInput v-model:value="model.customerName" clearable placeholder="请输入正式订单客户名称" />
-        </NFormItem>
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="产品名称" path="productName">
+        </NFormItemGi>
+        <NFormItemGi span="24 s:12 m:6" label="产品名称" path="productName" class="pr-24px">
           <NInput v-model:value="model.productName" clearable placeholder="请输入产品名称" />
-        </NFormItem>
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="样本类型" path="sampleType">
+        </NFormItemGi>
+        <NFormItemGi span="24 s:12 m:6" label="样本类型" path="sampleType" class="pr-24px">
           <NInput v-model:value="model.sampleType" clearable placeholder="请输入样本类型" />
-        </NFormItem>
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="送检日期" path="params">
+        </NFormItemGi>
+        <NFormItemGi span="24 s:12 m:6" label="送检日期" path="params" class="pr-24px">
           <NDatePicker
             v-model:formatted-value="dateRangeSend"
             type="daterange"
@@ -76,14 +76,24 @@ async function search() {
             class="w-full"
             @update:formatted-value="onDateRangeSendUpdate"
           />
-        </NFormItem>
-        <NFormItem class="ml-auto" :show-feedback="false">
-          <NSpace :size="16">
-            <NButton @click="reset">{{ $t('common.reset') }}</NButton>
-            <NButton type="primary" @click="search">{{ $t('common.search') }}</NButton>
+        </NFormItemGi>
+        <NFormItemGi span="24 s:12 m:12" class="pr-24px">
+          <NSpace class="w-full" justify="end">
+            <NButton @click="reset">
+              <template #icon>
+                <icon-ic-round-refresh class="text-icon" />
+              </template>
+              {{ $t('common.reset') }}
+            </NButton>
+            <NButton type="primary" ghost @click="search">
+              <template #icon>
+                <icon-ic-round-search class="text-icon" />
+              </template>
+              {{ $t('common.search') }}
+            </NButton>
           </NSpace>
-        </NFormItem>
-      </div>
+        </NFormItemGi>
+      </NGrid>
     </NForm>
   </SearchCollapse>
 </template>

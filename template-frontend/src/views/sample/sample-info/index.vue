@@ -35,25 +35,32 @@ const searchParams = ref<Api.Report.CmsSampleSearchParams>({
 /** 表头文案覆盖：列表里用短名，抽屉/列设置里仍用完整业务名 */
 const SHORT_TITLES: Record<string, string> = {
   customerName: '客户名称',
+  projectNo: '项目编号',
   contractNo: '合同编号',
   schemeNo: '方案编号',
   receiveConfirmStatus: '收样状态'
 };
 
-/** 默认 9 列的宽度预算：合计必须放得进 1440 视口，否则右侧「收样状态」会被固定操作列压住 */
+/** 默认 15 列的宽度预算：合计控制在 1600 内，1900 视口不用横向滚动 */
 const COLUMN_WIDTHS: Record<string, number> = {
-  subbarcode: 130,
-  orderNo: 140,
-  customerName: 170,
-  contractNo: 120,
-  schemeNo: 100,
-  productName: 160,
+  subbarcode: 170,
+  sampleName: 90,
+  productName: 100,
+  birthYear: 80,
+  sex: 50,
   sampleType: 100,
-  collectionDate: 110,
-  receiveConfirmStatus: 100
+  diseaseType: 150,
+  sampleAttribute: 80,
+  collectionSite: 85,
+  primaryTumorSite: 85,
+  customerName: 80,
+  projectNo: 75,
+  researchCenter: 105,
+  collectionDate: 100,
+  remark: 95
 };
 
-/** 列表列 = 87 个有效字段；默认只显示 9 个关键列，其余通过「列设置」打开 */
+/** 列表列 = 87 个有效字段；默认显示 15 个关键列，其余通过「列设置」打开 */
 const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagination, scrollX } =
   useNaivePaginatedTable({
     api: () => fetchGetCmsSampleList(searchParams.value),
@@ -68,8 +75,9 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: field.key,
         title: SHORT_TITLES[field.key] ?? field.label,
         align: 'center' as const,
-        minWidth: COLUMN_WIDTHS[field.key] ?? (field.long ? 220 : 140),
-        ellipsis: field.key === 'receiveConfirmStatus' ? false : { tooltip: true },
+        width: COLUMN_WIDTHS[field.key] ?? (field.long ? 220 : 140),
+        ellipsis: field.key === 'subbarcode' || field.key === 'receiveConfirmStatus' ? false : { tooltip: true },
+        className: field.key === 'subbarcode' ? 'barcode-cell' : undefined,
         render: field.key === 'receiveConfirmStatus' ? renderConfirmStatus : undefined
       })),
       {
@@ -246,3 +254,10 @@ async function handleBatchDelete() {
     <SampleInfoImportModal v-model:visible="importModalVisible" @submitted="getData" />
   </div>
 </template>
+
+<style scoped>
+/* 诺禾编号固定单行展示，不换行、不省略 */
+:deep(.barcode-cell) {
+  white-space: nowrap;
+}
+</style>
