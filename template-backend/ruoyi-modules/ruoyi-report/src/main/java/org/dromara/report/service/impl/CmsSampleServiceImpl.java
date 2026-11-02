@@ -147,19 +147,28 @@ public class CmsSampleServiceImpl implements ICmsSampleService {
             if (indexes.size() < 2) {
                 return;
             }
-            Set<String> products = new HashSet<>();
+            Set<String> productCodes = new HashSet<>();
+            Set<String> productNames = new HashSet<>();
             Set<String> sampleNames = new HashSet<>();
             for (Integer index : indexes) {
                 CmsSampleExcelRow row = rows.get(index);
                 String productCode = StringUtils.trim(row.getProductCode());
                 String productName = StringUtils.trim(row.getProductName());
                 String sampleName = StringUtils.trim(row.getSampleName());
-                products.add(StringUtils.isNotBlank(productCode) ? productCode : productName);
+                if (StringUtils.isNotBlank(productCode)) {
+                    productCodes.add(productCode);
+                }
+                if (StringUtils.isNotBlank(productName)) {
+                    productNames.add(productName);
+                }
                 sampleNames.add(sampleName);
             }
-            if (products.size() > 1 || sampleNames.size() > 1) {
+            // 产品编码能区分时以编码为准；编码缺失/一致时再看产品名称
+            boolean productMismatch = productCodes.size() > 1
+                || (productCodes.size() <= 1 && productNames.size() > 1);
+            if (productMismatch || sampleNames.size() > 1) {
                 String reason = "同一订单「" + orderNo + "」的样本产品/样本名称必须一致（产品数 "
-                    + products.size() + "、样本名称数 " + sampleNames.size() + "）";
+                    + Math.max(productCodes.size(), productNames.size()) + "、样本名称数 " + sampleNames.size() + "）";
                 indexes.forEach(index -> errors.put(index, reason));
             }
         });
