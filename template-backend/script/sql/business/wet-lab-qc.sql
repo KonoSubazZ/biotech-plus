@@ -59,24 +59,24 @@ CREATE TABLE IF NOT EXISTS `wet_lab_qc` (
 --     update_5.6.13 里清掉，本段只对还没跑过 5.6.13 的库生效）
 --   新装库的菜单/权限点由 business/qc-menu.sql 建（本文件按文件名排在其后），这里匹配不到就是空操作
 -- ============================================================================
-UPDATE sys_menu SET perms = 'qc:wetLabQc:list', menu_name = 'route.qc_wet-lab',
-    component = 'qc/wet-lab/index', update_by = 1, update_time = NOW()
-WHERE perms = 'qc:qcRecord:list' AND component = 'qc/wet-lab/index';
+UPDATE sys_menu SET perms = 'qc:wetLabQc:list', menu_name = 'route.sample_wet-lab',
+    component = 'sample/wet-lab/index', update_by = 1, update_time = NOW()
+WHERE perms = 'qc:qcRecord:list' AND component = 'sample/wet-lab/index';
 
 UPDATE sys_menu SET perms = 'qc:wetLabQc:query', update_by = 1, update_time = NOW()
 WHERE perms = 'qc:qcRecord:query' AND parent_id = (
-    SELECT menu_id FROM (SELECT menu_id FROM sys_menu WHERE component = 'qc/wet-lab/index' LIMIT 1) AS t);
+    SELECT menu_id FROM (SELECT menu_id FROM sys_menu WHERE component = 'sample/wet-lab/index' LIMIT 1) AS t);
 
 UPDATE sys_menu SET perms = 'qc:wetLabQc:remove', update_by = 1, update_time = NOW()
 WHERE perms = 'qc:qcRecord:remove' AND parent_id = (
-    SELECT menu_id FROM (SELECT menu_id FROM sys_menu WHERE component = 'qc/wet-lab/index' LIMIT 1) AS t);
+    SELECT menu_id FROM (SELECT menu_id FROM sys_menu WHERE component = 'sample/wet-lab/index' LIMIT 1) AS t);
 
 -- 新增的接口权限点（原模块没有这个点位），插在「湿实验质控」菜单下
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache,
     menu_type, visible, status, perms, icon, create_by, create_time, remark)
 SELECT '接口接收', m.menu_id, 2, '', NULL, 1, 0, 'F', '0', '0', 'qc:wetLabQc:receive', '#', 1, NOW(), '接口推送'
 FROM sys_menu m
-WHERE m.component = 'qc/wet-lab/index'
+WHERE m.component = 'sample/wet-lab/index'
   AND NOT EXISTS (SELECT 1 FROM sys_menu x WHERE x.parent_id = m.menu_id AND x.perms = 'qc:wetLabQc:receive');
 
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
