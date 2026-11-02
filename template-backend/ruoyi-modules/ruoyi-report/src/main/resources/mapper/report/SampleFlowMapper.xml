@@ -78,10 +78,10 @@
             d.product_bio           AS product,
             d.drive_status          AS driveStatus,
             d.drive_executed_at     AS driveExecutedAt,
-            s.customer_name         AS customerName,
-            s.patient_name          AS patientName,
-            s.sample_type           AS sampleType,
-            s.erp_test_name         AS erpTestName,
+            s.biotech_customer_name AS customerName,
+            s.biotech_sample_name   AS patientName,
+            s.biotech_sample_type   AS sampleType,
+            s.biotech_product_name  AS erpTestName,
             r.report_id             AS reportId,
             r.report_name           AS reportName,
             r.analysis_disease      AS analysisDisease,
@@ -116,7 +116,7 @@
         FROM analysis_data d
         LEFT JOIN cms_sample s
                ON s.id = (SELECT MAX(s2.id) FROM cms_sample s2
-                          WHERE s2.subbarcode = d.subbarcode AND s2.del_flag = '0')
+                          WHERE s2.biotech_subbarcode = d.subbarcode AND s2.del_flag = '0')
         LEFT JOIN analysis_report r
                ON r.report_id = (SELECT MAX(r2.report_id) FROM analysis_report r2
                                  WHERE r2.analysis_id = d.analysis_id AND r2.del_flag = '0')

@@ -11,7 +11,7 @@ import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.mapper.ReportRevisionMapper;
 import org.dromara.report.mapper.ReportTemplateMapper;
-import org.dromara.report.mapper.SampleInfoMapper;
+import org.dromara.report.mapper.CmsSampleMapper;
 import org.dromara.report.service.IInterpretationService;
 import org.dromara.report.service.impl.InterpretationServiceImpl;
 import org.dromara.report.service.impl.ReportReinterpretService;
@@ -122,7 +122,7 @@ class ReportReinterpretServiceTest {
         });
         Mockito.when(reports.selectVoById(8L)).thenReturn(new AnalysisReportVo());
         InterpretationServiceImpl entry = new InterpretationServiceImpl(mapper, reports,
-            Mockito.mock(SampleInfoMapper.class), Mockito.mock(ReportTemplateMapper.class), driveService,
+            Mockito.mock(CmsSampleMapper.class), Mockito.mock(ReportTemplateMapper.class), driveService,
             ReportTestLocks.direct());
         Assertions.assertNotNull(entry.enterAfterRescan(1L, 7L));
         Mockito.verify(reports).insert(Mockito.any(AnalysisReport.class));

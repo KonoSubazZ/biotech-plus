@@ -15,11 +15,11 @@ import org.dromara.common.log.enums.BusinessType;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
-import org.dromara.report.domain.bo.SampleInfoBo;
-import org.dromara.report.domain.vo.SampleInfoExcelRow;
-import org.dromara.report.domain.vo.SampleInfoImportResultVo;
-import org.dromara.report.domain.vo.SampleInfoVo;
-import org.dromara.report.service.ISampleInfoService;
+import org.dromara.report.domain.bo.CmsSampleBo;
+import org.dromara.report.domain.vo.CmsSampleExcelRow;
+import org.dromara.report.domain.vo.CmsSampleImportResultVo;
+import org.dromara.report.domain.vo.CmsSampleVo;
+import org.dromara.report.service.ICmsSampleService;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,34 +37,33 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 样本信息（cms_sample）
+ * 样本信息（sample_biotech，药企 CMS 契约表）
  * <p>
- * 路由前缀沿用 RuoYi 的 /{模块}/{实体} 约定。
- * 字段按生产库录单样本表的 122 列全量建（见 SampleInfo 的字段注释）；
- * 样本编号（subbarcode，源表列 BARCODE）是业务键，质控模块的 wet_lab_qc.subbarcode 指向它，
- * 所以新增要查重、导入按它 upsert、删除要检查是否被质控记录引用。
+ * 页面路由仍沿用菜单「样本管理 › 样本信息」(/qc/sample-info)，
+ * 权限点也沿用 report:sampleInfo:*，保证菜单与角色授权无需改动。
+ * 只暴露 87 个 biotech_* 有效字段；59 个 deprecated_* 兼容列不在实体/VO/BO/Excel 中。
  *
  * @author <你的名字>
  */
 @Validated
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/report/sampleInfo")
-public class SampleInfoController extends BaseController {
+@RequestMapping("/report/cmsSample")
+public class CmsSampleController extends BaseController {
 
-    private final ISampleInfoService sampleInfoService;
+    private final ICmsSampleService cmsSampleService;
 
     /**
      * 分页查询样本信息
      *
-     * @param bo        查询条件（样本编号 / 姓名 / 客户 / 录单癌种 / 录单产品 + params 里的委托日期范围）
+     * @param bo        查询条件（样本编号 / 订单编号 / 客户名称 / 产品名称 / 样本类型 + params 里的送检日期范围）
      * @param pageQuery 分页参数
      * @return 分页列表
      */
     @SaCheckPermission("report:sampleInfo:list")
     @GetMapping("/list")
-    public TableDataInfo<SampleInfoVo> list(SampleInfoBo bo, PageQuery pageQuery) {
-        return sampleInfoService.selectPageList(bo, pageQuery);
+    public TableDataInfo<CmsSampleVo> list(CmsSampleBo bo, PageQuery pageQuery) {
+        return cmsSampleService.selectPageList(bo, pageQuery);
     }
 
     /**
@@ -75,8 +74,8 @@ public class SampleInfoController extends BaseController {
      */
     @SaCheckPermission("report:sampleInfo:query")
     @GetMapping("/{id}")
-    public R<SampleInfoVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long id) {
-        return R.ok(sampleInfoService.queryById(id));
+    public R<CmsSampleVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long id) {
+        return R.ok(cmsSampleService.queryById(id));
     }
 
     /**
@@ -89,8 +88,8 @@ public class SampleInfoController extends BaseController {
     @Log(title = "样本信息", businessType = BusinessType.INSERT)
     @RepeatSubmit()
     @PostMapping()
-    public R<Void> add(@Validated(AddGroup.class) @RequestBody SampleInfoBo bo) {
-        return toAjax(sampleInfoService.insertByBo(bo));
+    public R<Void> add(@Validated(AddGroup.class) @RequestBody CmsSampleBo bo) {
+        return toAjax(cmsSampleService.insertByBo(bo));
     }
 
     /**
@@ -103,12 +102,12 @@ public class SampleInfoController extends BaseController {
     @Log(title = "样本信息", businessType = BusinessType.UPDATE)
     @RepeatSubmit()
     @PutMapping()
-    public R<Void> edit(@Validated(EditGroup.class) @RequestBody SampleInfoBo bo) {
-        return toAjax(sampleInfoService.updateByBo(bo));
+    public R<Void> edit(@Validated(EditGroup.class) @RequestBody CmsSampleBo bo) {
+        return toAjax(cmsSampleService.updateByBo(bo));
     }
 
     /**
-     * 删除样本信息（被质控记录引用时禁止删除，由 Service 抛 ServiceException）
+     * 删除样本信息
      *
      * @param ids 主键集合
      * @return 操作结果
@@ -117,13 +116,13 @@ public class SampleInfoController extends BaseController {
     @Log(title = "样本信息", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")
     public R<Void> remove(@NotEmpty(message = "主键不能为空") @PathVariable Long[] ids) {
-        return toAjax(sampleInfoService.deleteByIds(List.of(ids)));
+        return toAjax(cmsSampleService.deleteByIds(List.of(ids)));
     }
 
     /**
      * 上传 Excel 批量导入样本信息
      * <p>
-     * 表格列与导入模板一致；按「样本编号」有则更新、无则新增，
+     * 表格列与导入模板一致；按「CMS 订单主键 + CMS 样本主键」有则更新、无则新增，
      * 单行出错只记录原因（返回结果里的 errors），不影响其它行。
      *
      * @param file Excel 文件
@@ -132,18 +131,18 @@ public class SampleInfoController extends BaseController {
     @SaCheckPermission("report:sampleInfo:import")
     @Log(title = "样本信息", businessType = BusinessType.IMPORT)
     @PostMapping(value = "/importData", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public R<SampleInfoImportResultVo> importData(@RequestPart("file") MultipartFile file) {
-        return R.ok(sampleInfoService.importExcel(file));
+    public R<CmsSampleImportResultVo> importData(@RequestPart("file") MultipartFile file) {
+        return R.ok(cmsSampleService.importExcel(file));
     }
 
     /**
-     * 下载导入模板（只有表头的 xlsx，表头即列名约定）
+     * 下载导入模板（只有表头的 xlsx）
      *
      * @param response 响应体
      */
     @SaCheckPermission("report:sampleInfo:import")
     @PostMapping("/importTemplate")
     public void importTemplate(HttpServletResponse response) {
-        ExcelUtil.exportExcel(new ArrayList<>(), "样本信息导入模板", SampleInfoExcelRow.class, response);
+        ExcelUtil.exportExcel(new ArrayList<>(), "样本信息导入模板", CmsSampleExcelRow.class, response);
     }
 }

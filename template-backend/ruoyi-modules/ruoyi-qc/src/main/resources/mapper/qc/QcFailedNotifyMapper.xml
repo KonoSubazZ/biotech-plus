@@ -5,18 +5,18 @@
     <!-- 按样本编号回填通知单表头字段（跨表只读；调用方需 withoutTenant） -->
     <select id="selectSampleForNotify" resultType="org.dromara.qc.domain.vo.QcNotifySampleVo">
         SELECT id,
-               subbarcode,
-               contracts_no        AS studyNo,
-               order_code          AS projectNo,
-               pcode               AS participantNo,
-               testing_institution AS center,
-               collect_date        AS receiveDate,
-               sample_type         AS sampleType,
-               specimen_num        AS sampleCount,
-               erp_test_name       AS product,
-               customer_name       AS customerName
+               biotech_subbarcode          AS subbarcode,
+               biotech_contract_no         AS studyNo,
+               biotech_order_no            AS projectNo,
+               biotech_subject_no          AS participantNo,
+               biotech_receiving_lab       AS center,
+               biotech_receive_confirm_time AS receiveDate,
+               biotech_sample_type         AS sampleType,
+               biotech_sample_quantity     AS sampleCount,
+               biotech_product_name        AS product,
+               biotech_customer_name       AS customerName
         FROM cms_sample
-        WHERE subbarcode = #{subbarcode}
+        WHERE biotech_subbarcode = #{subbarcode}
           AND del_flag = '0'
         ORDER BY id DESC
         LIMIT 1
@@ -30,7 +30,7 @@
     <select id="selectTenantIdBySubbarcode" resultType="java.lang.String">
         SELECT tenant_id
         FROM cms_sample
-        WHERE subbarcode = #{subbarcode}
+        WHERE biotech_subbarcode = #{subbarcode}
         ORDER BY id DESC
         LIMIT 1
     </select>

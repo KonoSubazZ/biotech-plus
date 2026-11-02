@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  样本信息（cms_sample）：只有「含已删行查 id」和「恢复软删行」两条手写 SQL。
+  单表 CRUD / 条件 / 排序 / 计数用 BaseMapperPlus，不写在这里。
+-->
+<mapper namespace="org.dromara.report.mapper.CmsSampleMapper">
+
+    <!--
+      含已软删行的取 id：唯一键 uk_cms_sample_subbarcode 不含 del_flag，
+      已删行仍占键位，所以这里不能加 del_flag 条件。
+      租户条件由租户拦截器自动附加。
+    -->
+    <select id="selectIdBySubbarcodeIncludeDeleted" resultType="java.lang.Long">
+        SELECT id
+        FROM cms_sample
+        WHERE biotech_subbarcode = #{subbarcode}
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <!-- 把软删除的行恢复（导入命中已删行时用）；update_by 随后由 updateById 重写 -->
+    <update id="restoreById">
+        UPDATE cms_sample
+        SET del_flag = '0', update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

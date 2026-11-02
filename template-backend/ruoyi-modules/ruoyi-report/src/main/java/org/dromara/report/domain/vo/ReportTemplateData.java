@@ -11,7 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.dromara.report.service.template.CommonReportModuleAssembler;
-import org.dromara.report.domain.SampleInfo;
 
 /**
  * 报告 JSON 总实体类（对齐设计书 §7.6 契约与参考工程 ReportTemplateData）。

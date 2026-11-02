@@ -12,7 +12,7 @@ import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.drive.domain.vo.DriveFileVo;
 import org.dromara.drive.service.IDriveService;
 import org.dromara.report.domain.AnalysisReport;
-import org.dromara.report.domain.SampleInfo;
+import org.dromara.report.domain.CmsSample;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
@@ -29,7 +29,7 @@ import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.mapper.ReportTemplateMapper;
-import org.dromara.report.mapper.SampleInfoMapper;
+import org.dromara.report.mapper.CmsSampleMapper;
 import org.dromara.report.service.IInterpretationService;
 import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Service;
@@ -70,7 +70,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
 
     private final InterpretationMapper interpretationMapper;
     private final AnalysisReportMapper analysisReportMapper;
-    private final SampleInfoMapper sampleInfoMapper;
+    private final CmsSampleMapper cmsSampleMapper;
     private final ReportTemplateMapper reportTemplateMapper;
 
     /** 驱动入库服务（重新驱动单个文件；能力在 ruoyi-drive） */
@@ -202,8 +202,8 @@ public class InterpretationServiceImpl implements IInterpretationService {
         report.setProductBio(snapshot.getProduct());
         report.setProductId(resolveProductId(snapshot.getProductId(), snapshot.getProduct()));
         // 录单癌种 + 项目编号：进入解读时就带上（LIMS cms_sample，按样本编号取）
-        SampleInfo lims = selectSample(snapshot.getSubbarcode());
-        report.setCancerType(lims == null ? null : lims.getCancerType());
+        CmsSample lims = selectSample(snapshot.getSubbarcode());
+        report.setCancerType(lims == null ? null : lims.getDiseaseType());
         // 项目编号是报告必填字段（用户 2026-10-22）：样本没维护项目号就不让建报告，避免出现空项目
         String projectNo = lims == null ? null : lims.getProjectNo();
         if (StringUtils.isBlank(projectNo)) {
@@ -408,7 +408,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
             return lims;
         }
 
-        SampleInfo sample = selectSample(subbarcode);
+        CmsSample sample = selectSample(subbarcode);
         lims.setFound(sample != null);
         if (sample == null) {
             errors.add("未找到该样本编号的样本信息（cms_sample.subbarcode）：" + subbarcode);
@@ -421,61 +421,61 @@ public class InterpretationServiceImpl implements IInterpretationService {
     }
 
     /** cms_sample → LIMS 字段映射（设计书 5.2 的字段对照表） */
-    private void fillLims(InterpretationLimsVo lims, SampleInfo sample) {
-        lims.setPatientId(sample.getPcode());
-        lims.setPatientName(sample.getPatientName());
+    private void fillLims(InterpretationLimsVo lims, CmsSample sample) {
+        // 新 cms_sample 是药企 CMS 接口模型：没有患者姓名/医生/病理分期字段。
+        // 报告侧的口径（2026-10-31 用户确认）：patientName 取样本名称 sample_name；
+        // 患者编号取试验参与者编号 subject_no；癌种取临床诊断 disease_type；产品取 product_name。
+        lims.setPatientId(sample.getSubjectNo());
+        lims.setPatientName(sample.getSampleName());
         lims.setGender(sample.getSex());
-        lims.setBirthday(sample.getBirthDay());
-        lims.setAge(sample.getAge());
-        lims.setCancerType(sample.getCancerType());
-        lims.setPathologicalType(sample.getPathologicalType());
-        lims.setClinicalStage(sample.getClinicalStages());
-        lims.setClinicalRemark(sample.getClinicalRemark());
-        // 医院：源表里公司名一半在 customer_name、一半在 custom_desc（还有 corp_desc）
-        lims.setHospitalName(firstNonBlank(sample.getCustomerName(), sample.getCustomDesc(), sample.getCorpDesc()));
-        lims.setDoctorName(sample.getDoctorName());
+        lims.setBirthday(sample.getBirthYear());
+        lims.setAge(null);
+        lims.setCancerType(sample.getDiseaseType());
+        lims.setPathologicalType(null);
+        lims.setClinicalStage(null);
+        lims.setClinicalRemark(sample.getAbnormalRemark());
+        lims.setHospitalName(sample.getCustomerName());
+        lims.setDoctorName(null);
         lims.setSpecimenType(sample.getSampleType());
-        lims.setSpecimenQuantity(joinNonBlank(sample.getSpecimenNum(), sample.getUnit()));
-        lims.setSampleSource(sample.getSampleSource());
-        lims.setFromOrgan(sample.getFromOrgan());
-        lims.setSampleCollectedAt(firstNonBlank(sample.getSampleTime(), sample.getCollectDate()));
-        lims.setSampleReceivedAt(sample.getGetSpecDate());
-        lims.setCommissionedAt(sample.getEnterDate());
-        lims.setTestingProgram(sample.getErpTestName());
-        lims.setSampleRemark(sample.getSampleRemark());
-        lims.setLaboratoryName(sample.getLaboratoryName());
+        lims.setSpecimenQuantity(joinNonBlank(sample.getSampleQuantity(), sample.getQuantityUnit()));
+        lims.setSampleSource(null);
+        lims.setFromOrgan(sample.getCollectionSite());
+        lims.setSampleCollectedAt(sample.getCollectionDate());
+        lims.setSampleReceivedAt(sample.getArrivalDate());
+        lims.setCommissionedAt(sample.getOrderSubmitTime());
+        lims.setTestingProgram(sample.getProductName());
+        lims.setSampleRemark(sample.getRemark());
+        lims.setLaboratoryName(sample.getReceivingLab());
         lims.setReportReceiver(sample.getReportReceiver());
-        lims.setEmailAddress(sample.getEmailAddress());
-        lims.setPatientInfoEmail(sample.getPatientInfoEmail());
-        lims.setDoctorEmail(sample.getAdmissionDoctorEmail());
+        lims.setEmailAddress(sample.getReportEmail());
+        lims.setPatientInfoEmail(null);
+        lims.setDoctorEmail(null);
     }
 
     /** 校验：必填缺失进 errors（阻止生成），非关键缺失进 warnings */
     private void validateLims(InterpretationLimsVo lims, List<String> errors, List<String> warnings) {
-        require(lims.getPatientName(), "患者姓名", errors);
-        require(lims.getCancerType(), "录单癌种", errors);
+        require(lims.getPatientName(), "样本名称", errors);
+        require(lims.getCancerType(), "临床诊断/疾病类型", errors);
         require(lims.getSpecimenType(), "样本类型", errors);
-        require(lims.getTestingProgram(), "录单产品", errors);
+        require(lims.getTestingProgram(), "产品名称", errors);
 
         warnOnMissing(lims::getGender, "性别", warnings);
-        warnOnMissing(lims::getBirthday, "出生日期", warnings);
-        warnOnMissing(lims::getAge, "年龄", warnings);
-        warnOnMissing(lims::getHospitalName, "医院/送检单位", warnings);
-        warnOnMissing(lims::getDoctorName, "送检医生", warnings);
+        warnOnMissing(lims::getBirthday, "出生年份", warnings);
+        warnOnMissing(lims::getHospitalName, "客户名称", warnings);
         warnOnMissing(lims::getSpecimenQuantity, "样本量", warnings);
-        warnOnMissing(lims::getSampleCollectedAt, "采样日期", warnings);
-        warnOnMissing(lims::getSampleReceivedAt, "收样日期", warnings);
-        warnOnMissing(lims::getCommissionedAt, "委托日期", warnings);
+        warnOnMissing(lims::getSampleCollectedAt, "采集日期", warnings);
+        warnOnMissing(lims::getSampleReceivedAt, "到达日期", warnings);
+        warnOnMissing(lims::getCommissionedAt, "订单提交时间", warnings);
         warnOnMissing(lims::getReportReceiver, "报告接收人", warnings);
     }
 
     /** 按样本编号取一条样本信息；同编号多条时取最新一条（编号在租户内唯一，这里只是防御） */
-    private SampleInfo selectSample(String subbarcode) {
-        LambdaQueryWrapper<SampleInfo> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SampleInfo::getSubbarcode, subbarcode);
-        wrapper.orderByDesc(SampleInfo::getId);
+    private CmsSample selectSample(String subbarcode) {
+        LambdaQueryWrapper<CmsSample> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(CmsSample::getSubbarcode, subbarcode);
+        wrapper.orderByDesc(CmsSample::getId);
         wrapper.last("LIMIT 1");
-        return sampleInfoMapper.selectOne(wrapper);
+        return cmsSampleMapper.selectOne(wrapper);
     }
 
     /** 报告产品ID：批次快照里为空时按产品名/编码解析 product_config（scanner 只写产品名，product_id 常为空） */
@@ -503,10 +503,10 @@ public class InterpretationServiceImpl implements IInterpretationService {
         AnalysisReport patch = new AnalysisReport();
         patch.setReportId(existing.getReportId());
         if (cancerBlank || projectBlank) {
-            SampleInfo lims = selectSample(existing.getSubbarcode());
+            CmsSample lims = selectSample(existing.getSubbarcode());
             if (lims != null) {
                 if (cancerBlank) {
-                    patch.setCancerType(lims.getCancerType());
+                    patch.setCancerType(lims.getDiseaseType());
                 }
                 if (projectBlank && StringUtils.isNotBlank(lims.getProjectNo())) {
                     patch.setProjectNo(lims.getProjectNo());

@@ -2,31 +2,30 @@ package org.dromara.report.service;
 
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
-import org.dromara.report.domain.bo.SampleInfoBo;
-import org.dromara.report.domain.vo.SampleInfoImportResultVo;
-import org.dromara.report.domain.vo.SampleInfoVo;
+import org.dromara.report.domain.bo.CmsSampleBo;
+import org.dromara.report.domain.vo.CmsSampleImportResultVo;
+import org.dromara.report.domain.vo.CmsSampleVo;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 /**
- * 样本信息 业务层
+ * 药企样本 业务层
  * <p>
- * 样本编号（subbarcode）是业务键：新增要查重、导入按它「有则更新、无则新增」，
- * 删除时要挡住在质控记录里被引用过的样本。
+ * 业务唯一键 = (CMS 订单主键, CMS 样本主键)：新增要查重、导入按它「有则更新、无则新增」。
  *
  * @author <你的名字>
  */
-public interface ISampleInfoService {
+public interface ICmsSampleService {
 
     /**
-     * 分页查询样本信息列表
+     * 分页查询药企样本列表
      *
-     * @param bo        查询条件（含 params.beginTime / params.endTime 的委托日期范围）
+     * @param bo        查询条件（含 params.beginTime / params.endTime 的送检日期范围）
      * @param pageQuery 分页参数
      * @return 分页列表
      */
-    TableDataInfo<SampleInfoVo> selectPageList(SampleInfoBo bo, PageQuery pageQuery);
+    TableDataInfo<CmsSampleVo> selectPageList(CmsSampleBo bo, PageQuery pageQuery);
 
     /**
      * 按主键查询详情
@@ -34,7 +33,7 @@ public interface ISampleInfoService {
      * @param id 主键
      * @return 详情；不存在时抛 ServiceException
      */
-    SampleInfoVo queryById(Long id);
+    CmsSampleVo queryById(Long id);
 
     /**
      * 新增
@@ -42,7 +41,7 @@ public interface ISampleInfoService {
      * @param bo 业务对象
      * @return 是否成功
      */
-    Boolean insertByBo(SampleInfoBo bo);
+    Boolean insertByBo(CmsSampleBo bo);
 
     /**
      * 修改
@@ -50,10 +49,10 @@ public interface ISampleInfoService {
      * @param bo 业务对象
      * @return 是否成功
      */
-    Boolean updateByBo(SampleInfoBo bo);
+    Boolean updateByBo(CmsSampleBo bo);
 
     /**
-     * 批量删除（被质控记录引用时抛 ServiceException）
+     * 批量删除
      *
      * @param ids 主键集合
      * @return 是否成功
@@ -61,10 +60,10 @@ public interface ISampleInfoService {
     Boolean deleteByIds(List<Long> ids);
 
     /**
-     * 上传 Excel 批量导入样本信息
+     * 上传 Excel 批量导入药企样本
      *
      * @param file Excel 文件
      * @return 导入结果（新增 / 更新 / 失败 + 每行失败原因）
      */
-    SampleInfoImportResultVo importExcel(MultipartFile file);
+    CmsSampleImportResultVo importExcel(MultipartFile file);
 }

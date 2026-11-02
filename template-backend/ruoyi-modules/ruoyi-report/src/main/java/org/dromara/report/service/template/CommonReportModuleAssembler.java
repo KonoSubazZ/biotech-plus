@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.dromara.report.domain.SampleInfo;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
 
 /**
