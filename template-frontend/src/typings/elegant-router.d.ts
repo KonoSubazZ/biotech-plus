@@ -45,15 +45,15 @@ declare module "@elegant-router/types" {
     "project_project-config": "/project/project-config";
     "project_qc-standard": "/project/qc-standard";
     "project_template-config": "/project/template-config";
-    "qc": "/qc";
-    "qc_bioinfo": "/qc/bioinfo";
-    "qc_wet-lab": "/qc/wet-lab";
     "report": "/report";
     "report_interpretation": "/report/interpretation";
     "report_mail-config": "/report/mail-config";
     "report_sample-flow": "/report/sample-flow";
-    "report_sample-info": "/report/sample-info";
     "report_variant-history": "/report/variant-history";
+    "sample": "/sample";
+    "sample_bioinfo": "/sample/bioinfo";
+    "sample_sample-info": "/sample/sample-info";
+    "sample_wet-lab": "/sample/wet-lab";
     "social-callback": "/social-callback";
     "system": "/system";
     "system_client": "/system/client";
@@ -115,8 +115,8 @@ declare module "@elegant-router/types" {
     | "login"
     | "monitor"
     | "project"
-    | "qc"
     | "report"
+    | "sample"
     | "social-callback"
     | "system"
     | "tool"
@@ -160,13 +160,13 @@ declare module "@elegant-router/types" {
     | "project_project-config"
     | "project_qc-standard"
     | "project_template-config"
-    | "qc_bioinfo"
-    | "qc_wet-lab"
     | "report_interpretation"
     | "report_mail-config"
     | "report_sample-flow"
-    | "report_sample-info"
     | "report_variant-history"
+    | "sample_bioinfo"
+    | "sample_sample-info"
+    | "sample_wet-lab"
     | "system_client"
     | "system_config"
     | "system_dict"

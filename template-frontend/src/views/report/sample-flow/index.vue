@@ -150,7 +150,7 @@ const { columns, columnChecks, data, getData, loading, scrollX } = useNaivePagin
   columns: () => [
     { key: 'subbarcode', title: '样本编号', align: 'center', minWidth: 150 },
     { key: 'barcode', title: '患者编号', align: 'center', minWidth: 140, render: row => row.barcode ?? '-' },
-    { key: 'patientName', title: '患者姓名', align: 'center', minWidth: 110, render: row => row.patientName ?? '-' },
+    { key: 'patientName', title: '样本名称', align: 'center', minWidth: 110, render: row => row.patientName ?? '-' },
     {
       key: 'customerName',
       title: '送检单位',

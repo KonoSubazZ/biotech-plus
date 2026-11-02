@@ -29,8 +29,8 @@ function show(value: string | null | undefined) {
     <template v-else>
       <NCard title="患者与疾病" :bordered="false" size="small">
         <NDescriptions bordered :column="3" label-placement="left" size="small">
-          <NDescriptionsItem label="患者编号">{{ show(props.lims.patientId) }}</NDescriptionsItem>
-          <NDescriptionsItem label="患者姓名">{{ show(props.lims.patientName) }}</NDescriptionsItem>
+          <NDescriptionsItem label="受试者编号">{{ show(props.lims.patientId) }}</NDescriptionsItem>
+          <NDescriptionsItem label="样本名称">{{ show(props.lims.patientName) }}</NDescriptionsItem>
           <NDescriptionsItem label="性别">{{ show(props.lims.gender) }}</NDescriptionsItem>
           <NDescriptionsItem label="出生日期">{{ show(props.lims.birthday) }}</NDescriptionsItem>
           <NDescriptionsItem label="年龄">{{ show(props.lims.age) }}</NDescriptionsItem>
@@ -44,7 +44,7 @@ function show(value: string | null | undefined) {
 
       <NCard title="样本与送检" :bordered="false" size="small">
         <NDescriptions bordered :column="3" label-placement="left" size="small">
-          <NDescriptionsItem label="医院/送检单位" :span="2">{{ show(props.lims.hospitalName) }}</NDescriptionsItem>
+          <NDescriptionsItem label="客户名称" :span="2">{{ show(props.lims.hospitalName) }}</NDescriptionsItem>
           <NDescriptionsItem label="实验室">{{ show(props.lims.laboratoryName) }}</NDescriptionsItem>
           <NDescriptionsItem label="样本编号">{{ show(props.lims.subbarcode) }}</NDescriptionsItem>
           <NDescriptionsItem label="样本类型">{{ show(props.lims.specimenType) }}</NDescriptionsItem>

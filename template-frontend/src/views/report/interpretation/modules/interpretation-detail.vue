@@ -131,7 +131,7 @@ watch(() => [props.reportId, props.analysisId], loadContext, { immediate: true }
 
         <NDescriptions v-if="context" :column="4" label-placement="left" size="small">
           <NDescriptionsItem label="样本编号">{{ context.report.subbarcode ?? '/' }}</NDescriptionsItem>
-          <NDescriptionsItem label="患者姓名">{{ context.lims.patientName ?? '/' }}</NDescriptionsItem>
+          <NDescriptionsItem label="样本名称">{{ context.lims.patientName ?? '/' }}</NDescriptionsItem>
           <NDescriptionsItem label="产品">{{ context.report.productBio ?? '/' }}</NDescriptionsItem>
           <NDescriptionsItem label="解读癌种">{{ context.report.analysisDisease ?? '/' }}</NDescriptionsItem>
         </NDescriptions>

@@ -32,7 +32,7 @@ const visible = defineModel<boolean>('visible', { default: false });
 
 const fileList = ref<UploadFileInfo[]>([]);
 const importing = ref(false);
-const result = ref<Api.Report.SampleInfoImportResult | null>(null);
+const result = ref<Api.Report.CmsSampleImportResult | null>(null);
 
 /** 有导入成功的行就算成功；全失败（只有 errors）按错误提示 */
 const succeeded = computed(() => {
@@ -80,7 +80,7 @@ function handleFinish(options: { file: UploadFileInfo; event?: ProgressEvent }) 
   importing.value = false;
   // @ts-expect-error Ignore type errors
   const response = JSON.parse(event?.target?.responseText);
-  result.value = response.data as Api.Report.SampleInfoImportResult;
+  result.value = response.data as Api.Report.CmsSampleImportResult;
   window.$message?.success($t('common.importSuccess'));
   return file;
 }
@@ -95,7 +95,7 @@ function handleError(options: { file: UploadFileInfo; event?: ProgressEvent }) {
 
 /** 导入模板：后端按 SampleInfoExcelRow 的表头生成只有表头的 xlsx */
 function handleDownloadTemplate() {
-  download('/report/sampleInfo/importTemplate', {}, `样本信息_${$t('common.importTemplate')}_${Date.now()}.xlsx`);
+  download('/report/cmsSample/importTemplate', {}, `样本信息_${$t('common.importTemplate')}_${Date.now()}.xlsx`);
 }
 
 watch(visible, () => {
@@ -120,7 +120,7 @@ watch(visible, () => {
     <NUpload
       ref="uploadRef"
       v-model:file-list="fileList"
-      :action="`${baseURL}/report/sampleInfo/importData`"
+      :action="`${baseURL}/report/cmsSample/importData`"
       :headers="headers"
       :max="1"
       :file-size="50"
@@ -150,11 +150,10 @@ watch(visible, () => {
 
     <NAlert class="mt-16px" type="info" :bordered="false">
       <div class="text-13px">
-        列顺序与源表 122 列一致，表头直接写源表列名（AGE、BARCODE、PATIENTNAME、CUSTOMERTYPE…）——
-        从录单系统导出的表格可以原样导入，不用改名。读的时候按列序号匹配，表头文案改不改都能读。
+        模板共 85 列，列顺序与「样本信息」详情里的 6 个分组一致；读的时候按列序号匹配。
         <br />
-        按「样本编号」判断：不存在则新增，已存在则用文件里的内容覆盖；单行出错只跳过该行，其余照常导入。
-        必填列只有样本编号（BARCODE）。
+        按「诺禾编号」判断：不存在则新增，已存在则用文件里的内容覆盖；单行出错只跳过该行，其余照常导入。
+        必填列只有诺禾编号。
       </div>
     </NAlert>
 

@@ -248,35 +248,6 @@ export const generatedRoutes: GeneratedRoute[] = [
     ]
   },
   {
-    name: 'qc',
-    path: '/qc',
-    component: 'layout.base',
-    meta: {
-      title: 'qc',
-      i18nKey: 'route.qc'
-    },
-    children: [
-      {
-        name: 'qc_bioinfo',
-        path: '/qc/bioinfo',
-        component: 'view.qc_bioinfo',
-        meta: {
-          title: 'qc_bioinfo',
-          i18nKey: 'route.qc_bioinfo'
-        }
-      },
-      {
-        name: 'qc_wet-lab',
-        path: '/qc/wet-lab',
-        component: 'view.qc_wet-lab',
-        meta: {
-          title: 'qc_wet-lab',
-          i18nKey: 'route.qc_wet-lab'
-        }
-      }
-    ]
-  },
-  {
     name: 'report',
     path: '/report',
     component: 'layout.base',
@@ -313,21 +284,50 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
-        name: 'report_sample-info',
-        path: '/report/sample-info',
-        component: 'view.report_sample-info',
-        meta: {
-          title: 'report_sample-info',
-          i18nKey: 'route.report_sample-info'
-        }
-      },
-      {
         name: 'report_variant-history',
         path: '/report/variant-history',
         component: 'view.report_variant-history',
         meta: {
           title: 'report_variant-history',
           i18nKey: 'route.report_variant-history'
+        }
+      }
+    ]
+  },
+  {
+    name: 'sample',
+    path: '/sample',
+    component: 'layout.base',
+    meta: {
+      title: 'sample',
+      i18nKey: 'route.sample'
+    },
+    children: [
+      {
+        name: 'sample_bioinfo',
+        path: '/sample/bioinfo',
+        component: 'view.sample_bioinfo',
+        meta: {
+          title: 'sample_bioinfo',
+          i18nKey: 'route.sample_bioinfo'
+        }
+      },
+      {
+        name: 'sample_sample-info',
+        path: '/sample/sample-info',
+        component: 'view.sample_sample-info',
+        meta: {
+          title: 'sample_sample-info',
+          i18nKey: 'route.sample_sample-info'
+        }
+      },
+      {
+        name: 'sample_wet-lab',
+        path: '/sample/wet-lab',
+        component: 'view.sample_wet-lab',
+        meta: {
+          title: 'sample_wet-lab',
+          i18nKey: 'route.sample_wet-lab'
         }
       }
     ]
