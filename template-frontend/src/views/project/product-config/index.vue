@@ -90,6 +90,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         title: $t('common.operate'),
         align: 'center',
         width: 180,
+        fixed: 'right',
         render: row => {
           // 基因详情：看/维护这个产品的 gene list（先建产品、后补基因）
           const detailBtn = () => {
