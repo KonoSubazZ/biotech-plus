@@ -31,7 +31,7 @@ declare namespace Api {
       moduleCode: string | null;
       /** 报告命名模板：静态文本 + {{路径}} 动态取值；空 = 用默认命名 */
       reportName: string | null;
-      /** DOCX 模板文件路径 */
+      /** DOCX 模板文件相对路径（相对 report.renderer.templates-root，可带子目录） */
       templatePath: string;
       /** 模板文件 SHA-256 */
       templateSha256: string | null;
@@ -41,8 +41,6 @@ declare namespace Api {
       createTime: string | null;
       /** 关联产品ID集合 */
       productIds: number[] | null;
-      /** 关联产品名称集合（列表展示） */
-      productNames: string[] | null;
       /**
        * 关联产品明细（列表「关联产品」列用）：生信编码 productBio 换行产品编码 productCode，
        * 多个产品就一条一条上下排

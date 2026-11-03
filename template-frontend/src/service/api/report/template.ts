@@ -16,14 +16,6 @@ export function fetchGetReportTemplateList(params: Api.Report.ReportTemplateSear
   });
 }
 
-/** 查询详情（含关联产品） */
-export function fetchGetReportTemplate(templateId: number) {
-  return request<Api.Report.ReportTemplate>({
-    url: `/report/template/${templateId}`,
-    method: 'get'
-  });
-}
-
 /** 产品下拉选项（模板表单的「关联产品」用） */
 export function fetchGetProductOptions() {
   return request<Api.Report.ProductOption[]>({

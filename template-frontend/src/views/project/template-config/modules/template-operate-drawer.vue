@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import type { UploadFileInfo } from 'naive-ui';
 import { jsonClone } from '@sa/utils';
 import {
   fetchCreateReportTemplate,
@@ -8,6 +9,8 @@ import {
   fetchGetTemplateProjectOptions,
   fetchUpdateReportTemplate
 } from '@/service/api/report/template';
+import { getToken } from '@/store/modules/auth/shared';
+import { getServiceBaseURL } from '@/utils/service';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 
@@ -83,6 +86,49 @@ const rules = {
   templatePath: createRequiredRule('模板文件路径不能为空'),
   status: createRequiredRule('状态不能为空')
 };
+
+// ---------------------------------------------------------------- 模板文件上传
+const { baseURL } = getServiceBaseURL(import.meta.env);
+// 模板文件落「配置的模板根目录 + 填写的相对路径」，不用 OSS
+const uploadAction = `${baseURL}/report/template/upload`;
+const uploadHeaders: Record<string, string> = {
+  Authorization: `Bearer ${getToken()}`,
+  clientid: import.meta.env.VITE_APP_CLIENT_ID!
+};
+
+const uploading = ref(false);
+
+function isUploadErrorState(xhr: XMLHttpRequest) {
+  const response = JSON.parse(xhr?.responseText);
+  return response.code !== 200;
+}
+
+function handleUploadFinish(options: { file: UploadFileInfo; event?: ProgressEvent }) {
+  const { file, event } = options;
+  // @ts-expect-error Ignore type errors
+  const responseText = event?.target?.responseText;
+  const response = JSON.parse(responseText);
+  uploading.value = false;
+  if (response.code !== 200) {
+    window.$message?.error(response.msg || '模板上传失败');
+    return file;
+  }
+  model.value.templatePath = response.data.templatePath;
+  model.value.templateSha256 = response.data.sha256;
+  window.$message?.success(
+    response.data.backupPath ? `已覆盖，旧文件备份为 ${response.data.backupPath}` : '模板上传成功'
+  );
+  return file;
+}
+
+function handleUploadError(options: { file: UploadFileInfo; event?: ProgressEvent }) {
+  const { event } = options;
+  uploading.value = false;
+  // @ts-expect-error Ignore type errors
+  const responseText = event?.target?.responseText;
+  const msg = JSON.parse(responseText).msg;
+  window.$message?.error(msg || '模板上传失败');
+}
 
 const title = computed(() => (props.operateType === 'add' ? '新增报告模板' : '编辑报告模板'));
 
@@ -255,10 +301,33 @@ watch(visible, () => {
           </template>
         </div>
         <NFormItem label="模板文件路径" path="templatePath">
-          <NInput
-            v-model:value="model.templatePath"
-            placeholder="DOCX 实体文件路径，如 report-templates/pharma-shengyu/v1/template.docx（本轮只登记路径，不渲染）"
-          />
+          <div class="w-full">
+            <div class="flex items-center gap-8px">
+              <NInput
+                v-model:value="model.templatePath"
+                placeholder="相对模板根目录的路径，如 xxx.docx 或 notify/xxx.docx"
+              />
+              <NUpload
+                :action="uploadAction"
+                :headers="uploadHeaders"
+                :data="{ templatePath: model.templatePath }"
+                :show-file-list="false"
+                :max="1"
+                :multiple="false"
+                accept=".docx"
+                :file-size="20"
+                :is-error-state="isUploadErrorState"
+                @start="uploading = true"
+                @finish="handleUploadFinish"
+                @error="handleUploadError"
+              >
+                <NButton :loading="uploading">上传</NButton>
+              </NUpload>
+            </div>
+            <NText depth="3" class="mt-4px block text-12px">
+              路径相对模板根目录（report.renderer.templates-root），可带子目录；同名文件会先备份为 .orig-时间戳 再覆盖。
+            </NText>
+          </div>
         </NFormItem>
         <NFormItem label="模板校验值" path="templateSha256">
           <NInput v-model:value="model.templateSha256" placeholder="可选：模板文件 SHA-256" clearable />
