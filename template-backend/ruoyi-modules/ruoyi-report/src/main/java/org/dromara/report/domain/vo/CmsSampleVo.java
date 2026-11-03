@@ -154,4 +154,7 @@ public class CmsSampleVo {
 
     /** 到达时间 */
     private String arrivalTime;
+
+    /** 最近一次同步/刷新的变更明细（JSON 数组） */
+    private String syncLog;
 }

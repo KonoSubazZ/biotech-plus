@@ -1,5 +1,6 @@
 package org.dromara.report.domain;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -165,4 +166,8 @@ public class CmsSample extends BaseEntity {
     /** 逻辑删除标志 */
     @TableLogic
     private String delFlag;
+
+    /** 最近一次 CMS 同步/行内刷新的变更明细（JSON 数组：field/label/oldValue/newValue/by/at） */
+    @TableField("sync_log")
+    private String syncLog;
 }

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.dromara.common.core.domain.R;
+import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.validate.AddGroup;
 import org.dromara.common.core.validate.EditGroup;
 import org.dromara.common.excel.utils.ExcelUtil;
@@ -14,12 +15,15 @@ import org.dromara.common.log.annotation.Log;
 import org.dromara.common.log.enums.BusinessType;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
+import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.CmsSampleBo;
 import org.dromara.report.domain.vo.CmsSampleExcelRow;
 import org.dromara.report.domain.vo.CmsSampleImportResultVo;
+import org.dromara.report.domain.vo.CmsSampleRefreshVo;
 import org.dromara.report.domain.vo.CmsSampleVo;
 import org.dromara.report.service.ICmsSampleService;
+import org.dromara.report.service.ICmsSyncService;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,12 +33,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 样本信息（sample_biotech，药企 CMS 契约表）
@@ -52,6 +59,8 @@ import java.util.List;
 public class CmsSampleController extends BaseController {
 
     private final ICmsSampleService cmsSampleService;
+
+    private final ICmsSyncService cmsSyncService;
 
     /**
      * 分页查询样本信息
@@ -144,5 +153,37 @@ public class CmsSampleController extends BaseController {
     @PostMapping("/importTemplate")
     public void importTemplate(HttpServletResponse response) {
         ExcelUtil.exportExcel(new ArrayList<>(), "样本信息导入模板", CmsSampleExcelRow.class, response);
+    }
+
+    /**
+     * 按样本编号从 CMS 刷新一条样本：比对 45 个设计字段，只更新有变化的非空字段。
+     *
+     * @param id 样本主键
+     * @return 变更明细（changed=false 表示与 CMS 一致）
+     */
+    @SaCheckPermission("report:sampleInfo:edit")
+    @Log(title = "样本信息-刷新", businessType = BusinessType.UPDATE)
+    @PostMapping("/refresh/{id}")
+    public R<CmsSampleRefreshVo> refresh(@NotNull(message = "主键不能为空") @PathVariable Long id) {
+        CmsSampleVo sample = cmsSampleService.queryById(id);
+        if (sample == null) {
+            throw new ServiceException("样本不存在");
+        }
+        return R.ok(cmsSyncService.syncBySubbarcode(sample.getSubbarcode(), LoginHelper.getUsername()));
+    }
+
+    /**
+     * 按日期区间从 CMS 批量同步（历史补数据 / 手工重跑）；单次最多 14 天。
+     *
+     * @param start 起始日期 yyyy-MM-dd（含）
+     * @param end   结束日期 yyyy-MM-dd（含）
+     * @return scanned / inserted / updated / unchanged / failed 统计
+     */
+    @SaCheckPermission("report:sampleInfo:edit")
+    @Log(title = "样本信息-区间同步", businessType = BusinessType.OTHER)
+    @PostMapping("/sync")
+    public R<Map<String, Object>> sync(@RequestParam String start, @RequestParam String end) {
+        return R.ok(cmsSyncService.syncRange(LocalDate.parse(start), LocalDate.parse(end),
+            LoginHelper.getUsername()));
     }
 }

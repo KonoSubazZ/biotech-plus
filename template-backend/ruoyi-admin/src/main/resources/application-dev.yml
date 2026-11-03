@@ -279,6 +279,20 @@ ssq:
   # 单次 HTTP 超时（秒）
   timeout-seconds: 30
 
+--- # CMS 订单样本查询（iPaaS 网关）：本机 / 测试环境（与参考脚本 ~/project/drug_api.py 一致）
+# 与 ssq 共用同一个 iPaaS client（同一套账号已授权 CMS 接口）；接口名在代码里现算
+# Base64("HJERK:CMS:pharmaQuery")，不抄魔法串。
+cms:
+  api:
+    base-url: ${CMS_API_BASE_URL:https://ipaas-uat.novogene.com}
+    client-id: ${CMS_API_CLIENT_ID:onco-pharma-platform}
+    client-secret: ${CMS_API_CLIENT_SECRET:K7mP2qR9xT4wZ8nB}
+    timeout-seconds: 30
+    # 每日拉取：默认每天 01:00 拉前一天；sync-enabled=false 时不注册任务
+    sync-enabled: ${CMS_SYNC_ENABLED:true}
+    sync-cron: ${CMS_SYNC_CRON:0 0 1 * * ?}
+    page-size: 500
+
 --- # 数据驱动入库：本机 / 测试环境的上传根
 # 层级是 <日期 YYYYMMDD>/<产品>/<样本>/<样本T>/10.Upload；后端容器要 bind mount 同一个路径
 # （见 /home/liushangzhi/docker/biotech-plus/deploy.sh 的 DRIVER_UPLOAD_DIR）。
