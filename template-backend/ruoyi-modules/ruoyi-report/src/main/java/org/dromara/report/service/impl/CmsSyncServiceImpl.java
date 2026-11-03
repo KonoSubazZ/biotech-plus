@@ -11,6 +11,7 @@ import org.dromara.report.config.CmsApiProperties;
 import org.dromara.report.domain.CmsSample;
 import org.dromara.report.domain.vo.CmsFieldChangeVo;
 import org.dromara.report.domain.vo.CmsSampleRefreshVo;
+import org.dromara.report.domain.vo.CmsSampleVo;
 import org.dromara.report.mapper.CmsSampleMapper;
 import org.dromara.report.service.ICmsSyncService;
 import org.springframework.beans.BeanWrapper;
@@ -22,11 +23,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * CMS 样本同步实现。
@@ -52,118 +54,7 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
     /** 单次区间最多翻多少页（防御接口 hasMore 永远为 true） */
     private static final int MAX_PAGES = 200;
 
-    /** 新增样本时 sync_log 里那条变更的 field 取值 */
-    private static final String INSERT_MARK = "__insert__";
-
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-    /** 接口键 → 实体属性（顺序 = cms_sample 列顺序，45 个） */
-    private static final Map<String, String> API_TO_PROP;
-
-    /** 实体属性 → 中文名（弹窗与 sync_log 共用） */
-    private static final Map<String, String> PROP_LABEL;
-
-    static {
-        Map<String, String> api = new LinkedHashMap<>();
-        api.put("abatchno", "batchNo");
-        api.put("corpdesc", "customerName");
-        api.put("contractname", "contractName");
-        api.put("contractsno", "contractNo");
-        api.put("schemeno", "schemeNo");
-        api.put("yqprojectno", "projectNo");
-        api.put("contractemail", "contractContactEmail");
-        api.put("operatemanagerdesc", "operatorName");
-        api.put("researchcenter", "researchCenter");
-        api.put("REPORTRECEIVER", "reportReceiver");
-        api.put("reportemail", "reportEmail");
-        api.put("sendpeople", "senderName");
-        api.put("sendertel", "senderPhone");
-        api.put("SENDDATE", "sendDate");
-        api.put("expressname", "expressCompany");
-        api.put("expressno", "expressNo");
-        api.put("transportcondition", "transportCondition");
-        api.put("hascontroller", "hasTemperatureLogger");
-        api.put("receivetime", "receiveConfirmTime");
-        api.put("submittime", "orderSubmitTime");
-        api.put("ORDERCODE", "orderNo");
-        api.put("BARCODE", "subbarcode");
-        api.put("customersamplingcode", "customerSamplingCode");
-        api.put("samplename", "sampleName");
-        api.put("subjectid", "subjectNo");
-        api.put("SEX", "sex");
-        api.put("birthyear", "birthYear");
-        api.put("diseasetype", "diseaseType");
-        api.put("visitcycle", "visitCycle");
-        api.put("PCODE", "productCode");
-        api.put("ERPTESTNAME", "productName");
-        api.put("SAMPLETYPE", "sampleType");
-        api.put("SPECIMENNUM", "sampleQuantity");
-        api.put("UNIT", "quantityUnit");
-        api.put("SAMPLEATTRIBUTE", "sampleAttribute");
-        api.put("collectionsite", "collectionSite");
-        api.put("tissuetype", "tissueType");
-        api.put("tumortype", "tumorType");
-        api.put("primarytumorsite", "primaryTumorSite");
-        api.put("SAMPLETIME", "collectionDate");
-        api.put("assaymethod", "assayMethod");
-        api.put("SAMPLEREMARK", "remark");
-        api.put("ABNORMALREMARK", "abnormalRemark");
-        api.put("mtacontroltype", "controlType");
-        api.put("arrivaltime", "arrivalTime");
-        API_TO_PROP = Collections.unmodifiableMap(api);
-
-        Map<String, String> label = new LinkedHashMap<>();
-        label.put("batchNo", "订单批次编号");
-        label.put("customerName", "客户名称");
-        label.put("contractName", "合同名称");
-        label.put("contractNo", "合同编号");
-        label.put("schemeNo", "研究方案编号");
-        label.put("projectNo", "项目编号");
-        label.put("contractContactEmail", "联系人邮箱");
-        label.put("operatorName", "运营经理");
-        label.put("researchCenter", "研究中心名称");
-        label.put("reportReceiver", "报告接收人");
-        label.put("reportEmail", "报告接收邮箱");
-        label.put("senderName", "送检人");
-        label.put("senderPhone", "联系电话");
-        label.put("sendDate", "送检日期");
-        label.put("expressCompany", "快递公司");
-        label.put("expressNo", "快递单号");
-        label.put("transportCondition", "快递条件");
-        label.put("hasTemperatureLogger", "是否带温控计");
-        label.put("receiveConfirmTime", "收样确认时间");
-        label.put("orderSubmitTime", "提交时间");
-        label.put("orderNo", "订单编号");
-        label.put("subbarcode", "诺禾编号");
-        label.put("customerSamplingCode", "客户采样识别码");
-        label.put("sampleName", "样本名称");
-        label.put("subjectNo", "试验参与者编号");
-        label.put("sex", "性别");
-        label.put("birthYear", "出生年份");
-        label.put("diseaseType", "临床诊断");
-        label.put("visitCycle", "访视周期");
-        label.put("productCode", "产品编码");
-        label.put("productName", "产品名称");
-        label.put("sampleType", "样本类型");
-        label.put("sampleQuantity", "样本数量");
-        label.put("quantityUnit", "数量单位");
-        label.put("sampleAttribute", "样本属性");
-        label.put("collectionSite", "取材部位");
-        label.put("tissueType", "组织类型");
-        label.put("tumorType", "肿瘤类型");
-        label.put("primaryTumorSite", "原发部位");
-        label.put("collectionDate", "采集日期");
-        label.put("assayMethod", "检测方式");
-        label.put("remark", "备注");
-        label.put("abnormalRemark", "异常备注");
-        label.put("controlType", "管控类型");
-        label.put("arrivalTime", "到达时间");
-        if (api.size() != 45 || label.size() != 45) {
-            throw new IllegalStateException(
-                "cms_sample 字段映射必须是 45 个，当前 api=" + api.size() + " label=" + label.size());
-        }
-        PROP_LABEL = Collections.unmodifiableMap(label);
-    }
 
     private final CmsApiClient client;
     private final CmsApiProperties props;
@@ -175,16 +66,129 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
         if (subbarcode == null || subbarcode.isBlank()) {
             throw new ServiceException("样本编号不能为空");
         }
+        String at = LocalDateTime.now().format(TS);
+        CmsSampleRefreshVo primary = applyRemote(queryBySampleId(subbarcode), operator, at);
+        primary.setSiblings(syncSiblings(primary, subbarcode, operator, at));
+        return primary;
+    }
+
+    /**
+     * 取一个可用于时间窗的参考日期：送检日期 → 提交时间 → 收样确认时间 → 到达时间 → 采集日期。
+     * 都是字符串列，取前 10 位按 yyyy-MM-dd 解析；都解析不了返回 null（此时放弃同订单联动，只刷当前样本）。
+     */
+    private Optional<LocalDate> referenceDate(CmsSampleVo sample) {
+        if (sample == null) {
+            return Optional.empty();
+        }
+        String[] candidates = {
+            sample.getSendDate(), sample.getOrderSubmitTime(), sample.getReceiveConfirmTime(),
+            sample.getArrivalTime(), sample.getCollectionDate()
+        };
+        for (String raw : candidates) {
+            Optional<LocalDate> parsed = parseDate(raw);
+            if (parsed.isPresent()) {
+                return parsed;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<LocalDate> parseDate(String raw) {
+        if (raw == null || raw.length() < 10) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(LocalDate.parse(raw.substring(0, 10)));
+        } catch (Exception e) {
+            log.debug("日期解析失败，按没有日期处理：{}（{}）", raw, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /** 按编号取 CMS 的一行（sampleID 与日期二选一，这里用编号） */
+    private JsonNode queryBySampleId(String subbarcode) {
         Map<String, Object> req = new LinkedHashMap<>();
         req.put("sampleID", subbarcode);
         req.put("currPage", 1);
         req.put("numPerPage", 10);
-        JsonNode responseInfo = client.invokePharmaQuery(req);
-        JsonNode rows = responseInfo.path("orderSamples");
+        JsonNode rows = client.invokePharmaQuery(req).path("orderSamples");
         if (!rows.isArray() || rows.isEmpty()) {
             throw new ServiceException("CMS 侧没有查到样本 " + subbarcode);
         }
-        return applyRemote(rows.get(0), operator, LocalDateTime.now().format(TS));
+        return rows.get(0);
+    }
+
+    /**
+     * 双样本联动：按订单编号把同订单下的其他样本也刷一遍。
+     * <p>
+     * 双样本 = 同一订单两条记录、编号不同（如组织 -1A / 血液 -2A）。单样本订单这里返回空列表。
+     * 单条失败只记日志，不能让整次刷新回滚。
+     *
+     * @param primary   本次点击的那条的结果（用来取订单编号）
+     * @param subbarcode 本次点击的编号（跳过自身）
+     * @param operator  操作人
+     * @param at        本次操作时间
+     * @return 同订单其他样本的刷新结果（含 changed / changes）
+     */
+    private List<CmsSampleRefreshVo> syncSiblings(CmsSampleRefreshVo primary, String subbarcode,
+                                                  String operator, String at) {
+        List<CmsSampleRefreshVo> siblings = new ArrayList<>();
+        String orderNo = primary.getSample() == null ? null : primary.getSample().getOrderNo();
+        if (orderNo == null || orderNo.isBlank()) {
+            return siblings;
+        }
+        // 接口要求「sampleID 或 startTime/endTime 必须给一组」：按订单编号查时用送检日期 ± 窗口（跨度 <=14 天）
+        Optional<LocalDate> refOpt = referenceDate(primary.getSample());
+        if (refOpt.isEmpty()) {
+            log.warn("同订单样本刷新跳过：样本 {} 没有可用的日期字段", subbarcode);
+            return siblings;
+        }
+        LocalDate ref = refOpt.get();
+        Set<String> seen = new HashSet<>();
+        for (int page = 1; page <= MAX_PAGES; page++) {
+            JsonNode responseInfo = fetchOrderPage(orderNo, ref, page);
+            collectSiblings(responseInfo.path("orderSamples"),
+                new SiblingContext(orderNo, subbarcode, operator, at), siblings, seen);
+            if (!responseInfo.path("hasMore").asBoolean(false)) {
+                break;
+            }
+        }
+        return siblings;
+    }
+
+    /** 按订单编号 + 日期窗口取一页（接口要求 sampleID 或时间窗二选一，这里必须带窗口） */
+    private JsonNode fetchOrderPage(String orderNo, LocalDate ref, int page) {
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("orderCode", orderNo);
+        req.put("startTime", ref.minusDays(6) + " 00:00:00");
+        req.put("endTime", ref.plusDays(7) + " 23:59:59");
+        req.put("currPage", page);
+        req.put("numPerPage", props.getPageSize());
+        return client.invokePharmaQuery(req);
+    }
+
+    /** 同订单联动刷新的上下文（避免方法参数过多） */
+    private record SiblingContext(String orderNo, String subbarcode, String operator, String at) {
+    }
+
+    /** 从一页结果里挑出同订单、非自身的样本逐条刷新；单条失败只记日志 */
+    private void collectSiblings(JsonNode rows, SiblingContext ctx,
+                                 List<CmsSampleRefreshVo> siblings, Set<String> seen) {
+        if (!rows.isArray()) {
+            return;
+        }
+        for (JsonNode row : rows) {
+            String code = text(row, "BARCODE");
+            if (!ctx.orderNo().equals(text(row, "ORDERCODE")) || code.isBlank()
+                || code.equals(ctx.subbarcode()) || !seen.add(code)) {
+                continue;
+            }
+            try {
+                siblings.add(applyRemote(row, ctx.operator(), ctx.at()));
+            } catch (Exception e) {
+                log.warn("同订单样本刷新失败 orderNo={} subbarcode={} err={}", ctx.orderNo(), code, e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -243,7 +247,6 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
 
     /** 区间同步计数（避免 summary 方法参数过多） */
     private static final class Tally {
-        private static final String INSERT_MARK_LOCAL = INSERT_MARK;
         private int scanned;
         private int inserted;
         private int updated;
@@ -252,7 +255,7 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
 
         private void count(CmsSampleRefreshVo one) {
             boolean isInsert = one.getChanges() != null
-                && one.getChanges().stream().anyMatch(c -> INSERT_MARK_LOCAL.equals(c.getField()));
+                && one.getChanges().stream().anyMatch(c -> CmsFieldMapping.INSERT_MARK.equals(c.getField()));
             if (isInsert) {
                 inserted++;
             } else if (one.isChanged()) {
@@ -296,7 +299,8 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
             CmsSample entity = new CmsSample();
             List<CmsFieldChangeVo> insertChanges = new ArrayList<>();
             copyRemote(row, entity, null, insertChanges, operator, at);
-            insertChanges.add(new CmsFieldChangeVo(INSERT_MARK, "新增样本", null, subbarcode, operator, at));
+            insertChanges.add(new CmsFieldChangeVo(
+                CmsFieldMapping.INSERT_MARK, "新增样本", null, subbarcode, operator, at));
             entity.setSyncLog(toSyncLog(insertChanges));
             TenantContext.withoutTenant(() -> {
                 sampleMapper.insert(entity);
@@ -332,7 +336,7 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
                             List<CmsFieldChangeVo> changes, String operator, String at) {
         BeanWrapper t = new BeanWrapperImpl(target);
         BeanWrapper o = old == null ? null : new BeanWrapperImpl(old);
-        API_TO_PROP.forEach((apiKey, prop) -> {
+        CmsFieldMapping.API_TO_PROP.forEach((apiKey, prop) -> {
             String remote = text(row, apiKey);
             if (remote.isBlank()) {
                 return;
@@ -342,7 +346,8 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
                 if (remote.equals(norm(oldVal))) {
                     return;
                 }
-                changes.add(new CmsFieldChangeVo(prop, PROP_LABEL.get(prop), oldVal, remote, operator, at));
+                changes.add(new CmsFieldChangeVo(
+                    prop, CmsFieldMapping.PROP_LABEL.get(prop), oldVal, remote, operator, at));
             }
             t.setPropertyValue(prop, remote);
         });

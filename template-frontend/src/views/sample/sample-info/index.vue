@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { NButton, NDivider } from 'naive-ui';
 import {
   fetchBatchDeleteCmsSample,
@@ -121,7 +121,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
               <ButtonIcon
                 text
                 type="primary"
-                icon="material-symbols:sync"
+                icon="material-symbols:refresh-rounded"
                 tooltipContent="从 CMS 刷新"
                 loading={refreshingId.value === row.id}
                 onClick={() => handleRefresh(row)}
@@ -200,6 +200,38 @@ const refreshingId = ref<number | null>(null);
 const refreshVisible = ref(false);
 const refreshResult = ref<Api.Report.CmsSampleRefresh | null>(null);
 
+/** 弹窗行：当前样本 + 同订单其他样本（双样本联动）的变更平铺，带样本编号 */
+interface RefreshRow {
+  subbarcode: string;
+  label: string;
+  oldValue: string | null;
+  newValue: string | null;
+}
+
+const refreshRows = computed<RefreshRow[]>(() => {
+  const result = refreshResult.value;
+  if (!result) return [];
+  const rows: RefreshRow[] = [];
+  const push = (item: Api.Report.CmsSampleRefresh, code: string) => {
+    for (const change of item.changes ?? []) {
+      if (change.field === '__insert__') continue;
+      rows.push({ subbarcode: code, label: change.label, oldValue: change.oldValue, newValue: change.newValue });
+    }
+  };
+  push(result, result.sample?.subbarcode ?? '');
+  for (const sibling of result.siblings ?? []) {
+    push(sibling, sibling.sample?.subbarcode ?? '');
+  }
+  return rows;
+});
+
+/** 变更是否涉及别的样本（双样本联动时弹窗多一列「样本编号」，标题也不再用单条编号） */
+const refreshShowCode = computed(() => {
+  const primaryCode = refreshResult.value?.sample?.subbarcode ?? '';
+  return refreshRows.value.some(row => row.subbarcode !== primaryCode)
+    || new Set(refreshRows.value.map(row => row.subbarcode)).size > 1;
+});
+
 async function handleRefresh(row: Api.Report.CmsSample) {
   if (!row.subbarcode) {
     window.$message?.error('该行没有诺禾编号，无法刷新');
@@ -210,13 +242,16 @@ async function handleRefresh(row: Api.Report.CmsSample) {
   const { data, error } = await fetchRefreshCmsSample(row.subbarcode);
   refreshingId.value = null;
   if (error) return;
-  if (!data?.changed) {
+  // 双样本：同订单其他样本也一起刷了，changed 取并集（主样本没变、兄弟变了也要弹）
+  const allChanges = [data, ...(data.siblings ?? [])].flatMap(item => item.changes ?? []);
+  if (allChanges.length === 0) {
     window.$message?.success('与 CMS 数据一致，无需更新');
     return;
   }
-  const inserted = data.changes?.some(item => item.field === '__insert__');
+  const inserted = allChanges.some(item => item.field === '__insert__');
+  const fieldChanges = allChanges.filter(item => item.field !== '__insert__');
   refreshResult.value = data;
-  refreshVisible.value = !inserted;
+  refreshVisible.value = fieldChanges.length > 0;
   getData();
   if (inserted) {
     window.$message?.success('该样本已不存在，已按 CMS 数据重新同步');
@@ -286,7 +321,8 @@ async function handleRefresh(row: Api.Report.CmsSample) {
 
     <SampleRefreshModal
       v-model:visible="refreshVisible"
-      :changes="refreshResult?.changes ?? []"
+      :rows="refreshRows"
+      :show-code="refreshShowCode"
       :sample-code="refreshResult?.sample?.subbarcode ?? ''"
       :by="refreshResult?.by ?? ''"
       :at="refreshResult?.at ?? ''"

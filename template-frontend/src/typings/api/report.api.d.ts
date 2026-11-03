@@ -118,6 +118,8 @@ declare namespace Api {
       by: string;
       at: string;
       sample: CmsSample | null;
+      /** 同订单其他样本（双样本联动刷新）的结果，单样本订单为空 */
+      siblings?: CmsSampleRefresh[] | null;
     }
 
     type CmsSampleList = Common.PaginatingQueryRecord<CmsSample>;
