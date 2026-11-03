@@ -1,6 +1,6 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
-import { NButton, NDivider, NTag } from 'naive-ui';
+import { NButton, NDivider } from 'naive-ui';
 import { fetchBatchDeleteCmsSample, fetchGetCmsSampleList } from '@/service/api/report/cms-sample';
 import { useAppStore } from '@/store/modules/app';
 import { useAuth } from '@/hooks/business/auth';
@@ -37,8 +37,7 @@ const SHORT_TITLES: Record<string, string> = {
   customerName: '客户名称',
   projectNo: '项目编号',
   contractNo: '合同编号',
-  schemeNo: '方案编号',
-  receiveConfirmStatus: '收样状态'
+  schemeNo: '方案编号'
 };
 
 /** 默认 15 列的宽度预算：合计控制在 1600 内，1900 视口不用横向滚动 */
@@ -60,7 +59,7 @@ const COLUMN_WIDTHS: Record<string, number> = {
   remark: 95
 };
 
-/** 列表列 = 87 个有效字段；默认显示 15 个关键列，其余通过「列设置」打开 */
+/** 列表列 = 45 个设计字段；默认显示 15 个关键列，其余通过「列设置」打开 */
 const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagination, scrollX } =
   useNaivePaginatedTable({
     api: () => fetchGetCmsSampleList(searchParams.value),
@@ -76,9 +75,8 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         title: SHORT_TITLES[field.key] ?? field.label,
         align: 'center' as const,
         width: COLUMN_WIDTHS[field.key] ?? (field.long ? 220 : 140),
-        ellipsis: field.key === 'subbarcode' || field.key === 'receiveConfirmStatus' ? false : { tooltip: true },
-        className: field.key === 'subbarcode' ? 'barcode-cell' : undefined,
-        render: field.key === 'receiveConfirmStatus' ? renderConfirmStatus : undefined
+        ellipsis: field.key === 'subbarcode' ? false : { tooltip: true },
+        className: field.key === 'subbarcode' ? 'barcode-cell' : undefined
       })),
       {
         key: 'operate',
@@ -147,24 +145,6 @@ columnChecks.value.sort((a, b) => {
   const rankOf = (key: string) => FIXED_COLUMN_RANK[key] ?? columnRank.get(key) ?? 100;
   return rankOf(a.key) - rankOf(b.key) || (originalRank.get(a.key) ?? 0) - (originalRank.get(b.key) ?? 0);
 });
-
-function confirmStatusType(value: string): 'success' | 'warning' | 'default' {
-  if (value.includes('已确认')) return 'success';
-  if (value.includes('待')) return 'warning';
-  return 'default';
-}
-
-/** 收样状态标签：已确认=绿、待确认=黄、其它/空=灰兜底 */
-function renderConfirmStatus(row: Api.Report.CmsSample) {
-  const value = row.receiveConfirmStatus;
-  if (!value) return <span class="text-#8f959e">-</span>;
-  const type = confirmStatusType(value);
-  return (
-    <NTag size="small" type={type} bordered={false}>
-      {value}
-    </NTag>
-  );
-}
 
 /** 抽屉形态：查看 / 新增 / 编辑 */
 const drawerMode = ref<'view' | 'add' | 'edit'>('add');
