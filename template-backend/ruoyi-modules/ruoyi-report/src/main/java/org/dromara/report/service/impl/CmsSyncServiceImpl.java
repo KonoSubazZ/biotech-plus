@@ -11,7 +11,6 @@ import org.dromara.report.config.CmsApiProperties;
 import org.dromara.report.domain.CmsSample;
 import org.dromara.report.domain.vo.CmsFieldChangeVo;
 import org.dromara.report.domain.vo.CmsSampleRefreshVo;
-import org.dromara.report.domain.vo.CmsSampleVo;
 import org.dromara.report.mapper.CmsSampleMapper;
 import org.dromara.report.service.ICmsSyncService;
 import org.springframework.beans.BeanWrapper;
@@ -72,39 +71,6 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
         return primary;
     }
 
-    /**
-     * 取一个可用于时间窗的参考日期：送检日期 → 提交时间 → 收样确认时间 → 到达时间 → 采集日期。
-     * 都是字符串列，取前 10 位按 yyyy-MM-dd 解析；都解析不了返回 null（此时放弃同订单联动，只刷当前样本）。
-     */
-    private Optional<LocalDate> referenceDate(CmsSampleVo sample) {
-        if (sample == null) {
-            return Optional.empty();
-        }
-        String[] candidates = {
-            sample.getSendDate(), sample.getOrderSubmitTime(), sample.getReceiveConfirmTime(),
-            sample.getArrivalTime(), sample.getCollectionDate()
-        };
-        for (String raw : candidates) {
-            Optional<LocalDate> parsed = parseDate(raw);
-            if (parsed.isPresent()) {
-                return parsed;
-            }
-        }
-        return Optional.empty();
-    }
-
-    private Optional<LocalDate> parseDate(String raw) {
-        if (raw == null || raw.length() < 10) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(LocalDate.parse(raw.substring(0, 10)));
-        } catch (Exception e) {
-            log.debug("日期解析失败，按没有日期处理：{}（{}）", raw, e.getMessage());
-            return Optional.empty();
-        }
-    }
-
     /** 按编号取 CMS 的一行（sampleID 与日期二选一，这里用编号） */
     private JsonNode queryBySampleId(String subbarcode) {
         Map<String, Object> req = new LinkedHashMap<>();
@@ -119,15 +85,16 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
     }
 
     /**
-     * 双样本联动：按订单编号把同订单下的其他样本也刷一遍。
+     * 双样本联动：先按订单编号在**本地 cms_sample** 找同订单的其他样本，再对每个编号各调一次 CMS 刷新。
      * <p>
-     * 双样本 = 同一订单两条记录、编号不同（如组织 -1A / 血液 -2A）。单样本订单这里返回空列表。
-     * 单条失败只记日志，不能让整次刷新回滚。
+     * 口径（2026-11-03 用户确认）：不按订单编号去 CMS 查（那样要造时间窗，容易漏），
+     * 而是本地按 order_no 找兄弟行 → 每个编号一次 sampleID 查询 → 各自更新自己的字段 → 结果合并返回。
+     * 单样本订单返回空列表；某条失败只记日志，不影响其它条。
      *
-     * @param primary   本次点击的那条的结果（用来取订单编号）
-     * @param subbarcode 本次点击的编号（跳过自身）
-     * @param operator  操作人
-     * @param at        本次操作时间
+     * @param primary    本次点击那条的刷新结果（取订单编号）
+     * @param subbarcode 本次点击的编号（本地查询时排除）
+     * @param operator   操作人
+     * @param at         本次操作时间（同一批共用，便于对账）
      * @return 同订单其他样本的刷新结果（含 changed / changes）
      */
     private List<CmsSampleRefreshVo> syncSiblings(CmsSampleRefreshVo primary, String subbarcode,
@@ -137,58 +104,29 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
         if (orderNo == null || orderNo.isBlank()) {
             return siblings;
         }
-        // 接口要求「sampleID 或 startTime/endTime 必须给一组」：按订单编号查时用送检日期 ± 窗口（跨度 <=14 天）
-        Optional<LocalDate> refOpt = referenceDate(primary.getSample());
-        if (refOpt.isEmpty()) {
-            log.warn("同订单样本刷新跳过：样本 {} 没有可用的日期字段", subbarcode);
-            return siblings;
-        }
-        LocalDate ref = refOpt.get();
-        Set<String> seen = new HashSet<>();
-        for (int page = 1; page <= MAX_PAGES; page++) {
-            JsonNode responseInfo = fetchOrderPage(orderNo, ref, page);
-            collectSiblings(responseInfo.path("orderSamples"),
-                new SiblingContext(orderNo, subbarcode, operator, at), siblings, seen);
-            if (!responseInfo.path("hasMore").asBoolean(false)) {
-                break;
+        List<String> siblingCodes = localSiblingBarcodes(orderNo, subbarcode);
+        for (String code : siblingCodes) {
+            try {
+                siblings.add(applyRemote(queryBySampleId(code), operator, at));
+            } catch (Exception e) {
+                log.warn("同订单样本刷新失败 orderNo={} subbarcode={} err={}", orderNo, code, e.getMessage());
             }
         }
         return siblings;
     }
 
-    /** 按订单编号 + 日期窗口取一页（接口要求 sampleID 或时间窗二选一，这里必须带窗口） */
-    private JsonNode fetchOrderPage(String orderNo, LocalDate ref, int page) {
-        Map<String, Object> req = new LinkedHashMap<>();
-        req.put("orderCode", orderNo);
-        req.put("startTime", ref.minusDays(6) + " 00:00:00");
-        req.put("endTime", ref.plusDays(7) + " 23:59:59");
-        req.put("currPage", page);
-        req.put("numPerPage", props.getPageSize());
-        return client.invokePharmaQuery(req);
-    }
-
-    /** 同订单联动刷新的上下文（避免方法参数过多） */
-    private record SiblingContext(String orderNo, String subbarcode, String operator, String at) {
-    }
-
-    /** 从一页结果里挑出同订单、非自身的样本逐条刷新；单条失败只记日志 */
-    private void collectSiblings(JsonNode rows, SiblingContext ctx,
-                                 List<CmsSampleRefreshVo> siblings, Set<String> seen) {
-        if (!rows.isArray()) {
-            return;
-        }
-        for (JsonNode row : rows) {
-            String code = text(row, "BARCODE");
-            if (!ctx.orderNo().equals(text(row, "ORDERCODE")) || code.isBlank()
-                || code.equals(ctx.subbarcode()) || !seen.add(code)) {
-                continue;
-            }
-            try {
-                siblings.add(applyRemote(row, ctx.operator(), ctx.at()));
-            } catch (Exception e) {
-                log.warn("同订单样本刷新失败 orderNo={} subbarcode={} err={}", ctx.orderNo(), code, e.getMessage());
-            }
-        }
+    /** 本地按订单编号找同订单的其它样本编号（不同编号 + 未删除） */
+    private List<String> localSiblingBarcodes(String orderNo, String selfBarcode) {
+        List<CmsSample> rows = TenantContext.withoutTenant(() -> sampleMapper.selectList(
+            Wrappers.<CmsSample>lambdaQuery()
+                .select(CmsSample::getSubbarcode)
+                .eq(CmsSample::getOrderNo, orderNo)
+                .ne(CmsSample::getSubbarcode, selfBarcode)));
+        return rows.stream()
+            .map(CmsSample::getSubbarcode)
+            .filter(code -> code != null && !code.isBlank())
+            .distinct()
+            .toList();
     }
 
     @Override
