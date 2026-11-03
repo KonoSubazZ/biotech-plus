@@ -70,9 +70,6 @@ public class ReportTemplateVo {
     /** 关联产品ID集合（详情/编辑用，来自 product_template） */
     private List<Long> productIds;
 
-    /** 关联产品名称集合（列表展示用） */
-    private List<String> productNames;
-
     /**
      * 关联产品明细（列表展示用）：每项含 productId / productBio / productName / productCode。
      * <p>

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
+import org.dromara.common.core.utils.StringUtils;
 import org.dromara.report.config.ReportRendererProperties;
 import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.springframework.core.io.ClassPathResource;
@@ -100,10 +101,13 @@ public class ReportDocxRenderer {
     }
 
     /**
-     * 定位模板文件：固定目录 + 模板名 → {@code <模板目录>/<模板名>.docx}。
-     * 目录没配、文件不存在都直接报错，并把期望路径写清楚（不猜、不兜底）。
+     * 定位模板文件：{@code root.resolve(template_path)}。
+     * <p>
+     * root 来自配置（{@code report.renderer.templates-root}，生产/测试各配各的），库里只存相对路径，
+     * 可带子目录（如 {@code notify/xxx.docx}）；路径为空时回退「模板名称 + .docx」，兼容早期按名称找文件的行。
+     * 任何越出 root 的路径（{@code ../}、绝对路径）一律拒绝，不做兜底。
      *
-     * @param template 模板行（用 template_name 定位文件名）
+     * @param template 模板行（用 template_path 定位文件）
      * @return 模板文件绝对路径
      */
     public Path locateTemplate(ReportTemplateVo template) {
@@ -112,13 +116,15 @@ public class ReportDocxRenderer {
             throw new ServiceException("未配置模板目录（report.renderer.templates-root），无法渲染 DOCX");
         }
         Path root = Path.of(configured.trim()).toAbsolutePath().normalize();
-        Path file = root.resolve(template.getTemplateName() + ".docx").normalize();
+        String relative = StringUtils.isNotBlank(template.getTemplatePath())
+            ? template.getTemplatePath().trim()
+            : template.getTemplateName() + ".docx";
+        Path file = root.resolve(relative).normalize();
         if (!file.startsWith(root)) {
-            throw new ServiceException("模板名不合法（越出模板目录）：" + template.getTemplateName());
+            throw new ServiceException("模板文件路径不合法（越出模板目录）：" + relative);
         }
         if (!Files.isRegularFile(file)) {
-            throw new ServiceException("模板文件不存在：" + file + "；请把 " + template.getTemplateName()
-                + ".docx 放到 " + root);
+            throw new ServiceException("模板文件不存在：" + file + "；请把 " + relative + " 放到 " + root);
         }
         return file;
     }

@@ -1,6 +1,7 @@
 package org.dromara.report.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.service.IReportTemplateService;
 import org.dromara.report.utils.ReportNameResolver;
 import org.dromara.report.service.impl.ReportNameVariables;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,7 +28,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -143,6 +148,25 @@ public class ReportTemplateController extends BaseController {
     @PutMapping()
     public R<Void> edit(@Validated(EditGroup.class) @RequestBody ReportTemplateBo bo) {
         return toAjax(reportTemplateService.updateByBo(bo));
+    }
+
+    /**
+     * 上传模板文件（.docx）。
+     * <p>
+     * 落 {@code templates-root + templatePath}；templatePath 为空 = 原始文件名落模板根目录；
+     * 同名文件先备份为 {@code <文件名>.orig-yyyyMMddHHmmss} 再覆盖。
+     *
+     * @param file         上传文件
+     * @param templatePath 目标相对路径（可带子目录）
+     * @return templatePath / sha256 / sizeBytes / backupPath
+     */
+    @SaCheckPermission(value = {"report:template:add", "report:template:edit"}, mode = SaMode.OR)
+    @Log(title = "报告模板", businessType = BusinessType.INSERT)
+    @RepeatSubmit()
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public R<Map<String, Object>> upload(@RequestPart("file") MultipartFile file,
+                                         @RequestParam(value = "templatePath", required = false) String templatePath) {
+        return R.ok(reportTemplateService.uploadTemplate(file, templatePath));
     }
 
     /**

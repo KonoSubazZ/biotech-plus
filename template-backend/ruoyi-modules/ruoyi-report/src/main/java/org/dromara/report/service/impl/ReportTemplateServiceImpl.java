@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.utils.MapstructUtils;
 import org.dromara.common.core.utils.StringUtils;
@@ -15,11 +16,24 @@ import org.dromara.report.domain.vo.ReportTemplateVo;
 import org.dromara.report.mapper.ReportTemplateMapper;
 import org.dromara.report.service.impl.ReportNameVariables;
 import org.dromara.report.service.IReportTemplateService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -40,15 +54,26 @@ import java.util.UUID;
  * @author <你的名字>
  */
 @RequiredArgsConstructor
+@Slf4j
 @Service
 public class ReportTemplateServiceImpl implements IReportTemplateService {
 
     /** 后端生成编码的前缀：tpl-000123（自增主键回填，稳定且不重复） */
     private static final String CODE_PREFIX = "tpl-";
 
+    /** 模板文件大小上限（上传） */
+    private static final long MAX_TEMPLATE_BYTES = 20L * 1024 * 1024;
+
+    /** 同名覆盖前的备份后缀时间戳 */
+    private static final DateTimeFormatter BACKUP_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
     private final ReportTemplateMapper baseMapper;
 
     private final ReportNameVariables reportNameVariables;
+
+    /** 模板根目录（与 ReportDocxRenderer 同一配置项；生产/测试各配各的） */
+    @Value("${report.renderer.templates-root:}")
+    private String templatesRoot;
 
     @Override
     public TableDataInfo<ReportTemplateVo> selectPageList(ReportTemplateBo bo, PageQuery pageQuery) {
@@ -136,6 +161,117 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
     @Override
     public List<Map<String, Object>> selectProjectOptions() {
         return baseMapper.selectProjectOptions();
+    }
+
+    @Override
+    public Map<String, Object> uploadTemplate(MultipartFile file, String templatePath) {
+        if (file == null || file.isEmpty()) {
+            throw new ServiceException("上传文件不能为空");
+        }
+        if (StringUtils.isBlank(templatesRoot)) {
+            throw new ServiceException("未配置模板目录（report.renderer.templates-root），无法上传模板");
+        }
+        if (file.getSize() > MAX_TEMPLATE_BYTES) {
+            throw new ServiceException("模板文件不能超过 20MB：" + file.getSize());
+        }
+        String relative = resolveRelativePath(file, templatePath);
+        Path root = Path.of(templatesRoot).toAbsolutePath().normalize();
+        Path target = root.resolve(relative).normalize();
+        if (!target.startsWith(root)) {
+            throw new ServiceException("模板文件路径不合法（越出模板目录）：" + relative);
+        }
+        String backupPath = storeTemplate(root, target, file);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("templatePath", root.relativize(target).toString().replace('\\', '/'));
+        result.put("sizeBytes", file.getSize());
+        result.put("sha256", sha256Of(target));
+        result.put("backupPath", backupPath);
+        return result;
+    }
+
+    /** 目标相对路径：没填就用原始文件名（只取末段，去掉客户端带过来的目录） */
+    private String resolveRelativePath(MultipartFile file, String templatePath) {
+        String original = file.getOriginalFilename();
+        if (StringUtils.isBlank(original)) {
+            throw new ServiceException("上传文件名不能为空");
+        }
+        String relative = StringUtils.isBlank(templatePath)
+            ? Path.of(original).getFileName().toString().trim()
+            : templatePath.trim().replace('\\', '/');
+        if (relative.startsWith("/")) {
+            throw new ServiceException("模板文件路径必须是相对路径：" + relative);
+        }
+        if (!relative.toLowerCase().endsWith(".docx")) {
+            throw new ServiceException("模板文件只支持 .docx：" + relative);
+        }
+        return relative;
+    }
+
+    /** 写盘：建目录 → 同名备份 → 覆盖 → 属主/权限对齐；返回备份相对路径（无备份为 null） */
+    private String storeTemplate(Path root, Path target, MultipartFile file) {
+        String backupPath = null;
+        try {
+            Files.createDirectories(target.getParent());
+            if (Files.isRegularFile(target)) {
+                Path backup = target.resolveSibling(target.getFileName() + ".orig-"
+                    + LocalDateTime.now().format(BACKUP_TIMESTAMP));
+                Files.copy(target, backup, StandardCopyOption.REPLACE_EXISTING);
+                backupPath = root.relativize(backup).toString().replace('\\', '/');
+            }
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            throw new ServiceException("模板保存失败：" + target.getFileName() + "（" + e.getMessage() + "）");
+        }
+        alignUploadedTree(root, target);
+        return backupPath;
+    }
+
+    /**
+     * 让上传产生的目录/文件对齐模板根目录的属主：后端在容器里以 root 写盘，
+     * 默认 root:root，宿主账号既改不了也删不掉（目录 755 时连删文件都不行）。
+     * 目录统一 rwxr-xr-x、文件 rw-r--r--；失败只记 warn，不影响上传结果。
+     */
+    private void alignUploadedTree(Path root, Path target) {
+        for (Path dir = target.getParent(); dir != null && dir.startsWith(root) && !dir.equals(root);
+             dir = dir.getParent()) {
+            setOwnerFromRoot(root, dir);
+            setPermissions(dir, "rwxr-xr-x");
+        }
+        setOwnerFromRoot(root, target);
+        setPermissions(target, "rw-r--r--");
+    }
+
+    private void setOwnerFromRoot(Path root, Path path) {
+        try {
+            Files.setOwner(path, Files.getOwner(root));
+        } catch (IOException | UnsupportedOperationException e) {
+            log.warn("模板文件属主对齐失败（不影响上传）：{}，{}", path, e.getMessage());
+        }
+    }
+
+    private void setPermissions(Path path, String permissions) {
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString(permissions));
+        } catch (IOException | UnsupportedOperationException e) {
+            log.warn("模板文件权限设置失败（不影响上传）：{}，{}", path, e.getMessage());
+        }
+    }
+
+    /** 模板文件 SHA-256（大写十六进制，与库里既有值口径一致） */
+    private String sha256Of(Path file) {
+        try (InputStream in = Files.newInputStream(file)) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) > 0) {
+                digest.update(buffer, 0, read);
+            }
+            return HexFormat.of().formatHex(digest.digest()).toUpperCase();
+        } catch (IOException | NoSuchAlgorithmException e) {
+            throw new ServiceException("模板 SHA-256 计算失败：" + file.getFileName() + "（" + e.getMessage() + "）");
+        }
     }
 
     /** 组装查询条件：声明 Wrapper → 模糊条件 → 精确条件 → 排序 */
@@ -252,7 +388,7 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
 
     /**
      * 列表页补充关联产品：一次批量查关系，按模板分组后回填
-     * products（列表两行展示用）→ 再从它派生 productIds（编辑回填）与 productNames（兼容旧字段）。
+     * products（列表两行展示用）→ 再从它派生 productIds（编辑回填）。
      */
     private void fillProductRelations(List<ReportTemplateVo> rows) {
         if (rows == null || rows.isEmpty()) {
@@ -273,7 +409,6 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
                 productsByTemplate.getOrDefault(row.getTemplateId(), new ArrayList<>());
             row.setProducts(products);
             row.setProductIds(productIdsOf(products));
-            row.setProductNames(productNamesOf(products));
         }
     }
 
@@ -293,14 +428,6 @@ public class ReportTemplateServiceImpl implements IReportTemplateService {
             ids.add(toLong(product.get("productId")));
         }
         return ids;
-    }
-
-    private List<String> productNamesOf(List<Map<String, Object>> products) {
-        List<String> names = new ArrayList<>();
-        for (Map<String, Object> product : products) {
-            names.add(toText(product.get("productName")));
-        }
-        return names;
     }
 
     /**
