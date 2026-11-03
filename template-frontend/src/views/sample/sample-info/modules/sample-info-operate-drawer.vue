@@ -34,6 +34,20 @@ const visible = defineModel<boolean>('visible', {
 });
 
 const { formRef, validate, restoreValidation } = useNaiveForm();
+
+/** 最近一次 CMS 同步摘要（只读展示：谁 / 何时 / 几项变更），来自列表行的 syncLog */
+const syncSummary = computed(() => {
+  const raw = props.rowData?.syncLog;
+  if (!raw) return '';
+  try {
+    const list = JSON.parse(raw) as Api.Report.CmsFieldChange[];
+    if (!Array.isArray(list) || list.length === 0) return '';
+    const last = list[list.length - 1];
+    return `${last.by} · ${last.at} · ${list.length} 项变更`;
+  } catch {
+    return '';
+  }
+});
 const { createRequiredRule } = useFormRules();
 
 const saving = ref(false);
@@ -115,6 +129,9 @@ watch(visible, () => {
         <NForm ref="formRef" :model="model" :rules="rules" label-placement="top">
           <SampleInfoFormGroups v-model:model="model" :mode="mode" />
         </NForm>
+        <div v-if="mode === 'view' && syncSummary" class="mt-12px text-12px text-#999">
+          最近同步：{{ syncSummary }}
+        </div>
       </NSpin>
       <template #footer>
         <NSpace :size="16">

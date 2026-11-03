@@ -1,7 +1,11 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
 import { NButton, NDivider } from 'naive-ui';
-import { fetchBatchDeleteCmsSample, fetchGetCmsSampleList } from '@/service/api/report/cms-sample';
+import {
+  fetchBatchDeleteCmsSample,
+  fetchGetCmsSampleList,
+  fetchRefreshCmsSample
+} from '@/service/api/report/cms-sample';
 import { useAppStore } from '@/store/modules/app';
 import { useAuth } from '@/hooks/business/auth';
 import { defaultTransform, useNaivePaginatedTable, useTableOperate } from '@/hooks/common/table';
@@ -9,6 +13,7 @@ import { $t } from '@/locales';
 import ButtonIcon from '@/components/custom/button-icon.vue';
 import { DEFAULT_VISIBLE_COLUMNS, CMS_SAMPLE_FIELDS } from './modules/cms-sample-fields';
 import SampleInfoImportModal from './modules/sample-info-import-modal.vue';
+import SampleRefreshModal from './modules/sample-refresh-modal.vue';
 import SampleInfoOperateDrawer from './modules/sample-info-operate-drawer.vue';
 import SampleInfoSearch from './modules/sample-info-search.vue';
 
@@ -82,7 +87,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 110,
+        width: 150,
         fixed: 'right',
         render: row => {
           // 每个按钮单独判权限；两个都没有时连分隔线都不渲染
@@ -108,6 +113,22 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
             );
           };
 
+          const refreshBtn = () => {
+            if (!hasAuth('report:sampleInfo:edit')) {
+              return null;
+            }
+            return (
+              <ButtonIcon
+                text
+                type="primary"
+                icon="material-symbols:sync"
+                tooltipContent="从 CMS 刷新"
+                loading={refreshingId.value === row.id}
+                onClick={() => handleRefresh(row)}
+              />
+            );
+          };
+
           return (
             <div class="flex-center gap-8px">
               <NButton text type="primary" onClick={() => openDetail(row)}>
@@ -115,6 +136,8 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
               </NButton>
               {divider()}
               {editBtn()}
+              {divider()}
+              {refreshBtn()}
             </div>
           );
         }
@@ -170,6 +193,26 @@ async function handleBatchDelete() {
   const { error } = await fetchBatchDeleteCmsSample(checkedRowKeys.value);
   if (error) return;
   onBatchDeleted();
+}
+
+/** 行内「从 CMS 刷新」：有变更弹窗列字段级差异，无变更给轻提示 */
+const refreshingId = ref<number | null>(null);
+const refreshVisible = ref(false);
+const refreshResult = ref<Api.Report.CmsSampleRefresh | null>(null);
+
+async function handleRefresh(row: Api.Report.CmsSample) {
+  if (!row.id) return;
+  refreshingId.value = row.id;
+  const { data, error } = await fetchRefreshCmsSample(row.id);
+  refreshingId.value = null;
+  if (error) return;
+  if (!data?.changed) {
+    window.$message?.success('与 CMS 数据一致，无需更新');
+    return;
+  }
+  refreshResult.value = data;
+  refreshVisible.value = true;
+  getData();
 }
 </script>
 
@@ -232,6 +275,14 @@ async function handleBatchDelete() {
     />
 
     <SampleInfoImportModal v-model:visible="importModalVisible" @submitted="getData" />
+
+    <SampleRefreshModal
+      v-model:visible="refreshVisible"
+      :changes="refreshResult?.changes ?? []"
+      :sample-code="refreshResult?.sample?.subbarcode ?? ''"
+      :by="refreshResult?.by ?? ''"
+      :at="refreshResult?.at ?? ''"
+    />
   </div>
 </template>
 

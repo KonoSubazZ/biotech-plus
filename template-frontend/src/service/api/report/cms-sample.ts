@@ -49,3 +49,11 @@ export function fetchBatchDeleteCmsSample(ids: CommonType.IdType[]) {
     method: 'delete'
   });
 }
+
+/** 按样本编号从 CMS 刷新一条（比对 45 个设计字段） */
+export function fetchRefreshCmsSample(id: number) {
+  return request<Api.Report.CmsSampleRefresh>({
+    url: `/report/cmsSample/refresh/${id}`,
+    method: 'post'
+  });
+}

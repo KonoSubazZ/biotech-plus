@@ -97,6 +97,27 @@ declare namespace Api {
       controlType: string | null;
       /** 到达时间 */
       arrivalTime: string | null;
+      /** 最近一次同步/刷新的变更明细（JSON 数组字符串） */
+      syncLog?: string | null;
+    }
+
+    /** 单个字段的变更（sync_log 数组元素） */
+    interface CmsFieldChange {
+      field: string;
+      label: string;
+      oldValue: string | null;
+      newValue: string | null;
+      by: string;
+      at: string;
+    }
+
+    /** 行内「刷新」的返回 */
+    interface CmsSampleRefresh {
+      changed: boolean;
+      changes: CmsFieldChange[];
+      by: string;
+      at: string;
+      sample: CmsSample | null;
     }
 
     type CmsSampleList = Common.PaginatingQueryRecord<CmsSample>;
