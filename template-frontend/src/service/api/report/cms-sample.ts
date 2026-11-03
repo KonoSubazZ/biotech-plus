@@ -50,10 +50,11 @@ export function fetchBatchDeleteCmsSample(ids: CommonType.IdType[]) {
   });
 }
 
-/** 按样本编号从 CMS 刷新一条（比对 45 个设计字段） */
-export function fetchRefreshCmsSample(id: number) {
+/** 按样本编号（不是主键）从 CMS 刷新一条；列表快照过期时也能凭编号把行补回来 */
+export function fetchRefreshCmsSample(subbarcode: string) {
   return request<Api.Report.CmsSampleRefresh>({
-    url: `/report/cmsSample/refresh/${id}`,
-    method: 'post'
+    url: '/report/cmsSample/refresh',
+    method: 'post',
+    params: { subbarcode }
   });
 }

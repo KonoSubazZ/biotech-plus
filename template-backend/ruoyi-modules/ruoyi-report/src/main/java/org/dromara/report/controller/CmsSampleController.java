@@ -157,19 +157,21 @@ public class CmsSampleController extends BaseController {
 
     /**
      * 按样本编号从 CMS 刷新一条样本：比对 45 个设计字段，只更新有变化的非空字段。
+     * <p>
+     * 用编号而不是主键：列表可能停留在旧快照（行已被删除/重建，id 已变），
+     * 按编号刷新时库中若没有该行，就按 CMS 数据补一条（返回 changes 里带 __insert__）。
      *
-     * @param id 样本主键
+     * @param subbarcode 诺禾编号
      * @return 变更明细（changed=false 表示与 CMS 一致）
      */
     @SaCheckPermission("report:sampleInfo:edit")
     @Log(title = "样本信息-刷新", businessType = BusinessType.UPDATE)
-    @PostMapping("/refresh/{id}")
-    public R<CmsSampleRefreshVo> refresh(@NotNull(message = "主键不能为空") @PathVariable Long id) {
-        CmsSampleVo sample = cmsSampleService.queryById(id);
-        if (sample == null) {
-            throw new ServiceException("样本不存在");
+    @PostMapping("/refresh")
+    public R<CmsSampleRefreshVo> refresh(@RequestParam String subbarcode) {
+        if (subbarcode == null || subbarcode.isBlank()) {
+            throw new ServiceException("样本编号不能为空");
         }
-        return R.ok(cmsSyncService.syncBySubbarcode(sample.getSubbarcode(), LoginHelper.getUsername()));
+        return R.ok(cmsSyncService.syncBySubbarcode(subbarcode, LoginHelper.getUsername()));
     }
 
     /**

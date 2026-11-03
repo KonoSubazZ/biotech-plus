@@ -201,18 +201,26 @@ const refreshVisible = ref(false);
 const refreshResult = ref<Api.Report.CmsSampleRefresh | null>(null);
 
 async function handleRefresh(row: Api.Report.CmsSample) {
-  if (!row.id) return;
-  refreshingId.value = row.id;
-  const { data, error } = await fetchRefreshCmsSample(row.id);
+  if (!row.subbarcode) {
+    window.$message?.error('该行没有诺禾编号，无法刷新');
+    return;
+  }
+  refreshingId.value = row.id ?? null;
+  // 按编号刷新：列表可能是旧快照（行已删除/重建，id 变了），库里没有就按 CMS 补回来
+  const { data, error } = await fetchRefreshCmsSample(row.subbarcode);
   refreshingId.value = null;
   if (error) return;
   if (!data?.changed) {
     window.$message?.success('与 CMS 数据一致，无需更新');
     return;
   }
+  const inserted = data.changes?.some(item => item.field === '__insert__');
   refreshResult.value = data;
-  refreshVisible.value = true;
+  refreshVisible.value = !inserted;
   getData();
+  if (inserted) {
+    window.$message?.success('该样本已不存在，已按 CMS 数据重新同步');
+  }
 }
 </script>
 
