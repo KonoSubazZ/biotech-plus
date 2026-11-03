@@ -57,13 +57,21 @@ const panelTypeOptions = ['DNA', 'RNA', 'DNA_RNA', 'WES', 'HRD', 'DNA_HRD'].map(
 
 function createDefaultModel(): Api.Project.ProductConfigForm {
   return {
-    productName: '',
-    productBio: '',
     productCode: '',
-    testType: null,
-    panelType: null,
+    tradeName: null,
+    productBio: '',
+    productName: '',
     relatedDiseases: null,
+    testType: null,
+    controlType: null,
+    productVersion: null,
+    sequencingPlatform: null,
+    geneCount: null,
     reportCycleDays: null,
+    maintainLab: null,
+    relatedProcess: null,
+    probeType: null,
+    panelType: null,
     status: 'active',
     remark: null
   };
@@ -125,17 +133,47 @@ watch(visible, () => {
     <NDrawerContent :title="title" :native-scrollbar="false" closable>
       <NForm ref="formRef" :model="model" :rules="rules">
         <div class="grid grid-cols-1 gap-16px md:grid-cols-2">
-          <NFormItem label="产品名称" path="productName">
-            <NInput v-model:value="model.productName" placeholder="请输入对外产品名称" />
-          </NFormItem>
           <NFormItem label="产品编码" path="productCode">
             <NInput v-model:value="model.productCode" placeholder="请输入产品编码" />
+          </NFormItem>
+          <NFormItem label="商品名" path="tradeName">
+            <NInput v-model:value="model.tradeName" placeholder="请输入商品名" />
+          </NFormItem>
+          <NFormItem class="md:col-span-2" label="产品名称" path="productName">
+            <NInput v-model:value="model.productName" placeholder="请输入系统用产品名称" />
           </NFormItem>
           <NFormItem class="md:col-span-2" label="生信编码" path="productBio">
             <NInput v-model:value="model.productBio" placeholder="生信编码，须与上传目录第 2 层 product 逐字一致" />
           </NFormItem>
-          <NFormItem label="检测类型" path="testType">
+          <NFormItem class="md:col-span-2" label="适应症" path="relatedDiseases">
+            <NInput v-model:value="model.relatedDiseases" placeholder="请输入适应症，多个可用、分隔" />
+          </NFormItem>
+          <NFormItem label="样本类型" path="testType">
             <NInput v-model:value="model.testType" placeholder="如：组织 / 血液" />
+          </NFormItem>
+          <NFormItem label="对照" path="controlType">
+            <NInput v-model:value="model.controlType" placeholder="如：血液 / PBMC / 无" />
+          </NFormItem>
+          <NFormItem label="版本" path="productVersion">
+            <NInput v-model:value="model.productVersion" placeholder="如：LDT / IVD" />
+          </NFormItem>
+          <NFormItem label="测序平台" path="sequencingPlatform">
+            <NInput v-model:value="model.sequencingPlatform" placeholder="如：surf5000 Dx" />
+          </NFormItem>
+          <NFormItem label="基因数/DNA" path="geneCount">
+            <NInputNumber v-model:value="model.geneCount" class="w-full" :min="0" :precision="0" placeholder="如：1238" />
+          </NFormItem>
+          <NFormItem label="报告周期(天)" path="reportCycleDays">
+            <NInputNumber v-model:value="model.reportCycleDays" class="w-full" placeholder="请输入报告周期" />
+          </NFormItem>
+          <NFormItem label="维护实验室" path="maintainLab">
+            <NInput v-model:value="model.maintainLab" placeholder="如：天津实验室" />
+          </NFormItem>
+          <NFormItem label="关联工序" path="relatedProcess">
+            <NInput v-model:value="model.relatedProcess" placeholder="如：全流程" />
+          </NFormItem>
+          <NFormItem class="md:col-span-2" label="探针类型" path="probeType">
+            <NInput v-model:value="model.probeType" placeholder="如：正常1238探针 / 正常1238探针+UMI" />
           </NFormItem>
           <NFormItem label="panel类型" path="panelType">
             <NSelect
@@ -147,14 +185,8 @@ watch(visible, () => {
               placeholder="请选择或输入panel类型"
             />
           </NFormItem>
-          <NFormItem label="报告周期(天)" path="reportCycleDays">
-            <NInputNumber v-model:value="model.reportCycleDays" class="w-full" placeholder="请输入报告周期" />
-          </NFormItem>
           <NFormItem label="状态" path="status">
             <NSelect v-model:value="model.status" :options="statusOptions" placeholder="请选择状态" />
-          </NFormItem>
-          <NFormItem class="md:col-span-2" label="相关疾病" path="relatedDiseases">
-            <NInput v-model:value="model.relatedDiseases" placeholder="多个疾病可用、分隔" />
           </NFormItem>
           <NFormItem class="md:col-span-2" label="备注" path="remark">
             <NInput v-model:value="model.remark" type="textarea" placeholder="请输入备注" />

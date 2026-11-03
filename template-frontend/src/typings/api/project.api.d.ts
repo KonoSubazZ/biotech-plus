@@ -11,18 +11,36 @@ declare namespace Api {
       id: number;
       /** 产品编码（对外，唯一） */
       productCode: string;
+      /** 商品名 */
+      tradeName?: string | null;
       /** 生信编码：= 上传目录第 2 层 product，与 analysis_data.product_bio 逐字相等 */
       productBio: string;
-      /** 产品名称（对外展示、报告用） */
+      /** 产品名称（系统用） */
       productName: string;
       /** active 启用 / inactive 停用 */
       status: string;
-      /** 检测类型（组织 / 血液） */
+      /** 适应症 */
+      relatedDiseases?: string | null;
+      /** 样本类型（组织 / 血液） */
       testType?: string | null;
+      /** 对照（血液 / PBMC / 无） */
+      controlType?: string | null;
+      /** 版本（LDT / IVD） */
+      productVersion?: string | null;
+      /** 测序平台 */
+      sequencingPlatform?: string | null;
+      /** 基因数/DNA */
+      geneCount?: number | null;
+      /** 报告周期（天） */
+      reportCycleDays?: number | null;
+      /** 维护实验室 */
+      maintainLab?: string | null;
+      /** 关联工序 */
+      relatedProcess?: string | null;
+      /** 探针类型 */
+      probeType?: string | null;
       /** panel类型（DNA / RNA / DNA_RNA / WES / HRD 等） */
       panelType?: string | null;
-      relatedDiseases?: string | null;
-      reportCycleDays?: number | null;
       remark?: string | null;
       createTime?: string | null;
     }
@@ -40,12 +58,20 @@ declare namespace Api {
     interface ProductConfigForm {
       id?: number | null;
       productCode: string;
+      tradeName?: string | null;
       productBio: string;
       productName: string;
-      testType?: string | null;
-      panelType?: string | null;
       relatedDiseases?: string | null;
+      testType?: string | null;
+      controlType?: string | null;
+      productVersion?: string | null;
+      sequencingPlatform?: string | null;
+      geneCount?: number | null;
       reportCycleDays?: number | null;
+      maintainLab?: string | null;
+      relatedProcess?: string | null;
+      probeType?: string | null;
+      panelType?: string | null;
       status?: string | null;
       remark?: string | null;
     }
