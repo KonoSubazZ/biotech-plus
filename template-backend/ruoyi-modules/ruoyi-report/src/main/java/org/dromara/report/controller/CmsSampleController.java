@@ -41,7 +41,7 @@ import java.util.List;
  * <p>
  * 页面路由仍沿用菜单「样本管理 › 样本信息」(/qc/sample-info)，
  * 权限点也沿用 report:sampleInfo:*，保证菜单与角色授权无需改动。
- * 只暴露 87 个 biotech_* 有效字段；59 个 deprecated_* 兼容列不在实体/VO/BO/Excel 中。
+ * 只暴露 45 个设计字段；列名不带 biotech_/deprecated_ 前缀。
  *
  * @author <你的名字>
  */

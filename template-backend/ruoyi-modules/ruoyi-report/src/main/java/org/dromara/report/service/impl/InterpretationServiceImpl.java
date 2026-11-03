@@ -441,11 +441,14 @@ public class InterpretationServiceImpl implements IInterpretationService {
         lims.setSampleSource(null);
         lims.setFromOrgan(sample.getCollectionSite());
         lims.setSampleCollectedAt(sample.getCollectionDate());
-        lims.setSampleReceivedAt(sample.getArrivalDate());
+        // 到达时间：接口只给 arrival_time（yyyy-MM-dd HH:mm:ss），报告要日期，取前 10 位
+        String arrival = sample.getArrivalTime();
+        lims.setSampleReceivedAt(arrival == null || arrival.length() < 10 ? arrival : arrival.substring(0, 10));
         lims.setCommissionedAt(sample.getOrderSubmitTime());
         lims.setTestingProgram(sample.getProductName());
         lims.setSampleRemark(sample.getRemark());
-        lims.setLaboratoryName(sample.getReceivingLab());
+        // 收样实验室字段已删除（设计清单没有、接口也不再返回），该栏留空
+        lims.setLaboratoryName(null);
         lims.setReportReceiver(sample.getReportReceiver());
         lims.setEmailAddress(sample.getReportEmail());
         lims.setPatientInfoEmail(null);

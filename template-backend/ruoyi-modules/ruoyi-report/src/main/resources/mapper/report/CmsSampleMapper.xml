@@ -14,7 +14,7 @@
     <select id="selectIdBySubbarcodeIncludeDeleted" resultType="java.lang.Long">
         SELECT id
         FROM cms_sample
-        WHERE biotech_subbarcode = #{subbarcode}
+        WHERE subbarcode = #{subbarcode}
         ORDER BY id ASC
         LIMIT 1
     </select>

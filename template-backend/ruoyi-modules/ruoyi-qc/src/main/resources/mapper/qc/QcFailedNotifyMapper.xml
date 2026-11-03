@@ -2,21 +2,23 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.dromara.qc.mapper.QcFailedNotifyMapper">
 
-    <!-- 按样本编号回填通知单表头字段（跨表只读；调用方需 withoutTenant） -->
+    <!-- 按样本编号回填通知单表头字段（跨表只读；调用方需 withoutTenant）
+         注意：center（研究中心名称）暂不取 cms_sample（收样实验室字段已删除），留空；
+         质控通知重构时再定来源，见 2026-11-03 cms_sample 精简方案。 -->
     <select id="selectSampleForNotify" resultType="org.dromara.qc.domain.vo.QcNotifySampleVo">
         SELECT id,
-               biotech_subbarcode          AS subbarcode,
-               biotech_contract_no         AS studyNo,
-               biotech_order_no            AS projectNo,
-               biotech_subject_no          AS participantNo,
-               biotech_receiving_lab       AS center,
-               biotech_receive_confirm_time AS receiveDate,
-               biotech_sample_type         AS sampleType,
-               biotech_sample_quantity     AS sampleCount,
-               biotech_product_name        AS product,
-               biotech_customer_name       AS customerName
+               subbarcode            AS subbarcode,
+               contract_no           AS studyNo,
+               order_no              AS projectNo,
+               subject_no            AS participantNo,
+               NULL                  AS center,
+               receive_confirm_time  AS receiveDate,
+               sample_type           AS sampleType,
+               sample_quantity       AS sampleCount,
+               product_name          AS product,
+               customer_name         AS customerName
         FROM cms_sample
-        WHERE biotech_subbarcode = #{subbarcode}
+        WHERE subbarcode = #{subbarcode}
           AND del_flag = '0'
         ORDER BY id DESC
         LIMIT 1
@@ -30,7 +32,7 @@
     <select id="selectTenantIdBySubbarcode" resultType="java.lang.String">
         SELECT tenant_id
         FROM cms_sample
-        WHERE biotech_subbarcode = #{subbarcode}
+        WHERE subbarcode = #{subbarcode}
         ORDER BY id DESC
         LIMIT 1
     </select>

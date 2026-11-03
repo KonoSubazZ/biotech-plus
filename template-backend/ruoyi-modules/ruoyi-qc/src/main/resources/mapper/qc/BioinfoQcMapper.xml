@@ -16,9 +16,9 @@
       同编号多条时取最新一条；含已软删行不加限制（软删样本仍可定位药企，避免接口推数据被静默丢）。
     -->
     <select id="selectCustomerNameBySubbarcode" resultType="java.lang.String">
-        SELECT biotech_customer_name
+        SELECT customer_name
         FROM cms_sample
-        WHERE biotech_subbarcode = #{subbarcode}
+        WHERE subbarcode = #{subbarcode}
         ORDER BY id DESC
         LIMIT 1
     </select>
