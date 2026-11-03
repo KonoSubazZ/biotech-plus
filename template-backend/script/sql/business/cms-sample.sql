@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS `cms_sample` (
   `update_by`   bigint(20) DEFAULT NULL COMMENT '更新者',
   `update_time` datetime   DEFAULT NULL COMMENT '更新时间',
   `del_flag`    char(1)    NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 1代表删除）',
+  `sync_log`    text                   COMMENT '最近一次同步/刷新的变更明细（JSON 数组：field/label/oldValue/newValue/by/at）',
   `tenant_id`   varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
 
   PRIMARY KEY (`id`),
