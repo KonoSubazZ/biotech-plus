@@ -570,7 +570,7 @@ CREATE TABLE IF NOT EXISTS `report_template` (
     `report_type` VARCHAR(40) NOT NULL COMMENT '报告类型',
     `module_code` VARCHAR(500) NULL DEFAULT NULL COMMENT '有序个性化Java报告模块编码列表，分号分隔；公共模块无需配置',
     `report_name` VARCHAR(500) DEFAULT NULL COMMENT '报告命名模板：静态文本 + {{路径}} 动态取值；空=用默认命名',
-    `template_path` VARCHAR(1000) NOT NULL COMMENT '项目内或受控模板路径',
+    `template_path` VARCHAR(1000) NOT NULL COMMENT '模板文件相对路径（相对 report.renderer.templates-root，可带子目录，如 xxx.docx / notify/xxx.docx）',
     `template_sha256` CHAR(64) DEFAULT NULL COMMENT '模板文件SHA-256',
     `status` VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT '状态（active 启用 / inactive 停用）',
     `create_by` bigint COMMENT '创建者',
