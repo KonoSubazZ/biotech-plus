@@ -121,21 +121,13 @@ watch(visible, value => {
           附件
         </div>
         <NDescriptions :column="2" bordered size="small" label-placement="left" :label-style="{ width: '130px' }">
-          <NDescriptionsItem label="通知单 PDF">
-            <PdfPreview
-              v-if="detail.pdfPath"
-              :src="`/qc/notify/${detail.id}/pdf`"
-              :name="fileName(detail.pdfPath)"
-            />
-            <span v-else>-</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="签名件 PDF">
+          <NDescriptionsItem label="签名件 PDF" :span="2">
             <PdfPreview
               v-if="detail.signedPdfPath"
               :src="`/qc/notify/${detail.id}/signed-pdf`"
               :name="fileName(detail.signedPdfPath)"
             />
-            <span v-else>-</span>
+            <span v-else>未签署</span>
           </NDescriptionsItem>
         </NDescriptions>
       </div>

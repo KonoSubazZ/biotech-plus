@@ -139,12 +139,12 @@ public class ReportMailSendService {
         }
     }
 
-    /** 附件：默认带上报告制品；页面显式取消（attachReport=false）时不带（此时返回空 File[]，由调用方按「不带附件」发） */
+    /** 附件：只发「已签署」的报告成品；页面显式取消（attachReport=false）时不带附件 */
     private File[] resolveAttachments(InterpretationSendBo bo) {
         if (Boolean.FALSE.equals(bo.getAttachReport())) {
             return new File[0];
         }
-        return new File[]{reportFileService.loadReportFile(bo.getReportId(), bo.getAnalysisId())};
+        return new File[]{reportFileService.loadSignedReportFile(bo.getReportId(), bo.getAnalysisId())};
     }
 
     /** 写一条 SENDING 记录（必须在发信之前，发信失败的痕迹才有落点） */

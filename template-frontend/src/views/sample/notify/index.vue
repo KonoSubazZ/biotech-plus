@@ -93,15 +93,9 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       width: 190,
       ellipsis: { tooltip: true },
       render: row => {
-        const name = row.fileName ?? '';
-        if (!name) return '-';
-        // 有签名件优先读签名件，其次读转化后的 PDF；只有 DOCX 时不可阅读
-        const src = row.signedPdfPath
-          ? `/qc/notify/${row.id}/signed-pdf`
-          : row.pdfPath
-            ? `/qc/notify/${row.id}/pdf`
-            : '';
-        return <PdfPreview src={src} name={name} />;
+        // 只提供签署后的成品；原始 PDF 不展示、不提供阅读
+        if (!row.signedPdfPath) return '-';
+        return <PdfPreview src={`/qc/notify/${row.id}/signed-pdf`} name={row.fileName ?? ''} />;
       }
     },
     { key: 'handlerName', title: '处理人', align: 'center', width: 90 },
@@ -120,7 +114,7 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
             查看
           </NButton>
           <NDivider vertical />
-          <NButton text type="primary" disabled={!row.fileName} onClick={() => download(row)}>
+          <NButton text type="primary" disabled={!row.signedPdfPath} onClick={() => download(row)}>
             下载
           </NButton>
           <NDivider vertical />
@@ -153,8 +147,9 @@ function openDetail(row: Api.Qc.NotifyRow) {
 }
 
 function download(row: Api.Qc.NotifyRow) {
-  if (!row.fileName) return;
-  zip(`/qc/notify/${row.id}/signed-pdf`, row.fileName);
+  // 只下载签署后的成品，原始 PDF 不提供
+  if (!row.signedPdfPath) return;
+  zip(`/qc/notify/${row.id}/signed-pdf`, row.fileName ?? `${row.subbarcode}.pdf`);
 }
 </script>
 
