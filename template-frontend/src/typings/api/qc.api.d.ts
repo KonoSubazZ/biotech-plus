@@ -205,21 +205,21 @@ declare namespace Api {
       /** 通知类型（delay 延期通知 / sample 样本不合格 / wet_lab 湿实验不合格 / bioinfo 干实验不合格） */
       notifyType: string | null;
       /** 研究方案编号 */
-      studyNo: string | null;
+      schemeNo: string | null;
       /** 诺禾项目编号 */
       projectNo: string | null;
       /** 试验参与者编号 */
-      participantNo: string | null;
+      subjectNo: string | null;
       /** 研究中心名称 */
-      center: string | null;
+      researchCenter: string | null;
       /** 样本接收日期 */
-      receiveDate: string | null;
+      receiveConfirmTime: string | null;
       /** 样本类型 */
       sampleType: string | null;
       /** 样本数量 */
-      sampleCount: string | null;
+      sampleQuantity: string | null;
       /** 检测产品 */
-      product: string | null;
+      productName: string | null;
       /** 样本编号展示文本（延期通知：同订单多个样本用「；」分隔；为空时用 subbarcode） */
       sampleNoText: string | null;
       /** 检测报告延迟原因（delay 专用） */
@@ -315,7 +315,7 @@ declare namespace Api {
       /** 生成的 PDF 文件名；转换失败时为空 */
       pdfName: string | null;
       /** 当前交付件路径（= PDF） */
-      filePath: string | null;
+      fileName: string | null;
       /** 本次是否覆盖了同一天的旧记录 */
       overwritten: boolean | null;
     }
@@ -339,10 +339,10 @@ declare namespace Api {
       notifyDate: string;
       subbarcode: string;
       sampleName: string | null;
-      studyNo: string | null;
+      schemeNo: string | null;
       projectNo: string | null;
-      participantNo: string | null;
-      product: string | null;
+      subjectNo: string | null;
+      productName: string | null;
       customerName: string | null;
       sampleType: string | null;
       reason: string | null;
@@ -361,7 +361,7 @@ declare namespace Api {
       pdfPath: string | null;
       signedPdfPath: string | null;
       /** 当前交付件（后端派生：签名件 → PDF → DOCX） */
-      filePath: string | null;
+      fileName: string | null;
       signContractId: string | null;
       handlerBy: number | null;
       handlerName: string | null;

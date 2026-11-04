@@ -35,7 +35,7 @@ public class SampleNotifyBo implements Serializable {
     // ── 通知单表头（按 cms_sample 回填，页面可微调） ────────────────
     /** 研究方案编号 */
     @Size(max = 200, message = "研究方案编号过长")
-    private String studyNo;
+    private String schemeNo;
 
     /** 诺禾项目编号 */
     @Size(max = 200, message = "诺禾项目编号过长")
@@ -43,7 +43,7 @@ public class SampleNotifyBo implements Serializable {
 
     /** 试验参与者编号 */
     @Size(max = 200, message = "试验参与者编号过长")
-    private String participantNo;
+    private String subjectNo;
 
     /** 研究中心名称 */
     @Size(max = 200, message = "研究中心名称过长")
@@ -67,7 +67,7 @@ public class SampleNotifyBo implements Serializable {
 
     /** 检测产品 */
     @Size(max = 256, message = "检测产品过长")
-    private String product;
+    private String productName;
 
     // ── 延期通知专用 ─────────────────────────────────────────────
     /** 检测报告延迟原因 */

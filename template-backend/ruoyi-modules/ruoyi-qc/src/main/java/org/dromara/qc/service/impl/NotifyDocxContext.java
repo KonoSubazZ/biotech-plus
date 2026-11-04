@@ -83,9 +83,9 @@ final class NotifyDocxContext {
     /** 表头 + 反馈复核（四类共用）：key 与 cms_sample 字段名一致（schemeNo/subjectNo/researchCenter/...） */
     private static Map<String, Object> header(SampleNotifyBo bo, QcNotifySampleVo sample) {
         Map<String, Object> context = new LinkedHashMap<>();
-        context.put("schemeNo", text(bo.getStudyNo()));
+        context.put("schemeNo", text(bo.getSchemeNo()));
         context.put("projectNo", text(bo.getProjectNo()));
-        context.put("subjectNo", text(bo.getParticipantNo()));
+        context.put("subjectNo", text(bo.getSubjectNo()));
         context.put("subbarcode", text(sample.getSubbarcode()));
         context.put("sampleNo", text(StringUtils.isNotBlank(bo.getSampleNoText())
             ? bo.getSampleNoText() : sample.getSubbarcode()));
@@ -93,7 +93,7 @@ final class NotifyDocxContext {
         context.put("receiveConfirmTime", text(bo.getReceiveDate()));
         context.put("sampleType", text(bo.getSampleType()));
         context.put("sampleQuantity", text(bo.getSampleCount()));
-        context.put("productName", text(bo.getProduct()));
+        context.put("productName", text(bo.getProductName()));
         context.put("reporter", text(bo.getReporter()));
         context.put("reportTime", text(bo.getReportTime()));
         context.put("reviewer", text(bo.getReviewer()));

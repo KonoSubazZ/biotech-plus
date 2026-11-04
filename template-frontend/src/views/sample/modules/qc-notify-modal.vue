@@ -85,14 +85,14 @@ const REMEDY_OPTIONS = [
 const EMPTY_FORM: Api.Qc.NotifyForm = {
   subbarcode: null,
   notifyType: null,
-  studyNo: null,
+  schemeNo: null,
   projectNo: null,
-  participantNo: null,
-  center: null,
-  receiveDate: null,
+  subjectNo: null,
+  researchCenter: null,
+  receiveConfirmTime: null,
   sampleType: null,
-  sampleCount: null,
-  product: null,
+  sampleQuantity: null,
+  productName: null,
   sampleNoText: null,
   delayReason: null,
   expectedReportDate: null,
@@ -306,13 +306,13 @@ function handleDownloadSigned() {
       <NForm ref="formRef" :model="model" label-placement="left" :label-width="140" :show-feedback="false">
         <NGrid :cols="2" :x-gap="16">
           <NFormItemGi label="研究方案编号">
-            <NInput v-model:value="model.studyNo" placeholder="客户合同/研究方案上的方案编号，如 NGS-2026-011" />
+            <NInput v-model:value="model.schemeNo" placeholder="客户合同/研究方案上的方案编号，如 NGS-2026-011" />
           </NFormItemGi>
           <NFormItemGi label="诺禾项目编号">
             <NInput v-model:value="model.projectNo" placeholder="诺禾侧项目/订单编号，如 P20260101" />
           </NFormItemGi>
           <NFormItemGi label="试验参与者编号">
-            <NInput v-model:value="model.participantNo" placeholder="受试者/患者编号，如 SUBJ-1011" />
+            <NInput v-model:value="model.subjectNo" placeholder="受试者/患者编号，如 SUBJ-1011" />
           </NFormItemGi>
           <NFormItemGi label="诺禾样本编号" :span="isDelay ? 2 : 1">
             <NInput
@@ -322,19 +322,19 @@ function handleDownloadSigned() {
             />
           </NFormItemGi>
           <NFormItemGi label="研究中心名称">
-            <NInput v-model:value="model.center" placeholder="送检医院/研究中心名称" />
+            <NInput v-model:value="model.researchCenter" placeholder="送检医院/研究中心名称" />
           </NFormItemGi>
           <NFormItemGi label="样本接收日期">
-            <NInput v-model:value="model.receiveDate" placeholder="格式 yyyy-MM-dd，如 2026-06-10" />
+            <NInput v-model:value="model.receiveConfirmTime" placeholder="格式 yyyy-MM-dd，如 2026-06-10" />
           </NFormItemGi>
           <NFormItemGi label="样本类型">
             <NInput v-model:value="model.sampleType" placeholder="如：石蜡切片 / 全血 / 组织" />
           </NFormItemGi>
           <NFormItemGi label="样本数量">
-            <NInput v-model:value="model.sampleCount" placeholder="如：1（单位见样本信息）" />
+            <NInput v-model:value="model.sampleQuantity" placeholder="如：1（单位见样本信息）" />
           </NFormItemGi>
           <NFormItemGi label="检测产品">
-            <NInput v-model:value="model.product" placeholder="录单产品名，如 novopm2_tis_1238" />
+            <NInput v-model:value="model.productName" placeholder="录单产品名，如 novopm2_tis_1238" />
           </NFormItemGi>
           <NFormItemGi label="分析时间">
             <NInput :value="prefill?.analysisTime ?? ''" placeholder="质控数据入库时间（不可修改）" disabled />

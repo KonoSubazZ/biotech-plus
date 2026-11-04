@@ -28,13 +28,13 @@ public class QcNotifySampleVo {
     private String orderNo;
 
     /** 研究方案编号（cms_sample.scheme_no） */
-    private String studyNo;
+    private String schemeNo;
 
     /** 诺禾项目编号（cms_sample.project_no） */
     private String projectNo;
 
     /** 试验参与者编号（cms_sample.subject_no） */
-    private String participantNo;
+    private String subjectNo;
 
     /** 研究中心名称（cms_sample.research_center） */
     private String center;
@@ -49,7 +49,7 @@ public class QcNotifySampleVo {
     private String sampleCount;
 
     /** 检测产品（cms_sample.product_name） */
-    private String product;
+    private String productName;
 
     /** 客户（= 药企名，用于解析归属药企） */
     private String customerName;

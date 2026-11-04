@@ -68,11 +68,11 @@ watch(visible, value => {
         <NDescriptionsItem label="通知日期">{{ detail.notifyDate }}</NDescriptionsItem>
         <NDescriptionsItem label="样本编号">{{ detail.subbarcode }}</NDescriptionsItem>
         <NDescriptionsItem label="样本名称">{{ detail.sampleName || '-' }}</NDescriptionsItem>
-        <NDescriptionsItem label="试验参与者编号">{{ detail.participantNo || '-' }}</NDescriptionsItem>
+        <NDescriptionsItem label="试验参与者编号">{{ detail.subjectNo || '-' }}</NDescriptionsItem>
         <NDescriptionsItem label="项目编号">{{ detail.projectNo || '-' }}</NDescriptionsItem>
-        <NDescriptionsItem label="研究方案编号">{{ detail.studyNo || '-' }}</NDescriptionsItem>
+        <NDescriptionsItem label="研究方案编号">{{ detail.schemeNo || '-' }}</NDescriptionsItem>
         <NDescriptionsItem label="客户">{{ detail.customerName || '-' }}</NDescriptionsItem>
-        <NDescriptionsItem label="检测产品">{{ detail.product || '-' }}</NDescriptionsItem>
+        <NDescriptionsItem label="检测产品">{{ detail.productName || '-' }}</NDescriptionsItem>
 
         <template v-if="detail.notifyType === 'delay'">
           <NDescriptionsItem label="延迟原因" :span="2">{{ detail.delayReason || '-' }}</NDescriptionsItem>

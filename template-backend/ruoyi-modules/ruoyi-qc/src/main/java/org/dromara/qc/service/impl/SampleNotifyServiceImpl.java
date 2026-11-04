@@ -165,8 +165,9 @@ public class SampleNotifyServiceImpl implements ISampleNotifyService {
         if (vo == null) {
             throw new ServiceException("通知记录不存在：id=" + id);
         }
-        if (StringUtils.isBlank(vo.getFilePath())) {
-            vo.setFilePath(firstNotBlank(vo.getSignedPdfPath(), vo.getPdfPath(), vo.getRawDocxPath()));
+        if (StringUtils.isBlank(vo.getFileName())) {
+            String path = firstNotBlank(vo.getSignedPdfPath(), vo.getPdfPath(), vo.getRawDocxPath());
+            vo.setFileName(path == null ? null : Path.of(path).getFileName().toString());
         }
         return vo;
     }
@@ -241,14 +242,14 @@ public class SampleNotifyServiceImpl implements ISampleNotifyService {
         vo.setSampleFileId(sample.getId());
         vo.setSubbarcode(sample.getSubbarcode());
         vo.setSampleName(sample.getSampleName());
-        vo.setStudyNo(sample.getStudyNo());
+        vo.setSchemeNo(sample.getSchemeNo());
         vo.setProjectNo(sample.getProjectNo());
-        vo.setParticipantNo(sample.getParticipantNo());
+        vo.setSubjectNo(sample.getSubjectNo());
         vo.setCenter(sample.getCenter());
         vo.setReceiveDate(sample.getReceiveDate());
         vo.setSampleType(sample.getSampleType());
         vo.setSampleCount(sample.getSampleCount());
-        vo.setProduct(sample.getProduct());
+        vo.setProductName(sample.getProductName());
         // 延期通知：样本编号 / 样本类型 / 样本数量 展示同一订单下的全部样本（用「；」分隔）
         if (NotifyConstants.Type.isDelay(type)) {
             applySiblingSamples(vo, sample);
@@ -382,34 +383,22 @@ public class SampleNotifyServiceImpl implements ISampleNotifyService {
         record.setNotifyDate(DAY8.format(now));
         record.setSubbarcode(sample.getSubbarcode());
         record.setSampleName(sample.getSampleName());
-        record.setSampleFileId(sample.getId());
-        record.setWetLabQcId(delay || NotifyConstants.Type.SAMPLE.equals(type) ? null : latestWetLabQcId(sample.getSubbarcode()));
-        record.setBioinfoQcId(delay || NotifyConstants.Type.SAMPLE.equals(type) ? null : latestBioinfoQcId(sample.getSubbarcode()));
-        record.setStudyNo(text(bo.getStudyNo()));
+        record.setSchemeNo(text(bo.getSchemeNo()));
         record.setProjectNo(text(bo.getProjectNo()));
-        record.setParticipantNo(text(bo.getParticipantNo()));
-        record.setAnalysisTime(analysisTime(sample.getSubbarcode(), type));
-        record.setProduct(text(bo.getProduct()));
+        record.setSubjectNo(text(bo.getSubjectNo()));
+        record.setProductName(text(bo.getProductName()));
         record.setCustomerName(sample.getCustomerName());
         record.setSampleType(text(bo.getSampleType()));
         if (delay) {
             record.setDelayReason(text(bo.getDelayReason()));
             record.setExpectedReportDate(text(bo.getExpectedReportDate()));
         } else {
-            record.setQcStage(NotifyDocxContext.joinSelected(bo, NotifyDocxContext.STAGES));
-            record.setTerminateMeasure(NotifyDocxContext.joinSelected(bo, NotifyDocxContext.MEASURES));
-            record.setRemedy(NotifyDocxContext.joinSelected(bo, NotifyDocxContext.REMEDIES));
-            record.setRemedyOther(text(bo.getRemedyOtherText()));
             record.setReason(text(bo.getReason()));
         }
-        record.setReporter(text(bo.getReporter()));
-        record.setReportTime(text(bo.getReportTime()));
-        record.setReviewer(text(bo.getReviewer()));
-        record.setReviewTime(text(bo.getReviewTime()));
         record.setJsonPath(jsonPath.toString());
         record.setRawDocxPath(docxPath.toString());
         record.setPdfPath(pdfPath == null ? null : pdfPath.toString());
-        record.setFilePath(pdfPath == null ? docxPath.toString() : pdfPath.toString());
+        record.setFileName(pdfPath == null ? docxPath.getFileName().toString() : pdfPath.getFileName().toString());
         record.setHandlerBy(LoginHelper.getUserId());
         record.setHandlerTime(new Date());
         return record;
@@ -422,32 +411,20 @@ public class SampleNotifyServiceImpl implements ISampleNotifyService {
             .set(SampleNotify::getSignStatus, r.getSignStatus())
             .set(SampleNotify::getNotifyDate, r.getNotifyDate())
             .set(SampleNotify::getSampleName, r.getSampleName())
-            .set(SampleNotify::getSampleFileId, r.getSampleFileId())
-            .set(SampleNotify::getWetLabQcId, r.getWetLabQcId())
-            .set(SampleNotify::getBioinfoQcId, r.getBioinfoQcId())
-            .set(SampleNotify::getStudyNo, r.getStudyNo())
+            .set(SampleNotify::getSchemeNo, r.getSchemeNo())
             .set(SampleNotify::getProjectNo, r.getProjectNo())
-            .set(SampleNotify::getParticipantNo, r.getParticipantNo())
-            .set(SampleNotify::getAnalysisTime, r.getAnalysisTime())
-            .set(SampleNotify::getProduct, r.getProduct())
+            .set(SampleNotify::getSubjectNo, r.getSubjectNo())
+            .set(SampleNotify::getProductName, r.getProductName())
             .set(SampleNotify::getCustomerName, r.getCustomerName())
             .set(SampleNotify::getSampleType, r.getSampleType())
-            .set(SampleNotify::getQcStage, r.getQcStage())
-            .set(SampleNotify::getTerminateMeasure, r.getTerminateMeasure())
-            .set(SampleNotify::getRemedy, r.getRemedy())
-            .set(SampleNotify::getRemedyOther, r.getRemedyOther())
             .set(SampleNotify::getReason, r.getReason())
             .set(SampleNotify::getDelayReason, r.getDelayReason())
             .set(SampleNotify::getExpectedReportDate, r.getExpectedReportDate())
-            .set(SampleNotify::getReporter, r.getReporter())
-            .set(SampleNotify::getReportTime, r.getReportTime())
-            .set(SampleNotify::getReviewer, r.getReviewer())
-            .set(SampleNotify::getReviewTime, r.getReviewTime())
             .set(SampleNotify::getJsonPath, r.getJsonPath())
             .set(SampleNotify::getRawDocxPath, r.getRawDocxPath())
             .set(SampleNotify::getPdfPath, r.getPdfPath())
             .set(SampleNotify::getSignedPdfPath, null)
-            .set(SampleNotify::getFilePath, r.getFilePath())
+            .set(SampleNotify::getFileName, r.getFileName())
             .set(SampleNotify::getSignContractId, null)
             .set(SampleNotify::getHandlerBy, r.getHandlerBy())
             .set(SampleNotify::getHandlerTime, r.getHandlerTime())
@@ -486,7 +463,7 @@ public class SampleNotifyServiceImpl implements ISampleNotifyService {
         if (record.getPdfPath() != null) {
             vo.setPdfName(Path.of(record.getPdfPath()).getFileName().toString());
         }
-        vo.setFilePath(record.getFilePath());
+        vo.setFilePath(record.getFileName());
         vo.setOverwritten(overwritten);
         vo.setOutputBytes(rendered.get("outputBytes"));
         vo.setSha256(String.valueOf(rendered.get("sha256")));
@@ -499,7 +476,7 @@ public class SampleNotifyServiceImpl implements ISampleNotifyService {
     private String buildFileBase(QcNotifySampleVo sample, SampleNotifyBo bo, String type, String notifyDate) {
         String base = String.join("-",
             sanitize(sample.getSubbarcode()),
-            sanitize(sample.getSampleName()) + "（" + sanitize(bo.getParticipantNo()) + "）",
+            sanitize(sample.getSampleName()) + "（" + sanitize(bo.getSubjectNo()) + "）",
             sanitize(bo.getProjectNo()),
             NotifyConstants.Type.docTypeName(type),
             notifyDate);

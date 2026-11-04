@@ -88,13 +88,13 @@ public class SampleNotifyPrefillVo {
     private String sampleNoText;
 
     /** 研究方案编号 */
-    private String studyNo;
+    private String schemeNo;
 
     /** 诺禾项目编号 */
     private String projectNo;
 
     /** 试验参与者编号 */
-    private String participantNo;
+    private String subjectNo;
 
     /** 研究中心名称 */
     private String center;
@@ -109,7 +109,7 @@ public class SampleNotifyPrefillVo {
     private String sampleCount;
 
     /** 检测产品 */
-    private String product;
+    private String productName;
 
     /** 样本接收 */
     private Boolean stageReceive;

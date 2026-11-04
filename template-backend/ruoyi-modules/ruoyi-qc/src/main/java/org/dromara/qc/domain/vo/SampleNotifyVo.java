@@ -47,16 +47,16 @@ public class SampleNotifyVo implements Serializable {
     private String sampleName;
 
     /** 研究方案编号 */
-    private String studyNo;
+    private String schemeNo;
 
     /** 项目编号 */
     private String projectNo;
 
     /** 试验参与者编号 */
-    private String participantNo;
+    private String subjectNo;
 
     /** 检测产品 */
-    private String product;
+    private String productName;
 
     /** 客户 */
     private String customerName;
@@ -109,8 +109,8 @@ public class SampleNotifyVo implements Serializable {
     /** 签名后 PDF 路径 */
     private String signedPdfPath;
 
-    /** 当前交付件路径（派生：签名件 → PDF → DOCX） */
-    private String filePath;
+    /** 交付文件名（不含路径） */
+    private String fileName;
 
     /** 上上签合同号 */
     private String signContractId;

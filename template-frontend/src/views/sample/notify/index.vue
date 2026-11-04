@@ -82,18 +82,18 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
     },
     { key: 'subbarcode', title: '样本编号', align: 'center', width: 150, ellipsis: { tooltip: true } },
     { key: 'sampleName', title: '样本名称', align: 'center', width: 110, ellipsis: { tooltip: true } },
-    { key: 'participantNo', title: '试验参与者编号', align: 'center', width: 140, ellipsis: { tooltip: true } },
+    { key: 'subjectNo', title: '试验参与者编号', align: 'center', width: 140, ellipsis: { tooltip: true } },
     { key: 'projectNo', title: '项目编号', align: 'center', width: 110, ellipsis: { tooltip: true } },
     { key: 'notifyDate', title: '通知日期', align: 'center', width: 100 },
-    { key: 'studyNo', title: '研究方案编号', align: 'center', width: 140, ellipsis: { tooltip: true } },
+    { key: 'schemeNo', title: '研究方案编号', align: 'center', width: 140, ellipsis: { tooltip: true } },
     {
-      key: 'filePath',
+      key: 'fileName',
       title: '文件路径',
       align: 'center',
       width: 190,
       ellipsis: { tooltip: true },
       render: row => {
-        const name = row.filePath ? row.filePath.split('/').pop() : '';
+        const name = row.fileName ?? '';
         if (!name) return '-';
         // 有签名件优先读签名件，其次读转化后的 PDF；只有 DOCX 时不可阅读
         const src = row.signedPdfPath
@@ -120,7 +120,7 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
             查看
           </NButton>
           <NDivider vertical />
-          <NButton text type="primary" disabled={!row.filePath} onClick={() => download(row)}>
+          <NButton text type="primary" disabled={!row.fileName} onClick={() => download(row)}>
             下载
           </NButton>
           <NDivider vertical />
@@ -153,9 +153,8 @@ function openDetail(row: Api.Qc.NotifyRow) {
 }
 
 function download(row: Api.Qc.NotifyRow) {
-  if (!row.filePath) return;
-  const name = row.filePath.split('/').pop() ?? `${row.subbarcode}.pdf`;
-  zip(`/qc/notify/${row.id}/signed-pdf`, name);
+  if (!row.fileName) return;
+  zip(`/qc/notify/${row.id}/signed-pdf`, row.fileName);
 }
 </script>
 

@@ -51,29 +51,17 @@ public class SampleNotify extends BaseEntity {
     /** 样本名称（快照，用于文件命名） */
     private String sampleName;
 
-    /** 样本信息 id（= cms_sample.id） */
-    private Long sampleFileId;
+    /** 研究方案编号（= cms_sample.scheme_no） */
+    private String schemeNo;
 
-    /** 湿实验质控 id（wet_lab 才有） */
-    private Long wetLabQcId;
-
-    /** 生信质控 id（bioinfo 才有） */
-    private Long bioinfoQcId;
-
-    /** 研究方案编号（快照 = cms_sample.scheme_no） */
-    private String studyNo;
-
-    /** 项目编号（快照 = cms_sample.project_no） */
+    /** 项目编号（= cms_sample.project_no） */
     private String projectNo;
 
-    /** 试验参与者编号（快照 = cms_sample.subject_no） */
-    private String participantNo;
+    /** 试验参与者编号（= cms_sample.subject_no） */
+    private String subjectNo;
 
-    /** 分析时间（质控记录入库时间） */
-    private String analysisTime;
-
-    /** 检测产品 */
-    private String product;
+    /** 产品名称（= cms_sample.product_name） */
+    private String productName;
 
     /** 客户 */
     private String customerName;
@@ -81,19 +69,7 @@ public class SampleNotify extends BaseEntity {
     /** 样本类型 */
     private String sampleType;
 
-    /** 不合格环节（多选，顿号分隔） */
-    private String qcStage;
-
-    /** 是否终止检测（多选，顿号分隔） */
-    private String terminateMeasure;
-
-    /** 建议处理办法（多选，顿号分隔） */
-    private String remedy;
-
-    /** 建议处理办法-其他（原文） */
-    private String remedyOther;
-
-    /** 不合格原因 */
+    /** 不合格原因（邮件正文要用） */
     private String reason;
 
     /** 检测报告延迟原因（delay 专用） */
@@ -101,18 +77,6 @@ public class SampleNotify extends BaseEntity {
 
     /** 预计报告出具时间（delay 专用） */
     private String expectedReportDate;
-
-    /** 反馈人 */
-    private String reporter;
-
-    /** 反馈时间 */
-    private String reportTime;
-
-    /** 复核人 */
-    private String reviewer;
-
-    /** 复核时间 */
-    private String reviewTime;
 
     /** 渲染用 JSON 路径（容器内绝对路径） */
     private String jsonPath;
@@ -126,8 +90,8 @@ public class SampleNotify extends BaseEntity {
     /** 签名后 PDF 路径（上上签回传落盘） */
     private String signedPdfPath;
 
-    /** 当前交付件路径（生成=PDF；签署完成=签名件；邮件附件取它） */
-    private String filePath;
+    /** 交付文件名（不含路径；绝对路径见四个 *_path） */
+    private String fileName;
 
     /** 上上签合同号（送签后回填） */
     private String signContractId;
