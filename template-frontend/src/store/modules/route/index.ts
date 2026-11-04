@@ -26,6 +26,31 @@ import {
 
 const defaultIcon = import.meta.env.VITE_MENU_ICON;
 
+/**
+ * iframe 页的路由信息处理
+ *
+ * 从 parseRouter 抽出成独立函数：内层 if/else + try 会让 parseRouter 嵌套超过可读性闸门上限。
+ */
+function applyFramePageRoute(route: ElegantConstRoute, parent: ElegantConstRoute | undefined, isExternalLink: boolean) {
+  // 调用方 parseRouter 已保证 meta 存在（开头就赋了默认值）
+  const meta = route.meta!;
+
+  if (isExternalLink) {
+    meta.href = String(meta.link);
+    const random = Math.random().toString(36).slice(2, 12);
+    route.name = random;
+    route.path = `/${random}`;
+  } else {
+    try {
+      route.props = {
+        // @ts-expect-error no query field
+        url: JSON.parse(route.query)?.url
+      };
+    } catch {}
+  }
+  route.component = parent && !isExternalLink ? 'view.iframe-page' : 'layout.base$view.iframe-page';
+}
+
 export const useRouteStore = defineStore(SetupStoreId.Route, () => {
   const authStore = useAuthStore();
   const tabStore = useTabStore();
@@ -120,10 +145,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
       route.name = parent ? `${parent.name}_${name}` : name;
     }
 
-    if (route.meta.icon?.startsWith('local-icon-')) {
-      route.meta.localIcon = route.meta.icon.replace('local-icon-', 'menu-');
-      delete route.meta.icon;
-    } else if (!isNotNull(route.meta.icon)) {
+    if (!isNotNull(route.meta.icon)) {
       route.meta.icon = defaultIcon;
     }
     // @ts-expect-error no hidden field
@@ -138,21 +160,7 @@ export const useRouteStore = defineStore(SetupStoreId.Route, () => {
     route.meta.keepAlive = !route.meta.noCache;
 
     if (isFramePage) {
-      if (isExternalLink) {
-        route.meta.href = String(route.meta.link);
-        const random = Math.random().toString(36).slice(2, 12);
-        route.name = random;
-        route.path = `/${random}`;
-        route.component = 'layout.base$view.iframe-page';
-      } else {
-        try {
-          route.props = {
-            // @ts-expect-error no query field
-            url: JSON.parse(route.query)?.url
-          };
-        } catch {}
-      }
-      route.component = parent && !isExternalLink ? 'view.iframe-page' : 'layout.base$view.iframe-page';
+      applyFramePageRoute(route, parent, isExternalLink);
     } else if (!isLayout && !isParentLayout && !isBlankLayout) {
       route.component = parent ? `view.${route.name}` : `layout.base$view.${route.name}`;
     } else if (!isBlankLayout) {
