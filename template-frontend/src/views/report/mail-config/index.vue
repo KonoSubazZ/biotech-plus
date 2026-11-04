@@ -13,6 +13,7 @@ import { defaultTransform, useNaivePaginatedTable, useTableOperate } from '@/hoo
 import { $t } from '@/locales';
 import ButtonIcon from '@/components/custom/button-icon.vue';
 import ReportMailConfigOperateDrawer from './modules/mail-config-operate-drawer.vue';
+import ReportMailConfigSearch from './modules/mail-config-search.vue';
 
 defineOptions({
   name: 'ReportMailConfigList'
@@ -54,12 +55,12 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
             <>-</>
           )
       },
-      { key: 'fromEmail', title: '发件邮箱', align: 'left', minWidth: 220, render: row => row.fromEmail ?? '-' },
+      { key: 'fromEmail', title: '发件邮箱', align: 'center', minWidth: 220, render: row => row.fromEmail ?? '-' },
       { key: 'fromName', title: '发件人昵称', align: 'center', width: 140, render: row => row.fromName ?? '-' },
       {
         key: 'smtp',
         title: 'SMTP',
-        align: 'left',
+        align: 'center',
         width: 220,
         render: row => `${row.smtpHost ?? '-'}:${row.smtpPort ?? '-'}${row.sslEnable === '1' ? '（SSL）' : ''}`
       },
@@ -100,12 +101,17 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 150,
+        width: 180,
         fixed: 'right',
         render: row => {
-          // 操作列统一图标 + tooltip（与异常处理 / 湿实验质控同款：gap-4px + 竖线分隔）
-          const actions = [
-            canEdit() && row.isDefault !== '1' ? (
+          // 与 ai-templates/frontend-module/index.vue 同一套写法：每个按钮单独判权限、图标 + tooltip，
+          // gap-8px，只在实际渲染出的按钮之间画竖线
+          const defaultBtn = () => {
+            // 已经是默认的不再给按钮
+            if (!canEdit() || row.isDefault === '1') {
+              return null;
+            }
+            return (
               <ButtonIcon
                 text
                 type="primary"
@@ -113,8 +119,14 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 tooltipContent="设为默认"
                 onClick={() => handleSetDefault(row.id!)}
               />
-            ) : null,
-            canEdit() ? (
+            );
+          };
+
+          const editBtn = () => {
+            if (!canEdit()) {
+              return null;
+            }
+            return (
               <ButtonIcon
                 text
                 type="primary"
@@ -122,8 +134,14 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 tooltipContent={$t('common.edit')}
                 onClick={() => handleEdit(row.id!)}
               />
-            ) : null,
-            canTest() ? (
+            );
+          };
+
+          const testBtn = () => {
+            if (!canTest()) {
+              return null;
+            }
+            return (
               <ButtonIcon
                 text
                 type="primary"
@@ -131,8 +149,14 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 tooltipContent="发送测试邮件"
                 onClick={() => openTest(row)}
               />
-            ) : null,
-            canEdit() ? (
+            );
+          };
+
+          const deleteBtn = () => {
+            if (!canEdit()) {
+              return null;
+            }
+            return (
               <ButtonIcon
                 text
                 type="error"
@@ -141,12 +165,14 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 popconfirmContent={$t('common.confirmDelete')}
                 onPositiveClick={() => handleDelete(row.id!)}
               />
-            ) : null
-          ].filter(item => item !== null);
+            );
+          };
+
+          const buttons = [defaultBtn(), editBtn(), testBtn(), deleteBtn()].filter(item => item !== null);
 
           return (
-            <div class="flex-center gap-4px">
-              {actions.map((node, index) => (
+            <div class="flex-center gap-8px">
+              {buttons.map((node, index) => (
                 <>
                   {index > 0 ? <NDivider vertical /> : null}
                   {node}
@@ -213,42 +239,11 @@ async function handleTest() {
     testing.value = false;
   }
 }
-
-async function search() {
-  getDataByPage();
-}
-
-function reset() {
-  searchParams.value.fromEmail = null;
-  getDataByPage();
-}
 </script>
 
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <NForm label-placement="left" :label-width="80">
-      <div class="flex flex-wrap items-start">
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="发件邮箱">
-          <NInput v-model:value="searchParams.fromEmail" placeholder="模糊匹配" clearable @keyup.enter="search" />
-        </NFormItem>
-        <NFormItem class="ml-auto" :show-feedback="false">
-          <NSpace :size="16">
-            <NButton @click="reset">
-              <template #icon>
-                <icon-ic-round-refresh class="text-icon" />
-              </template>
-              {{ $t('common.reset') }}
-            </NButton>
-            <NButton type="primary" ghost @click="search">
-              <template #icon>
-                <icon-ic-round-search class="text-icon" />
-              </template>
-              {{ $t('common.search') }}
-            </NButton>
-          </NSpace>
-        </NFormItem>
-      </div>
-    </NForm>
+    <ReportMailConfigSearch v-model:model="searchParams" @search="getDataByPage" />
 
     <NCard title="邮件配置" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
       <template #header-extra>
