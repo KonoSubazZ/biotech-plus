@@ -47,7 +47,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         width: 80,
         render: row =>
           row.isDefault === '1' ? (
-            <NTag type="info" size="small">
+            <NTag type="info">
               默认
             </NTag>
           ) : (
@@ -70,11 +70,11 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         width: 90,
         render: row =>
           row.passwordSet ? (
-            <NTag type="success" size="small">
+            <NTag type="success">
               已设置
             </NTag>
           ) : (
-            <NTag type="warning" size="small">
+            <NTag type="warning">
               未设置
             </NTag>
           )
@@ -86,11 +86,11 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         width: 90,
         render: row =>
           row.enabled === '1' ? (
-            <NTag type="success" size="small">
+            <NTag type="success">
               启用
             </NTag>
           ) : (
-            <NTag type="error" size="small">
+            <NTag type="error">
               停用
             </NTag>
           )
@@ -100,24 +100,20 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 200,
+        width: 150,
         fixed: 'right',
         render: row => {
-          const divider = () => (canEdit() ? <NDivider vertical /> : null);
-
-          const defaultBtn = () => {
-            // 已经是默认的不再给按钮
-            if (!canEdit() || row.isDefault === '1') {
-              return null;
-            }
-            return (
-              <NButton text type="primary" size="small" onClick={() => handleSetDefault(row.id!)}>
-                设为默认
-              </NButton>
-            );
-          };
-
-          const editBtn = () =>
+          // 操作列统一图标 + tooltip（与异常处理 / 湿实验质控同款：gap-4px + 竖线分隔）
+          const actions = [
+            canEdit() && row.isDefault !== '1' ? (
+              <ButtonIcon
+                text
+                type="primary"
+                icon="material-symbols:star-outline"
+                tooltipContent="设为默认"
+                onClick={() => handleSetDefault(row.id!)}
+              />
+            ) : null,
             canEdit() ? (
               <ButtonIcon
                 text
@@ -126,9 +122,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 tooltipContent={$t('common.edit')}
                 onClick={() => handleEdit(row.id!)}
               />
-            ) : null;
-
-          const testBtn = () =>
+            ) : null,
             canTest() ? (
               <ButtonIcon
                 text
@@ -137,9 +131,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 tooltipContent="发送测试邮件"
                 onClick={() => openTest(row)}
               />
-            ) : null;
-
-          const deleteBtn = () =>
+            ) : null,
             canEdit() ? (
               <ButtonIcon
                 text
@@ -149,16 +141,17 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 popconfirmContent={$t('common.confirmDelete')}
                 onPositiveClick={() => handleDelete(row.id!)}
               />
-            ) : null;
+            ) : null
+          ].filter(item => item !== null);
 
           return (
-            <div class="flex-center gap-8px">
-              {defaultBtn()}
-              {editBtn()}
-              {divider()}
-              {testBtn()}
-              {divider()}
-              {deleteBtn()}
+            <div class="flex-center gap-4px">
+              {actions.map((node, index) => (
+                <>
+                  {index > 0 ? <NDivider vertical /> : null}
+                  {node}
+                </>
+              ))}
             </div>
           );
         }
