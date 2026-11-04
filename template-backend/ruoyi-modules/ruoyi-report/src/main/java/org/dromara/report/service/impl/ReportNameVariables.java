@@ -74,13 +74,14 @@ public class ReportNameVariables {
 
         ReportTemplateData.ReportInfo reportInfo = data == null ? null : data.getReportInfo();
         ReportTemplateData.SampleInfo sampleInfo = data == null ? null : data.getSampleInfo();
-        variables.put("sampleCode", sampleInfo == null ? null : sampleInfo.getSampleCode());
-        variables.put("gender", sampleInfo == null ? null : sampleInfo.getGender());
+        // 变量名保持不变（报告命名模板里在用），取值改到 cms_sample 的新键名上
+        variables.put("sampleCode", sampleInfo == null ? null : sampleInfo.getSubbarcode());
+        variables.put("gender", sampleInfo == null ? null : sampleInfo.getSex());
         variables.put("birthYear", sampleInfo == null ? null : sampleInfo.getBirthYear());
-        variables.put("researchCenterName", sampleInfo == null ? null : sampleInfo.getResearchCenterName());
-        variables.put("participantNumber", sampleInfo == null ? null : sampleInfo.getParticipantNumber());
-        variables.put("disease", sampleInfo == null ? null : sampleInfo.getDisease());
-        variables.put("specimenType", reportInfo == null ? null : reportInfo.getSpecimentType());
+        variables.put("researchCenterName", sampleInfo == null ? null : sampleInfo.getResearchCenter());
+        variables.put("participantNumber", sampleInfo == null ? null : sampleInfo.getSubjectNo());
+        variables.put("disease", sampleInfo == null ? null : sampleInfo.getDiseaseType());
+        variables.put("specimenType", reportInfo == null ? null : reportInfo.getSpecimenType());
         variables.put("reportDate", reportInfo == null ? null : reportInfo.getReportDate());
 
         variables.put("reportId", text(data == null ? null : data.getReportId()));

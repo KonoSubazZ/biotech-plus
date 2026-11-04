@@ -57,7 +57,7 @@ class InterpretationRevisionReviewTest {
         Mockito.when(revisions.submitReview(7L, 2L)).thenReturn(1);
         ReportTemplateData data = new ReportTemplateData();
         ReportTemplateData.SampleInfo sample = new ReportTemplateData.SampleInfo();
-        sample.setDisease("frozen disease");
+        sample.setDiseaseType("frozen disease");
         data.setSampleInfo(sample);
         Mockito.when(store.generated(Mockito.anyMap())).thenReturn(data);
         service.submit(bo);

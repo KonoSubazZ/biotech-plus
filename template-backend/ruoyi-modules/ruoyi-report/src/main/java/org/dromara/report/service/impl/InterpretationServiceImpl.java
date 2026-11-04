@@ -237,6 +237,10 @@ public class InterpretationServiceImpl implements IInterpretationService {
         InterpretationContextVo context = new InterpretationContextVo();
         context.setReport(report);
         context.setLims(loadLims(report.getSubbarcode(), context.getErrors(), context.getWarnings()));
+        // 报告 JSON 的 sampleInfo 直接按 cms_sample 最新一行输出（与「样本信息 › 详情」同口径）
+        if (Boolean.TRUE.equals(context.getLims().getFound())) {
+            context.setSample(selectSample(report.getSubbarcode()));
+        }
         context.setCanGenerate(context.getErrors().isEmpty());
         return context;
     }

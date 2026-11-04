@@ -144,6 +144,7 @@ public class ReportTemplateDataService {
         context.setReportId(pc.getReportId());
         context.setReport(input.getReport());
         context.setLims(input.getLims());
+        context.setSample(pc.getSample());
         context.setSomaticVariants(input.getSomaticVariants());
         context.setGermlineVariants(input.getGermlineVariants());
         context.setTemplate(template);

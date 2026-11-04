@@ -213,9 +213,9 @@ public class ReportGenerationService {
             bo.getReportId(), data.getTemplateCode(), reportName, effectiveDisease(data), jsonPath, docxPath, pdfPath);
     }
 
-    /** 本次生效的解读癌种（报告 JSON 的 sampleInfo.disease） */
+    /** 本次生效的解读癌种（报告 JSON 的 sampleInfo.diseaseType = cms_sample 临床诊断） */
     private String effectiveDisease(ReportTemplateData data) {
-        return data.getSampleInfo() == null ? null : data.getSampleInfo().getDisease();
+        return data.getSampleInfo() == null ? null : data.getSampleInfo().getDiseaseType();
     }
 
     /** 本次生效的解读癌种ID（报告 JSON 位点分节的 diseaseId，NKB disease_id；无分节时为空） */

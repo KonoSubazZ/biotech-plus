@@ -1,6 +1,8 @@
 package org.dromara.report.domain.vo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
+import org.dromara.report.domain.CmsSample;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -26,6 +28,10 @@ public class InterpretationContextVo implements Serializable {
 
     /** LIMS 信息（Tab①） */
     private InterpretationLimsVo lims;
+
+    /** cms_sample 最新一行（报告 JSON 的 sampleInfo 直接按它的 45 个字段输出，不回传前端） */
+    @JsonIgnore
+    private CmsSample sample;
 
     /** 是否满足继续解读/生成的最低数据要求 */
     private Boolean canGenerate;

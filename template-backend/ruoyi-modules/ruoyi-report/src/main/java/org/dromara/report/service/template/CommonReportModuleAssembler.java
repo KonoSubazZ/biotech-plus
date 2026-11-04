@@ -1,6 +1,7 @@
 package org.dromara.report.service.template;
 
 import lombok.extern.slf4j.Slf4j;
+import org.dromara.report.domain.CmsSample;
 import org.dromara.report.domain.dto.ReportModuleContext;
 import org.dromara.report.domain.vo.PreviewSectionVo;
 import org.dromara.report.domain.vo.PreviewVariantVo;
@@ -66,23 +67,73 @@ public class CommonReportModuleAssembler {
     public ReportTemplateData.ReportInfo reportInfo(ReportModuleContext context) {
         ReportTemplateData.ReportInfo info = new ReportTemplateData.ReportInfo();
         info.setReportDate(reportDate(context.getReport()));
-        info.setSpecimentType(englishSpecimenType(specimenType(context)));
+        info.setSpecimenType(englishSpecimenType(specimenType(context)));
         return info;
     }
 
-    /** LIMS → JSON 契约的 sampleInfo（字段名与设计书 §7.6 逐字一致） */
+    /**
+     * cms_sample → JSON 契约的 sampleInfo。
+     * <p>
+     * 键名与 cms_sample 的 45 个业务字段逐字一致（前端 {@code cms-sample-fields.ts} 同一套键），
+     * 没有对应列的历史字段（旧 researchCenterName / participantNumber / sampleCode / receivedDate 等）已删除。
+     * 取的是报告 subbarcode 对应的 cms_sample 最新一行；查不到时整体为 null（生成前校验已拦住，不会走到这里）。
+     */
     public ReportTemplateData.SampleInfo sampleInfo(ReportModuleContext context) {
+        CmsSample sample = context.getSample();
+        if (sample == null) {
+            return null;
+        }
         ReportTemplateData.SampleInfo info = new ReportTemplateData.SampleInfo();
-        info.setResearchCenterName(valueOf(context.getLims(), l -> l.getHospitalName()));
-        info.setParticipantNumber(valueOf(context.getLims(), l -> l.getPatientId()));
-        info.setGender(genderLabel(valueOf(context.getLims(), l -> l.getGender())));
-        info.setBirthYear(birthYear(valueOf(context.getLims(), l -> l.getBirthday())));
-        info.setDisease(context.getDisease());
-        info.setSampleCode(valueOf(context.getLims(), l -> l.getSubbarcode()));
-        info.setSampleType(sampleTypeLabel(context));
-        info.setTissueCollectionDate(valueOf(context.getLims(), l -> l.getSampleCollectedAt()));
-        info.setReceivedDate(valueOf(context.getLims(), l -> l.getSampleReceivedAt()));
-        // visitCycle / sectionDate / bloodCollectionDate：本仓 LIMS 无对应字段，固定 null（不编造）
+        // 订单合同
+        info.setOrderNo(sample.getOrderNo());
+        info.setBatchNo(sample.getBatchNo());
+        info.setCustomerName(sample.getCustomerName());
+        info.setContractName(sample.getContractName());
+        info.setContractNo(sample.getContractNo());
+        info.setSchemeNo(sample.getSchemeNo());
+        info.setProjectNo(sample.getProjectNo());
+        info.setResearchCenter(sample.getResearchCenter());
+        info.setOperatorName(sample.getOperatorName());
+        info.setContractContactEmail(sample.getContractContactEmail());
+        // 送检运输
+        info.setSenderName(sample.getSenderName());
+        info.setSenderPhone(sample.getSenderPhone());
+        info.setSendDate(sample.getSendDate());
+        info.setExpressCompany(sample.getExpressCompany());
+        info.setExpressNo(sample.getExpressNo());
+        info.setTransportCondition(sample.getTransportCondition());
+        info.setHasTemperatureLogger(sample.getHasTemperatureLogger());
+        // 样本受试者
+        info.setSubbarcode(sample.getSubbarcode());
+        info.setCustomerSamplingCode(sample.getCustomerSamplingCode());
+        info.setSampleName(sample.getSampleName());
+        info.setSubjectNo(sample.getSubjectNo());
+        info.setSex(sample.getSex());
+        info.setBirthYear(sample.getBirthYear());
+        info.setDiseaseType(sample.getDiseaseType());
+        info.setVisitCycle(sample.getVisitCycle());
+        info.setSampleType(sample.getSampleType());
+        info.setSampleQuantity(sample.getSampleQuantity());
+        info.setQuantityUnit(sample.getQuantityUnit());
+        info.setSampleAttribute(sample.getSampleAttribute());
+        info.setCollectionSite(sample.getCollectionSite());
+        info.setTissueType(sample.getTissueType());
+        info.setTumorType(sample.getTumorType());
+        info.setPrimaryTumorSite(sample.getPrimaryTumorSite());
+        info.setCollectionDate(sample.getCollectionDate());
+        info.setAssayMethod(sample.getAssayMethod());
+        // 产品与备注
+        info.setProductCode(sample.getProductCode());
+        info.setProductName(sample.getProductName());
+        info.setControlType(sample.getControlType());
+        info.setRemark(sample.getRemark());
+        info.setAbnormalRemark(sample.getAbnormalRemark());
+        // 报告与时间
+        info.setReportReceiver(sample.getReportReceiver());
+        info.setReportEmail(sample.getReportEmail());
+        info.setReceiveConfirmTime(sample.getReceiveConfirmTime());
+        info.setOrderSubmitTime(sample.getOrderSubmitTime());
+        info.setArrivalTime(sample.getArrivalTime());
         return info;
     }
 
@@ -234,7 +285,7 @@ public class CommonReportModuleAssembler {
 
     // ---------------------------------------------------------------- 内部细节
 
-    /** 英文标本类型（对齐参考工程 reportInfo.specimentType：tissue / blood） */
+    /** 英文标本类型（reportInfo.specimenType：tissue / blood） */
     private String englishSpecimenType(String specimenType) {
         if ("组织".equals(specimenType)) {
             return "tissue";

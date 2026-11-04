@@ -47,4 +47,7 @@ public class PreviewContext {
 
     private String specimenType;
 
+    /** cms_sample 最新一行（报告 JSON 的 sampleInfo 按它输出 45 个字段） */
+    private org.dromara.report.domain.CmsSample sample;
+
 }

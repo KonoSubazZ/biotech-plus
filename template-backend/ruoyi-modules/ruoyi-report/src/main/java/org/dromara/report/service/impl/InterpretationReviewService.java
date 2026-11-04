@@ -267,7 +267,7 @@ public class InterpretationReviewService {
         parameters.setAnalysisId(requested.getAnalysisId());
         parameters.setReportId(requested.getReportId());
         parameters.setTemplateId(optionalLong(report.get("templateId")));
-        parameters.setDisease(frozen.getSampleInfo() == null ? null : frozen.getSampleInfo().getDisease());
+        parameters.setDisease(frozen.getSampleInfo() == null ? null : frozen.getSampleInfo().getDiseaseType());
         if (frozen.getReportInfo() != null) {
             parameters.setReportDate(frozen.getReportInfo().getReportDate());
             parameters.setAnalyzer(frozen.getReportInfo().getAnalyzer());

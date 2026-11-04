@@ -127,6 +127,7 @@ public class PreviewContextBuilder {
         pc.setProductGenes(resolvedProductId == null
             ? List.of() : interpretationMapper.selectProductGeneSymbols(resolvedProductId));
         pc.setSpecimenType(lims.getSpecimenType());
+        pc.setSample(context.getSample());
         return pc;
     }
 

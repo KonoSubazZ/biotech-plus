@@ -21,7 +21,7 @@
 SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1
 ```
 
-- 当前 JSON 协议版本为 `1.2`。个性化结果分别写入 `shengyuSomaticVariants`、`shengyuGermlineVariants` 和圣域质控字段，公共预览仍保留在根对象中供页面使用。
+- 当前 JSON 协议版本为 `1.3`（sampleInfo 改为 cms_sample 的 45 个字段，旧 JSON 不迁移）。个性化结果分别写入 `shengyuSomaticVariants`、`shengyuGermlineVariants` 和圣域质控字段，公共预览仍保留在根对象中供页面使用。
 
 ### 0.2 圣域 1238 业务规则
 
@@ -705,30 +705,63 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
 
 ```json
 {
-  "schemaVersion": "1.2",
+  "schemaVersion": "1.3",
   "templateCode": "pharma-shengyu",
   "templateVersion": "v1",
   "analysisId": 123,
   "reportId": 456,
   "reportInfo": {
     "reportDate": "2026-09-14",
-    "specimentType": "tissue"
+    "specimenType": "tissue"
   },
   "showTissueBloodSample": true,
   "showBloodOnlySample": false,
   "sampleInfo": {
-    "researchCenterName": "示例研究中心",
-    "participantNumber": "SUBJECT-001",
-    "gender": "女",
+    "orderNo": "ORDER-001",
+    "batchNo": "BATCH-001",
+    "customerName": "示例医院",
+    "contractName": "示例合同",
+    "contractNo": "HT-2026-001",
+    "schemeNo": "UAT-PROTOCOL-20261012-01",
+    "projectNo": "NG0101",
+    "researchCenter": "示例研究中心",
+    "operatorName": "运营-张三",
+    "contractContactEmail": "contact@example.com",
+    "senderName": "送检-李四",
+    "senderPhone": "13800000000",
+    "sendDate": "2026-08-18",
+    "expressCompany": "顺丰",
+    "expressNo": "SF1234567890",
+    "transportCondition": "常温",
+    "hasTemperatureLogger": "否",
+    "subbarcode": "SAMPLE-001",
+    "customerSamplingCode": "CUST-001",
+    "sampleName": "示例样本",
+    "subjectNo": "SUBJECT-001",
+    "sex": "女",
     "birthYear": "1980",
-    "disease": "乳腺癌",
-    "visitCycle": null,
-    "sampleCode": "SAMPLE-001",
+    "diseaseType": "乳腺癌",
+    "visitCycle": "C1D1",
     "sampleType": "组织+全血",
-    "tissueCollectionDate": null,
-    "sectionDate": null,
-    "bloodCollectionDate": null,
-    "receivedDate": "2026-08-19"
+    "sampleQuantity": "15",
+    "quantityUnit": "张",
+    "sampleAttribute": "石蜡切片",
+    "collectionSite": "乳腺",
+    "tissueType": "FFPE",
+    "tumorType": "实体瘤",
+    "primaryTumorSite": "乳腺",
+    "collectionDate": "2026-08-17",
+    "assayMethod": "NGS",
+    "productCode": "novopm2_tis_1238",
+    "productName": "双样本-实体瘤组织1238基因检测",
+    "controlType": "组织对照",
+    "remark": "示例备注",
+    "abnormalRemark": null,
+    "reportReceiver": "王医生",
+    "reportEmail": "doctor@example.com",
+    "receiveConfirmTime": "2026-08-19 10:00:00",
+    "orderSubmitTime": "2026-08-18 09:00:00",
+    "arrivalTime": "2026-08-19 09:30:00"
   },
   "somaticVariants": {
     "summary": {},
@@ -847,7 +880,7 @@ modules.hrr.data.somatic.items
 | 个性化数据 | 三个圣域 Handler 分别生成体细胞、胚系和质控字段 |
 | 业务配置 | 运行时不读取 `manifest.json`；癌种规则在 Java，基因来自 `product_gene` |
 | 胚系解释 | 来源为 `history_germline.clinical_significance`，支持五级人工修改和改靶继承 |
-| JSON DTO | `ReportTemplateData`，当前 `schemaVersion=1.2` |
+| JSON DTO | `ReportTemplateData`，当前 `schemaVersion=1.3` |
 | 示例 JSON | `payload.example.json` 仅用于说明和契约测试，不参与运行时决策 |
 | 正式生成 | Java 已重新构建 JSON、写 JSON 文件并调用 Python 渲染 DOCX；数据库登记两个文件路径 |
 | PDF | OnlyOffice PDF 转换尚未接入当前 `ReportGenerationService` |
@@ -885,7 +918,7 @@ POST /admin/report/template/data
 
 ```json
 {
-  "schemaVersion": "1.2",
+  "schemaVersion": "1.3",
   "templateCode": "pharma-shengyu",
   "analysisId": 123,
   "reportId": 456,
@@ -956,7 +989,7 @@ POST /admin/report/template/generate
 
 ```json
 {
-  "schemaVersion": "1.2",
+  "schemaVersion": "1.3",
   "templateCode": "pharma-shengyu",
   "templateVersion": "v1",
   "analysisId": 123,

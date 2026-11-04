@@ -35,6 +35,9 @@ public class ReportModuleContext {
     /** LIMS 信息（cms_sample 映射） */
     private InterpretationLimsVo lims;
 
+    /** cms_sample 最新一行（报告 JSON 的 sampleInfo 按它输出 45 个字段） */
+    private org.dromara.report.domain.CmsSample sample;
+
     /** 已算好的体细胞报出位点（含匹配结果） */
     private List<PreviewVariantVo> somaticVariants;
 
