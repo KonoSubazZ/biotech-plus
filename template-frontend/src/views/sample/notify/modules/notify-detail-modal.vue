@@ -52,7 +52,7 @@ const mailColumns = computed<DataTableColumns<Api.Qc.DeliveryEmailLog>>(() => [
     align: 'center',
     render: row => {
       const meta = MAIL_STATUS[row.status] ?? { label: row.status, type: 'warning' as const };
-      return <NTag type={meta.type} size="small" bordered={false}>{meta.label}</NTag>;
+      return <NTag type={meta.type}>{meta.label}</NTag>;
     }
   },
   { key: 'recipients', title: '收件人', ellipsis: { tooltip: true } },

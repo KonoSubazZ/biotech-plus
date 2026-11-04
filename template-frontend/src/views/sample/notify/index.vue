@@ -14,17 +14,17 @@ defineOptions({
   name: 'SampleNotifyList'
 });
 
-/** 通知类型标签 */
+/** 通知类型标签：统一蓝色 */
 const TYPE_META: Record<string, { label: string; type: 'default' | 'info' | 'success' | 'warning' | 'error' }> = {
-  delay: { label: '延期通知', type: 'warning' },
-  sample: { label: '样本不合格', type: 'error' },
-  wet_lab: { label: '湿实验不合格', type: 'error' },
-  bioinfo: { label: '干实验不合格', type: 'error' }
+  delay: { label: '延期通知', type: 'info' },
+  sample: { label: '样本不合格', type: 'info' },
+  wet_lab: { label: '湿实验不合格', type: 'info' },
+  bioinfo: { label: '干实验不合格', type: 'info' }
 };
 
-/** 状态标签：待处理=黄、发送成功=绿、发送失败=红 */
+/** 状态标签：已生成=蓝、待处理=黄、发送成功=绿、发送失败=红（灰只兜底未知值） */
 const STATUS_META: Record<string, { label: string; type: 'default' | 'info' | 'success' | 'warning' | 'error' }> = {
-  generated: { label: '已生成（待提交）', type: 'default' },
+  generated: { label: '已生成（待提交）', type: 'info' },
   pending: { label: '待处理', type: 'warning' },
   sent: { label: '发送成功', type: 'success' },
   failed: { label: '发送失败', type: 'error' }
@@ -63,11 +63,7 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       width: 110,
       render: row => {
         const meta = TYPE_META[row.notifyType] ?? { label: row.notifyType, type: 'default' as const };
-        return (
-          <NTag type={meta.type} size="small" bordered={false}>
-            {meta.label}
-          </NTag>
-        );
+        return <NTag type={meta.type}>{meta.label}</NTag>;
       }
     },
     { key: 'notifyDate', title: '通知日期', align: 'center', width: 100 },
@@ -91,11 +87,7 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       width: 130,
       render: row => {
         const meta = STATUS_META[row.notifyStatus] ?? { label: row.notifyStatus, type: 'default' as const };
-        const tag = (
-          <NTag type={meta.type} size="small" bordered={false}>
-            {meta.label}
-          </NTag>
-        );
+        const tag = <NTag type={meta.type}>{meta.label}</NTag>;
         return row.sendError ? <span title={row.sendError}>{tag}</span> : tag;
       }
     },
