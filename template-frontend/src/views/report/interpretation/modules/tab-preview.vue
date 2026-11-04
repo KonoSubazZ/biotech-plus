@@ -576,20 +576,20 @@ function gradeValue(row: Api.Report.PreviewVariant | null): string {
 
 const sectionMeta = computed(() => [
   {
-    key: 'somatic',
-    title: '体细胞变异解析',
-    hint: '报出的体细胞位点（SNP/Indel + CNV + Fusion），按癌种匹配 NKB 用药证据',
-    section: preview.value?.somaticVariants,
-    columns: buildSomaticColumns(),
-    gradeTags: gradeCountTags(preview.value?.somaticVariants, 'somatic')
-  },
-  {
     key: 'germline',
     title: '肿瘤遗传风险',
     hint: '报出的胚系位点（CR_ALL），临床意义人工确认后按致病性分级匹配证据',
     section: preview.value?.germlineVariants,
     columns: buildGermlineColumns(),
     gradeTags: gradeCountTags(preview.value?.germlineVariants, 'germline')
+  },
+  {
+    key: 'somatic',
+    title: '体细胞变异解析',
+    hint: '报出的体细胞位点（SNP/Indel + CNV + Fusion），按癌种匹配 NKB 用药证据',
+    section: preview.value?.somaticVariants,
+    columns: buildSomaticColumns(),
+    gradeTags: gradeCountTags(preview.value?.somaticVariants, 'somatic')
   }
 ]);
 
