@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
+import org.dromara.report.domain.bo.InterpretationVariantNoteBo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.PreviewDrugVo;
@@ -12,13 +13,18 @@ import org.dromara.report.domain.vo.PreviewVariantVo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.mapper.NkbEvidenceMapper;
 import org.dromara.report.service.IInterpretationService;
+import org.dromara.report.service.impl.revision.ReportRevisionPolicy;
+import org.dromara.report.utils.ReportStatus;
+import org.dromara.common.satoken.utils.LoginHelper;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.dromara.report.service.impl.PreviewSupport.asInt;
 import static org.dromara.report.service.impl.PreviewSupport.asLong;
 import static org.dromara.report.service.impl.PreviewSupport.asString;
 import static org.dromara.report.service.impl.PreviewSupport.nkb;
@@ -113,6 +119,49 @@ public class VariantEditService {
         if (affected == 0) {
             throw new ServiceException("改靶失败：位点不存在或不属于该分析批次");
         }
+    }
+
+    /** 单条突变说明最大长度（整段文本，够长但防脏数据） */
+    private static final int MAX_NOTE_LENGTH = 4000;
+
+    /** 一份报告的说明覆盖表总量上限（防有人把整篇文档粘进来） */
+    private static final int MAX_NOTES_BYTES = 64 * 1024;
+
+    /**
+     * 人工修改位点「突变说明」（报告预览 › 肿瘤遗传风险 › 位点详情）。
+     * <p>
+     * 存 {@code analysis_report.report_variant_notes}（JSON，键 = 来源类型:位点ID）：
+     * 生成报告时 {@code assemble} 读它覆盖默认说明，所以改完再生成，JSON 里带的就是改后的文本。
+     * <b>不写 history_*、不重跑匹配</b>：说明属报告正文，与冻结的匹配结果解耦。
+     *
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / mutationDescription，空串 = 恢复默认）
+     */
+    public void updateVariantNote(InterpretationVariantNoteBo bo) {
+        Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
+        Integer status = asInt(report.get("status"));
+        if (status == null || !ReportRevisionPolicy.isGeneratable(status)) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status == null ? -1 : status)
+                + "）不允许修改突变说明：报告已送审或已发送，请驳回/重新解读后再改");
+        }
+        if (interpretationMapper.selectVariantForTarget(bo.getSourceType(), bo.getSourceId(), bo.getAnalysisId()) == null) {
+            throw new ServiceException("位点不存在或不属于该分析批次：" + bo.getSourceType() + "#" + bo.getSourceId());
+        }
+        String text = bo.getMutationDescription() == null ? null : bo.getMutationDescription().trim();
+        if (text != null && text.length() > MAX_NOTE_LENGTH) {
+            throw new ServiceException("突变说明不能超过 " + MAX_NOTE_LENGTH + " 字");
+        }
+        String merged = VariantNotes.merge(asString(report.get("reportVariantNotes")),
+            bo.getSourceType(), bo.getSourceId(), text);
+        if (merged != null && merged.getBytes(StandardCharsets.UTF_8).length > MAX_NOTES_BYTES) {
+            throw new ServiceException("该报告的位点说明总量超限（>64KB），请精简后再保存");
+        }
+        int affected = interpretationMapper.updateReportVariantNotes(
+            bo.getReportId(), bo.getAnalysisId(), merged, LoginHelper.getUserId());
+        if (affected == 0) {
+            throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + bo.getReportId());
+        }
+        log.info("位点说明已人工修改：reportId={}，{}#{}，{}", bo.getReportId(), bo.getSourceType(),
+            bo.getSourceId(), StringUtils.hasText(text) ? "保存" : "恢复默认");
     }
 
     /**

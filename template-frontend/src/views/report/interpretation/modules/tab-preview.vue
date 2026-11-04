@@ -1,6 +1,6 @@
 <script setup lang="tsx">
 import { computed, ref, watch } from 'vue';
-import { NButton, NSelect, NTag } from 'naive-ui';
+import { NButton, NDivider, NInput, NSelect, NTag } from 'naive-ui';
 import {
   fetchBuildInterpretationPreview,
   fetchGenerateReport,
@@ -8,8 +8,10 @@ import {
   fetchParentCandidates,
   fetchSubmitReview,
   fetchUpdateGermlineSignificance,
+  fetchUpdateVariantNote,
   fetchUpdateVariantTarget
 } from '@/service/api/report/interpretation';
+import ButtonIcon from '@/components/custom/button-icon.vue';
 import ReportGenerateParams from './report-generate-params.vue';
 import { gradeCountTags } from './grade-count';
 import { useDownload } from '@/hooks/business/download';
@@ -193,8 +195,8 @@ const canSubmitReview = computed(() => hasReportFile.value && !paramsChanged.val
 const submitting = ref(false);
 
 /**
- * 提交解读：后端在同一事务里冻结本次解读的位点匹配历史（history_*）并把报告置为待审核（40）。
- * 参数与生成时同一套（预览页在已生成状态下是锁定回填的），否则冻出的历史与报告内容对不上。
+ * 提交解读：后端只校验制品并置为待审核（40），**不冻结**位点匹配历史；
+ * 历史在「审核通过」时冻结。参数与生成时同一套（已生成状态下参数锁定回填）。
  */
 async function handleSubmitReview() {
   submitting.value = true;
@@ -253,18 +255,108 @@ async function saveTarget(row: Api.Report.PreviewVariant, parentMutationIds: num
   }
 }
 
+/** 突变说明编辑态（只胚系：肿瘤遗传风险；体细胞预留，先不做） */
+const noteEditing = ref(false);
+const noteSaving = ref(false);
+const noteDraft = ref('');
+
+/** 与「生成报告」同一批状态（31/32/33/52）：40+ 已送审/已发送，说明只读 */
+const NOTE_EDITABLE_STATUS = [31, 32, 33, 52];
+
+/** 只有胚系位点开说明编辑，且报告状态允许 */
+const canEditNote = computed(
+  () => detailRow.value?.sourceType === 'CR_ALL' && NOTE_EDITABLE_STATUS.includes(Number(props.reportStatus))
+);
+
+/** 进入编辑：预填当前整段（人工文本或默认两段），保存后按 sourceType:sourceId 回填 */
+function startEditNote() {
+  noteDraft.value = detailRow.value?.mutationDescription ?? mutationTexts(detailRow.value).join('\n');
+  noteEditing.value = true;
+}
+
+function cancelEditNote() {
+  noteEditing.value = false;
+  noteDraft.value = '';
+}
+
+/**
+ * 保存人工说明（传空串 = 恢复默认）。
+ * <p>
+ * 后端存报告粒度覆盖表，生成报告时覆盖默认说明，所以保存后重新拉预览即可看到新值；
+ * 弹窗不关，直接把 `detailRow` 换成这次预览回来的同一位点。
+ */
+async function persistNote(text: string): Promise<boolean> {
+  const row = detailRow.value;
+  if (!row) {
+    return false;
+  }
+  const key = `${row.sourceType}:${row.sourceId}`;
+  noteSaving.value = true;
+  try {
+    const { error } = await fetchUpdateVariantNote({
+      analysisId: props.analysisId,
+      reportId: props.reportId,
+      sourceType: row.sourceType,
+      sourceId: row.sourceId,
+      mutationDescription: text
+    });
+    if (error) {
+      return false;
+    }
+    window.$message?.success(text ? '突变说明已保存' : '已恢复默认说明');
+    await loadPreview();
+    const fresh = [...(preview.value?.somaticVariants?.items ?? []), ...(preview.value?.germlineVariants?.items ?? [])].find(
+      item => `${item.sourceType}:${item.sourceId}` === key
+    );
+    if (fresh) {
+      detailRow.value = fresh;
+    }
+    noteEditing.value = false;
+    noteDraft.value = '';
+    return true;
+  } finally {
+    noteSaving.value = false;
+  }
+}
+
+function saveNote() {
+  persistNote(noteDraft.value);
+}
+
+function resetNote() {
+  persistNote('');
+}
+
+/** 两表统一列宽（以「肿瘤遗传风险」为准；中段两列合计都是 280，保证「来源 / 操作」列位对齐） */
+const COL_WIDTH = {
+  gene: 110,
+  variant: 150,
+  type: 150,
+  oriVariant: 220,
+  variantType: 130,
+  zygosity: 110,
+  significance: 170,
+  abundance: 150,
+  variationLevel: 130,
+  source: 100,
+  operate: 190
+};
+
+/** 两表共用的横向滚动宽度 = 各列宽之和，两边必须一致 */
+const TABLE_SCROLL_X = 1330;
+
 /** 位点表前四列（基因 / 变异 / 类型 / 原始位点） */
 function baseColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
   return [
-    { key: 'gene', title: '基因', align: 'center', width: 110, render: row => row.gene ?? '-' },
-    { key: 'variant', title: '变异', align: 'center', width: 150, render: row => row.variant ?? '-' },
+    { key: 'gene', title: '基因', align: 'center', width: COL_WIDTH.gene, render: row => row.gene ?? '-' },
+    { key: 'variant', title: '变异', align: 'center', width: COL_WIDTH.variant, render: row => row.variant ?? '-' },
     // 类型：体系|变异类别|核酸类型（核酸类型只有融合有，由后端 typeText 组装）
-    { key: 'mutationType', title: '类型', align: 'center', width: 150, render: row => row.typeText ?? '-' },
+    { key: 'mutationType', title: '类型', align: 'center', width: COL_WIDTH.type, render: row => row.typeText ?? '-' },
     {
       key: 'oriVariant',
       title: '原始位点',
       align: 'left',
-      minWidth: 220,
+      width: COL_WIDTH.oriVariant,
       ellipsis: { tooltip: true },
       render: row => row.oriVariant ?? '-'
     }
@@ -277,19 +369,19 @@ function variantTypeColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
     key: 'variantType',
     title: '变异类型',
     align: 'center',
-    width: 130,
+    width: COL_WIDTH.variantType,
     render: row => row.variantTypeText ?? '-'
   };
 }
 
 /** 丰度/reads 列：DNA → 45.47%；RNA 融合 → reads 数（无单位）；扩增/缺失 → 拷贝数 */
 function abundanceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
-  return { key: 'frequency', title: '丰度/reads', align: 'center', width: 120, render: row => row.abundanceText ?? '-' };
+  return { key: 'frequency', title: '丰度/reads', align: 'center', width: COL_WIDTH.abundance, render: row => row.abundanceText ?? '-' };
 }
 
-/** 体细胞列 = 公共列 + 变异类型 + 丰度/reads + 位点等级 + 操作 */
+/** 体细胞列 = 公共列 + 变异类型 + 丰度/reads + 位点等级 + 来源 + 操作 */
 function buildSomaticColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [...baseColumns(), variantTypeColumn(), abundanceColumn(), variationLevelColumn(), operateColumn()];
+  return [...baseColumns(), variantTypeColumn(), abundanceColumn(), variationLevelColumn(), sourceColumn(), operateColumn()];
 }
 
 /** 合子列：CR_ALL 的 Zygosity（纯合/杂合）；只在胚系表用 */
@@ -298,14 +390,14 @@ function zygosityColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
     key: 'zygosity',
     title: '纯合/杂合',
     align: 'center',
-    width: 110,
+    width: COL_WIDTH.zygosity,
     render: row => row.zygosity ?? '-'
   };
 }
 
-/** 胚系列 = 公共列 + 变异类型 + 纯合/杂合 + 临床意义 + 操作（丰度/reads、文件判定、位点等级不展示） */
+/** 胚系列 = 公共列 + 变异类型 + 纯合/杂合 + 临床意义 + 来源 + 操作（丰度/reads、文件判定、位点等级不展示） */
 function buildGermlineColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [...baseColumns(), variantTypeColumn(), zygosityColumn(), significanceColumn(), operateColumn()];
+  return [...baseColumns(), variantTypeColumn(), zygosityColumn(), significanceColumn(), sourceColumn(), operateColumn()];
 }
 
 /** 临床意义列：五级人工确认（1 致病 ~ 5 良性），保存后重新预览 */
@@ -314,7 +406,7 @@ function significanceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
     key: 'clinicalSignificance',
     title: '临床意义',
     align: 'center',
-    width: 170,
+    width: COL_WIDTH.significance,
     render: row => (
       <NSelect
         value={row.clinicalSignificance}
@@ -333,12 +425,27 @@ function variationLevelColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> 
     key: 'variationLevel',
     title: '位点等级',
     align: 'center',
-    width: 100,
+    width: COL_WIDTH.variationLevel,
     render: row => {
       const short = row.variationClass ? row.variationClass.replace('类', '') : null;
       // 等级是「类别」不是「状态」：按配色契约用中性色，不借用绿/黄/红
       return short ? <NTag size="small">{short}</NTag> : <>-</>;
     }
+  };
+}
+
+/** 来源列：匹配结果来自冻结历史还是本次知识库匹配（后端 fromHistory） */
+function sourceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
+  return {
+    key: 'fromHistory',
+    title: '来源',
+    align: 'center',
+    width: COL_WIDTH.source,
+    render: row => (
+      <NTag size="small" type={row.fromHistory ? 'default' : 'info'}>
+        {row.fromHistory ? '历史' : '知识库'}
+      </NTag>
+    )
   };
 }
 
@@ -350,7 +457,7 @@ function operateColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
     key: 'operate',
     title: '操作',
     align: 'center',
-    width: 190,
+    width: COL_WIDTH.operate,
     render: row => (
       <div class="flex items-center justify-center gap-10px">
         <NButton text type="primary" size="small" onClick={() => openDetail(row)}>
@@ -711,7 +818,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         :data="meta.section?.items ?? []"
         :loading="editing"
         :row-key="row => row.sourceId"
-        :scroll-x="1200"
+        :scroll-x="TABLE_SCROLL_X"
         size="small"
       />
     </NCard>
@@ -769,7 +876,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
 
         <!-- 三段说明：基因说明 / 信号通路说明 / 突变说明（en7 拼装：HGVS 译文 + 位点说明，NKB 优先、四段兜底） -->
         <div
-          v-if="detailRow.geneDescription || detailRow.pathwayDescription || mutationTexts(detailRow).length"
+          v-if="detailRow.geneDescription || detailRow.pathwayDescription || mutationTexts(detailRow).length || canEditNote"
           class="mb-10px flex-col gap-6px text-12px"
         >
           <div v-if="detailRow.geneDescription" class="rounded bg-#f5f7fa p-10px">
@@ -780,15 +887,69 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
             <span class="font-medium">信号通路说明</span>
             <div class="mt-4px leading-20px op-80">{{ detailRow.pathwayDescription }}</div>
           </div>
-          <div v-if="mutationTexts(detailRow).length" class="rounded bg-#f5f7fa p-10px">
-            <span class="font-medium">突变说明</span>
-            <div
-              v-for="(text, index) in mutationTexts(detailRow)"
-              :key="index"
-              class="mt-4px leading-20px op-80"
-            >
-              {{ text }}
+          <div
+            v-if="mutationTexts(detailRow).length || detailRow.mutationDescriptionEdited || canEditNote"
+            class="rounded bg-#f5f7fa p-10px"
+          >
+            <div class="flex items-center justify-between gap-8px">
+              <div class="flex items-center gap-6px">
+                <span class="font-medium">突变说明</span>
+                <NTag v-if="detailRow.mutationDescriptionEdited" size="small" type="warning">已手工修改</NTag>
+              </div>
+              <div v-if="canEditNote" class="flex items-center gap-8px">
+                <ButtonIcon
+                  v-if="!noteEditing"
+                  text
+                  type="primary"
+                  icon="material-symbols:drive-file-rename-outline-outline"
+                  tooltip-content="编辑突变说明"
+                  @click="startEditNote"
+                />
+                <template v-else>
+                  <NButton text size="tiny" :disabled="noteSaving" @click="cancelEditNote">取消</NButton>
+                  <NButton text type="primary" size="tiny" :loading="noteSaving" @click="saveNote">保存</NButton>
+                </template>
+                <template v-if="!noteEditing && detailRow.mutationDescriptionEdited">
+                  <NDivider vertical />
+                  <ButtonIcon
+                    text
+                    icon="material-symbols:backup-outline"
+                    tooltip-content="恢复默认说明"
+                    :disabled="noteSaving"
+                    @click="resetNote"
+                  />
+                </template>
+              </div>
             </div>
+            <NInput
+              v-if="noteEditing"
+              v-model:value="noteDraft"
+              type="textarea"
+              :rows="6"
+              :maxlength="4000"
+              show-count
+              class="mt-6px"
+              placeholder="填写该位点的突变说明"
+            />
+            <template v-else>
+              <!-- 人工改过的整段说明（单段，保留换行）；未改过则分两段展示 HGVS 译文 + 位点说明 -->
+              <div
+                v-if="detailRow.mutationDescriptionEdited"
+                class="mt-4px whitespace-pre-wrap leading-20px op-80"
+              >
+                {{ detailRow.mutationDescription }}
+              </div>
+              <template v-else>
+                <div
+                  v-for="(text, index) in mutationTexts(detailRow)"
+                  :key="index"
+                  class="mt-4px whitespace-pre-wrap leading-20px op-80"
+                >
+                  {{ text }}
+                </div>
+                <div v-if="!mutationTexts(detailRow).length" class="mt-4px text-12px op-60">暂无说明</div>
+              </template>
+            </template>
           </div>
         </div>
 

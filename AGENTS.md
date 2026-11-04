@@ -182,6 +182,10 @@ report/rejected/<yyyyMMdd>/<subbarcode>_V<n>/{json,docx,pdf,signed}/ + manifest.
 - **位点历史只在「审核通过」时冻结**：提交审核（32→40/41）不写 `history_somatic/history_germline`、
   不写 `report_variant_history`、不登记 `history_reuse_log`；驳回也不写。详细口径与代码落点见
   `docs/context/report/report-module-design.md` §0.7。
+- **位点「突变说明」可人工改写**（2026-11-04）：默认由 HGVS 译文 + NKB 位点说明实时拼（不进冻结）；
+  人工文本存 `analysis_report.report_variant_notes`（json，**报告粒度**，键 `来源类型:位点ID`），
+  空文本 = 恢复默认；只有 31/32/33/52 能改（40+ 只读）。预览/生成共用 `assemble()` 应用覆盖，
+  JSON 字段 `...items[].mutationDescription`。**历史 DOCX 模板不含该占位符**，要印用 `{{it.mutationDescription or ''}}`。
 
 ### 3.4 前端 `template-frontend/`
 

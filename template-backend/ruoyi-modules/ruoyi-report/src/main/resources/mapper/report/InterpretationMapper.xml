@@ -491,6 +491,7 @@
                r.report_generated_by AS reportGeneratedBy,
                r.report_generated_at AS reportGeneratedAt,
                r.report_status    AS status,
+               r.report_variant_notes AS reportVariantNotes,
                r.report_bioinfo_viewed_by   AS reportBioinfoViewedBy,
                r.report_bioinfo_reviewed_by AS reportBioinfoReviewedBy,
                r.report_interpreted_by      AS reportInterpretedBy,
@@ -709,6 +710,22 @@
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
             </otherwise>
         </choose>
+    </update>
+
+    <!--
+      人工修改的位点说明（报告预览 › 肿瘤遗传风险）：报告粒度 JSON 覆盖表。
+      只在「可生成报告」的状态（31/32/33/52）允许写；40+ 已送审/已发送时影响行数为 0，
+      由服务层报「报告状态已变化，请刷新后重试」。
+    -->
+    <update id="updateReportVariantNotes">
+        UPDATE analysis_report
+        SET report_variant_notes = #{notes},
+            update_by = #{operatorId},
+            update_time = NOW()
+        WHERE report_id = #{reportId}
+          AND analysis_id = #{analysisId}
+          AND report_status IN (31, 32, 33, 52)
+          AND del_flag = '0'
     </update>
 
     <select id="selectProductGeneSymbols" resultType="java.lang.String">

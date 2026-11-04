@@ -381,6 +381,8 @@ declare namespace Api {
       zygosity: string | null;
       clinicalSignificance: number | null;
       clinicalSignificanceLabel: string | null;
+      /** 是否复用冻结的历史匹配结果（true=历史，false=本次知识库匹配）；页面「来源」列用 */
+      fromHistory: boolean | null;
       /** MATCHED / NOT_MATCHED */
       matchStatus: string | null;
       variationClass: string | null;
@@ -429,6 +431,13 @@ declare namespace Api {
       variantDescription: string | null;
       /** 突变说明（HGVS → 中文，移植 en7 的 translate_hgvs.pl） */
       mutationExplanation: string | null;
+      /**
+       * 报告里展示的「突变说明」整段文本：人工修改优先，
+       * 否则 = HGVS 译文 + 位点说明（en7 口径，直接拼接）
+       */
+      mutationDescription: string | null;
+      /** 突变说明是否被人工改过（「已手工修改」标签用） */
+      mutationDescriptionEdited: boolean | null;
     }
 
     /** 报告预览：一个分节 */

@@ -22,6 +22,7 @@ import org.dromara.report.domain.bo.InterpretationSendBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
+import org.dromara.report.domain.bo.InterpretationVariantNoteBo;
 import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
@@ -502,6 +503,24 @@ public class InterpretationController extends BaseController {
     @PostMapping("/germline-clinical-significance")
     public R<Void> germlineSignificance(@RequestBody @Validated InterpretationGermlineSignificanceBo bo) {
         previewService.updateGermlineSignificance(bo);
+        return R.ok();
+    }
+
+    /**
+     * 人工修改位点「突变说明」（报告预览 › 肿瘤遗传风险 › 位点详情）
+     * <p>
+     * 报告粒度存储，生成报告时覆盖默认说明；空文本 = 恢复默认。
+     * 只有可生成报告的状态（31/32/33/52）允许写，40+ 已送审/已发送只读。
+     *
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / mutationDescription）
+     * @return 操作结果
+     */
+    @SaCheckPermission("report:interpretation:preview")
+    @RepeatSubmit()
+    @Log(title = "报告解读-突变说明", businessType = BusinessType.UPDATE)
+    @PostMapping("/variant-note")
+    public R<Void> variantNote(@RequestBody @Validated InterpretationVariantNoteBo bo) {
+        previewService.updateVariantNote(bo);
         return R.ok();
     }
 }

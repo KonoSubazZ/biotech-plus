@@ -34,6 +34,8 @@
   `utils/ReportStatus.java`（**不要写英文枚举常量**）；制品目录、生信认领、62 只读、「历史只在审核通过时冻结」
   这四条见根目录 `AGENTS.md` §3.3，细节见 `docs/context/report/report-module-design.md` §0.7。
   `report.artifact.root` 按环境放在 profile（dev=`/app/reports`），不要写进共用 `application.yml`。
+  报告预览里人工改的位点说明存 `analysis_report.report_variant_notes`（json，报告粒度，键 `来源类型:位点ID`），
+  由 `InterpretationPreviewServiceImpl#assemble` 应用（预览/生成共用）；只有 31/32/33/52 能改，见 design §0.3。
 
 ## 验证与交付
 

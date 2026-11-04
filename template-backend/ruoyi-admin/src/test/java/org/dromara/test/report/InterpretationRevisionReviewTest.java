@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,7 +31,7 @@ class InterpretationRevisionReviewTest {
     private final ReportArtifactStore store = Mockito.mock(ReportArtifactStore.class);
     private final InterpretationReviewService service = new InterpretationReviewService(mapper, context, preview,
         Mockito.mock(IReportSignService.class), revisions, store, ReportTestLocks.direct(),
-        Mockito.mock(ReportFileService.class));
+        Mockito.mock(ReportFileService.class), new ObjectMapper());
 
     private InterpretationPreviewBo request(int status) {
         Map<String, Object> report = new HashMap<>();

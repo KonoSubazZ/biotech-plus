@@ -20,6 +20,18 @@ public final class ReportRevisionPolicy {
         }
     }
 
+    /**
+     * 该状态是否允许生成报告（解读中 31 / 生成成功 32 / 生成失败 33 / 签名失败 52）。
+     * <p>
+     * 也用于「报告预览里能不能人工改位点说明」：已送审（40+）之后报告内容冻结，说明不允许再改。
+     *
+     * @param status 报告状态码
+     * @return 可生成 = true
+     */
+    public static boolean isGeneratable(int status) {
+        return GENERATABLE.contains(status);
+    }
+
     public static String fileName(String base, int version) {
         return baseName(base) + "_V" + version;
     }

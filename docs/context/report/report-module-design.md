@@ -41,10 +41,16 @@ SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1
 - 页面允许对每个胚系位点执行“修改临床意义”和“改靶/调整改靶”。保存临床意义要求该位点已经通过预览建立历史记录。
 - 改靶会更新 `file_CR_ALL.parent_mutation_id`，因此药物匹配生成新的技术历史键；新历史记录必须继承同一客户、产品、癌种、性别、位点和合子状态下最近一条临床意义，不能恢复为默认值 3。
 - 临床意义继承明确忽略 `parent_mutation_id`，但不忽略癌种和性别；药物证据复用仍包含 `parent_mutation_id`，两种语义不可合并成一个宽松键。
+- **突变说明**（2026-11-04 新增）：默认 = HGVS 中文译文 + NKB 位点说明，**直接拼接成一段**（en7 `ReportCrServiceImpl` 的 `mutDesc + variantDescription` 口径，NKB 无位点说明时用四段兜底 `description`），每次预览/生成实时算、不进 `match_result` 冻结。
+  解读人员可人工改写：存 `analysis_report.report_variant_notes`（`json`，键形如 `CR_ALL:44`（来源类型:位点ID），**报告粒度**，同批次多份报告互不覆盖），空文本 = 恢复默认（删键）。
+  只有 `ReportRevisionPolicy.GENERATABLE`（31/32/33/52）允许改，40+ 已送审/已发送只读（`updateReportVariantNotes` 的 WHERE 条件兜底）。
+  预览与生成共用的 `assemble()` 在匹配后调 `VariantNotes.apply`：有覆盖用覆盖（`mutationDescriptionEdited=true`），否则填默认；JSON 字段为 `somaticVariants/germlineVariants.items[].mutationDescription`。
+  **历史 DOCX 模板没有这个占位符**（已知现状，本次不改模板）；新模板要印这段字用 `{{it.mutationDescription or ''}}`。
 
 ### 0.4 报告 JSON 生命周期与存储位置
 
 - 预览 JSON 只存在于 Java 对象和 HTTP 响应，不写数据库，也不创建预览文件。
+- 例外只有「人工改写的位点说明」：它不是预览 JSON 的快照，而是**输入侧**的一列 `analysis_report.report_variant_notes`（json，报告粒度，键 `来源类型:位点ID`）。预览与生成都读它，生成后随 JSON 一起冻结；空文本/无键 = 用实时算出的默认说明。见 §0.3。
 - 正式生成时服务端重新查询最新 LIMS、报出位点、改靶、临床意义、产品基因和模板配置，不接受前端回传的预览 JSON。
 - 当前实现把最终 JSON 写入 `<artifact-root>/report/json/<analysis_date>/`、原始 DOCX 写入 `<artifact-root>/report/docx/<analysis_date>/`、转化 PDF 写 `<artifact-root>/report/pdf/<analysis_date>/`、签名后 PDF 写 `<artifact-root>/report/signed/<analysis_date>/`（同样取 analysis_date，不取签名当天）（均不再建 reportId/版本子目录，日期取 `analysis_report.analysis_date`；见 report-docx-renderer.md 的「制品目录」）。
 - DOCX 与 JSON 使用相同文件名前缀；`analysis_report.report_json_path` 保存 JSON 路径，`report_file_raw_path` 保存 DOCX 路径，`template_id/template/report_generated_by/report_generated_at` 同时更新。
@@ -777,6 +783,7 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
         "zygosity": "杂合",
         "clinicalSignificance": 1,
         "clinicalSignificanceLabel": "致病",
+        "fromHistory": true,
         "matchStatus": "MATCHED",
         "drugMatch": {}
       }
@@ -824,6 +831,10 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
   "warnings": []
 }
 ```
+
+- 位点 item（`somaticVariants/germlineVariants.items[]`）自 2026-11-04 起多两个字段：
+  `mutationDescription`（报告用整段说明：人工改写优先，否则 HGVS 中文译文 + 位点说明，直接拼接）、
+  `mutationDescriptionEdited`（是否人工改过）。DOCX 取 `{{it.mutationDescription or ''}}`（`or ''` 必须有，否则 `None` 会印成字面量）。
 
 模板以后直接使用：
 
@@ -1005,6 +1016,10 @@ POST /admin/report/template/generate
 
 `schemaVersion` 用于 Python 识别 JSON 协议，不代表数据库快照版本。`module_code` 保存在模板记录中，用于 Java 选择处理器；一般不需要放入渲染 JSON。正式 JSON 不包含处理器执行堆栈、数据库连接信息或前端临时状态。
 
+> `germlineVariants.items[].fromHistory` / `somaticVariants.items[].fromHistory`（2026-11-04 起序列化）：
+> 该位点本次匹配是复用冻结历史（`true`）还是查最新知识库（`false`），供预览页「来源」列展示。
+> **这是「同输入同 JSON」的唯一例外**：同一输入在不同历史状态下生成，该字段可能不同（其余匹配结果一致）。
+
 每次生成都创建新的 JSON/DOCX 文件并把数据库路径更新到最新制品，因此再次生成时内容可以变化。已经生成的旧 JSON 文件不会被原地修改，但当前代码也没有制品版本表；若审核和发送必须永久绑定某次生成，应在重写时增加不可变制品记录或严格状态锁。
 
 ## 10. Python 渲染边界
@@ -1101,7 +1116,7 @@ Python 不再执行以下操作：
 本阶段只做基线确认：
 
 1. 保留现有单测。
-2. 确认相同输入重复调用得到相同 JSON。
+2. 确认相同输入重复调用得到相同 JSON（唯一例外：`items[].fromHistory` 取决于生成时该位点是否已有历史，见 §7.6）。
 3. 确认缺失值为 `null`。
 4. 确认非适用癌种输出空的 `shengyuSomaticVariants`，但仍生成 `shengyuGermlineVariants`。
 

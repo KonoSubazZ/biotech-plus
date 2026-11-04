@@ -72,7 +72,7 @@ public class VariantMatcher {
      * 匹配体细胞位点（CNV / Fusion / 小变异，按 en7 口径分级）。
      *
      * @param pc             预览上下文
-     * @param persistHistory 是否把本次匹配结果冻结进 history_somatic（只有提交审核才落库；预览/生成传 false）
+     * @param persistHistory 是否把本次匹配结果冻结进 history_somatic（只有审核通过 freezeHistory 才落库；预览/生成/提交传 false）
      * @return 位点列表（已按展示顺序排序）
      */
     public List<PreviewVariantVo> matchSomatic(PreviewContext pc, boolean persistHistory) {
@@ -95,7 +95,7 @@ public class VariantMatcher {
      * 匹配胚系位点（CR_ALL），带五级临床意义。
      *
      * @param pc             预览上下文
-     * @param persistHistory 是否把本次匹配结果冻结进 history_germline（只有提交审核才落库）
+     * @param persistHistory 是否把本次匹配结果冻结进 history_germline（只有审核通过 freezeHistory 才落库）
      * @return 位点列表（已按展示顺序排序）
      */
     public List<PreviewVariantVo> matchGermline(PreviewContext pc, boolean persistHistory) {
@@ -153,7 +153,7 @@ public class VariantMatcher {
             germline, pc.getDiseaseScope(), item.getParentMutationIds());
         applyMatchResult(item, matched);
         if (persistHistory) {
-            // 只有提交审核时才冻结首条历史（预览/生成都不写，避免未送审的报告占用匹配历史）
+            // 只有审核通过（freezeHistory）才冻结首条历史；预览/生成/提交审核都不写，避免未通过审核的报告占用匹配历史
             insertHistory(pc, item, matchKey, significance);
         }
     }
@@ -346,6 +346,7 @@ public class VariantMatcher {
         item.setGene(asString(row.get("gene")));
         item.setVariant(asString(row.get("variant")));
         item.setOriVariant(asString(row.get("oriVariant")));
+        item.setFromHistory(false);
         item.setDrugMatch(List.of());
         return item;
     }

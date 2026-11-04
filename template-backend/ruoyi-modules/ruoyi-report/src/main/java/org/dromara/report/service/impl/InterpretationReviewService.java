@@ -2,21 +2,30 @@ package org.dromara.report.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.common.satoken.utils.TenantContext;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationReviewBo;
+import org.dromara.report.domain.vo.PreviewVariantVo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IReportSignService;
+import org.dromara.report.service.impl.preview.VariantNotes;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.dromara.report.utils.ReportStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -29,11 +38,11 @@ import org.dromara.report.service.impl.revision.ReportRevisionPolicy;
 import org.dromara.report.domain.vo.ReportTemplateData;
 
 /**
- * 报告审核：状态流转 + 提交审核时冻结匹配历史。
+ * 报告审核：状态流转 + 审核通过时冻结匹配历史。
  * <p>
- * 冻结时机是「<b>提交审核</b>」：报告一旦送审，本次解读的位点匹配结果就是审核对象，
- * 必须把结果固定下来（history_* 冻结、NKB 更新不刷新），否则审到一半知识库变了会「审的和出报告的不是一回事」。
- * 预览与生成仍然只读（复用历史照常，但不写新行、不登记复用），未提交的报告不占用匹配历史。
+ * 冻结时机是「<b>审核通过（40/41 → 43）</b>」：先冻结、再改状态，同一事务；驳回的报告不产生历史。
+ * 冻结的是「报告已生成 JSON 里的参数」算出的匹配结果（history_* 冻结、NKB 更新不刷新），
+ * 保证审的、出报告的是同一套结果。预览/生成/提交审核都只读（复用历史照常，但不写新行、不登记复用）。
  * <p>
  * 状态机（数字码见 {@link ReportStatus}）：
  * <pre>
@@ -72,13 +81,18 @@ public class InterpretationReviewService {
     private final ReportOperationLock operationLock;
     private final ReportFileService reportFileService;
 
+    private final ObjectMapper objectMapper;
+
+    /** 制品根目录（与预览/生成同一配置项）：提交前核对制品里的位点说明与库里覆盖表是否一致 */
+    @Value("${report.artifact.root:/app/reports}")
+    private String artifactRoot;
+
     /**
-     * 提交解读：先冻结匹配历史，再把报告状态置为 40（报告待审核）。
+     * 提交解读：只把报告状态置为 40（报告待审核），**不冻结匹配历史**。
      * <p>
-     * 两件事在同一事务里：冻结失败（NKB 异常等）状态就不会变，避免出现「已送审但历史没冻结」的报告。
+     * 历史冻结在「审核通过」时做（见 {@link #approveLocked}）：驳回的报告不产生任何历史，
+     * 避免未通过审核的匹配结果污染 history_*。
      * 只有已生成报告（有成品文件）才能提交 —— 审核对象就是那份生成的报告。
-     * 冻结用的是页面上那套「报告生成参数」（与生成时同一套）：参数不同癌种范围就不同，冻结结果也会不同，
-     * 所以前端必须把生成时的参数一起传过来（预览页在已生成状态下参数是锁定回填的）。
      *
      * @param bo 入参（analysisId / reportId / templateId / disease / reportDate / analyzer，与生成接口同参）
      */
@@ -96,6 +110,8 @@ public class InterpretationReviewService {
         }
 
         reportFileService.loadReportFile(bo.getReportId(), bo.getAnalysisId());
+        // 位点说明是报告正文的一部分：生成后又改过、却没重新生成时，送审的 DOCX 还是旧文字 —— 拦住
+        assertVariantNotesMatched(report);
         Long reviewerId = optionalLong(report.get("reportReviewerId"));
         if (reviewerId != null) {
             requireAvailableReviewer(report, reviewerId);
@@ -110,13 +126,56 @@ public class InterpretationReviewService {
         if (affected == 0) {
             throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + bo.getReportId());
         }
-        log.info("报告已提交审核并冻结匹配历史：reportId={}，analysisId={}", bo.getReportId(), bo.getAnalysisId());
+        log.info("报告已提交审核：reportId={}，analysisId={}（历史冻结在审核通过时执行）", bo.getReportId(), bo.getAnalysisId());
     }
 
     /**
-     * 审核通过：只做状态流转（40/41 → 43 报告审核成功，随后自动送签转 50）。
+     * 提交审核前核对：制品 JSON 里的位点说明必须与库里覆盖表一致。
      * <p>
-     * 匹配历史在「提交审核」时就已经冻结，这里不再重算 —— 否则审核时页面参数一变就会多冻出一条不一致的历史。
+     * 场景：报告生成后又人工改了「突变说明」却没重新生成 → 送审的 DOCX 里还是旧文字。
+     * 这里读制品里的位点（`mutationDescription` / `mutationDescriptionEdited`）与
+     * `analysis_report.report_variant_notes` 比对，不一致直接拒绝提交，让解读先重新生成。
+     * <p>
+     * 制品路径缺失/越界/读不出来时<b>不阻断</b>（文件可读性前面已校验，这里只做内容兜底）。
+     *
+     * @param report 报告行（含 reportJsonPath / reportVariantNotes）
+     */
+    private void assertVariantNotesMatched(Map<String, Object> report) {
+        String jsonPath = asString(report.get("reportJsonPath"));
+        if (!StringUtils.hasText(jsonPath)) {
+            return;
+        }
+        Path file = Paths.get(jsonPath).toAbsolutePath().normalize();
+        Path root = Paths.get(artifactRoot).toAbsolutePath().normalize();
+        if (!file.startsWith(root) || !Files.isRegularFile(file)) {
+            return;
+        }
+        try {
+            ReportTemplateData data = objectMapper.readValue(
+                Files.readString(file, StandardCharsets.UTF_8), ReportTemplateData.class);
+            List<PreviewVariantVo> items = new ArrayList<>();
+            if (data.getSomaticVariants() != null && data.getSomaticVariants().getItems() != null) {
+                items.addAll(data.getSomaticVariants().getItems());
+            }
+            if (data.getGermlineVariants() != null && data.getGermlineVariants().getItems() != null) {
+                items.addAll(data.getGermlineVariants().getItems());
+            }
+            if (!VariantNotes.matchesArtifact(items, VariantNotes.parse(asString(report.get("reportVariantNotes"))))) {
+                throw new ServiceException("位点「突变说明」在生成报告后被修改，请重新生成报告再提交审核");
+            }
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("提交审核前核对位点说明失败（跳过校验）：reportId={}，{}", report.get("reportId"), e.getMessage());
+        }
+    }
+
+    /**
+     * 审核通过：先冻结匹配历史，再把状态流转（40/41 → 43 报告审核成功，随后自动送签转 50）。
+     * <p>
+     * 冻结与状态更新在**同一事务**：freezeHistory 抛错则审核通过整体回滚，不会出现「已通过但历史没冻结」。
+     * 冻结用的是报告已生成 JSON 里的参数（{@link #generatedParameters}：癌种/报告日期/分析人 + 报告模板），
+     * 与生成时同一套，不信前端传参 —— 否则审核时参数一变就会冻出与报告不一致的历史。
      * 状态更新带来源状态条件，重复点击/并发时后到的那次影响行数为 0，直接报错让用户刷新。
      *
      * @param bo 入参（analysisId / reportId）

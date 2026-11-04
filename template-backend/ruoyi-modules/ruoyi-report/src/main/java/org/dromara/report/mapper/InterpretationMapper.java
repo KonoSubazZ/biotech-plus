@@ -346,6 +346,22 @@ public interface InterpretationMapper {
                              @Param("analysisId") Long analysisId,
                              @Param("parentMutationIds") String parentMutationIds);
 
+    /**
+     * 写报告级「位点说明」人工覆盖表（JSON，键 = 来源类型:位点ID）。
+     * <p>
+     * 只在可生成报告的状态（31/32/33/52）生效；40+ 已送审/已发送不允许改（影响行数 0）。
+     *
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID（归属校验）
+     * @param notes      覆盖表 JSON；null = 清空（全部用默认说明）
+     * @param operatorId 操作人（sys_user.user_id）
+     * @return 影响行数（0 = 报告不存在 / 不属于该批次 / 状态已变）
+     */
+    int updateReportVariantNotes(@Param("reportId") Long reportId,
+                                 @Param("analysisId") Long analysisId,
+                                 @Param("notes") String notes,
+                                 @Param("operatorId") Long operatorId);
+
     int updateVariantReportStatus(@Param("sourceId") Long sourceId,
                                  @Param("sourceType") String sourceType,
                                  @Param("analysisId") Long analysisId,

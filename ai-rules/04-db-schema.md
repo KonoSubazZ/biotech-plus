@@ -176,6 +176,7 @@ KEY idx_<业务列> (<业务列>),                            -- 按查询需要
 - 每个脚本开头 `SET NAMES utf8mb4;`（否则 docker 里 mysql 客户端按 latin1 解析中文，导入中断）。
 - 参考已落地的两份：`update_5.6.2-menu-icons.sql`（菜单图标前缀）、
   `update_5.6.2-tenant-version.sql`（租户表 + 给所有业务表补 tenant_id 的存储过程）。
+  纯加列的幂等写法看 `update_5.6.58-report-variant-notes.sql`（先查 `information_schema` 再 `PREPARE` ALTER）。
 
 ---
 

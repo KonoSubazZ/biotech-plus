@@ -179,6 +179,26 @@ export function fetchUpdateVariantTarget(data: {
   });
 }
 
+/**
+ * 人工修改位点「突变说明」（报告预览 › 肿瘤遗传风险；报告粒度存储，空串 = 恢复默认）
+ * <p>
+ * 保存后需重新拉预览：生成的报告 JSON 里 germlineVariants.items[].mutationDescription 会用这份文本。
+ */
+export function fetchUpdateVariantNote(data: {
+  analysisId: number;
+  reportId: number;
+  sourceType: string;
+  sourceId: number;
+  /** 人工说明整段文本；空串 = 恢复默认 */
+  mutationDescription: string;
+}) {
+  return request<null>({
+    url: '/report/interpretation/variant-note',
+    method: 'post',
+    data
+  });
+}
+
 /** 改靶候选：按关键词（基因符号 / 节点名片段）查 NKB 位点节点 */
 export function fetchParentCandidates(keyword: string) {
   return request<Api.Report.NkbVariantNode[]>({

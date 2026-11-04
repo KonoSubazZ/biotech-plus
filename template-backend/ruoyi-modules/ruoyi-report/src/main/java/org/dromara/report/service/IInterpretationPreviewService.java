@@ -3,6 +3,7 @@ package org.dromara.report.service;
 import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationTargetBo;
+import org.dromara.report.domain.bo.InterpretationVariantNoteBo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.ReportTemplateData;
@@ -35,8 +36,8 @@ public interface IInterpretationPreviewService {
     InterpretationPreviewVo preview(InterpretationPreviewBo bo);
 
     /**
-     * 冻结匹配历史：报告提交审核时调用，把该报告「报出」的位点匹配结果写进 history_*
-     * （预览与生成都是只读，只有提交审核才落库）。
+     * 冻结匹配历史：报告<b>审核通过</b>时调用（approve，与 43 状态更新同一事务），把该报告「报出」的位点匹配结果写进 history_*
+     * （预览/生成/提交审核都是只读，只有审核通过才落库；驳回不产生历史）。
      *
      * @param bo 入参（analysisId / reportId / templateId）
      */
@@ -81,6 +82,16 @@ public interface IInterpretationPreviewService {
      * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds，空列表 = 取消改靶）
      */
     void updateVariantTarget(InterpretationTargetBo bo);
+
+    /**
+     * 人工修改位点「突变说明」（报告粒度；空文本 = 恢复默认）。
+     * <p>
+     * 存 {@code analysis_report.report_variant_notes}，生成报告时覆盖默认说明；
+     * 只有可生成报告的状态（31/32/33/52）允许写。
+     *
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / mutationDescription）
+     */
+    void updateVariantNote(InterpretationVariantNoteBo bo);
 
     /**
      * 改靶候选：按关键词查 NKB 位点节点（Approved），供人工指定父级
