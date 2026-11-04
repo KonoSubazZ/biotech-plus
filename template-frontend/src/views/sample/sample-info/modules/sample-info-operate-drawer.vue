@@ -1,7 +1,6 @@
-<script setup lang="tsx">
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { jsonClone } from '@sa/utils';
-import type { DataTableColumns } from 'naive-ui';
 import {
   fetchCreateCmsSample,
   fetchGetCmsSample,
@@ -72,40 +71,49 @@ const HISTORY_SOURCE_LABEL: Record<string, string> = {
 };
 
 const history = ref<HistoryRow[]>([]);
-const loadingHistory = ref(false);
 
-const historyColumns: DataTableColumns<HistoryRow> = [
-  { key: 'operateTime', title: '操作时间', width: 150, align: 'center' },
-  { key: 'sourceLabel', title: '操作类型', width: 100, align: 'center' },
-  {
-    key: 'label',
-    title: '字段',
-    width: 130,
-    align: 'center',
-    ellipsis: { tooltip: true },
-    render: row => row.label || row.field
-  },
-  { key: 'oldText', title: '旧值', ellipsis: { tooltip: true } },
-  { key: 'newText', title: '新值', ellipsis: { tooltip: true } },
-  { key: 'operator', title: '操作人', width: 100, align: 'center' }
-];
+/** 按「一次操作」分组：同一次刷新的多个字段落在同一个 NDescriptions 里，与上方分组模块同款 */
+interface HistoryGroup {
+  key: string;
+  time: string;
+  sourceLabel: string;
+  operator: string;
+  items: HistoryRow[];
+}
+
+const historyGroups = computed<HistoryGroup[]>(() => {
+  const groups: HistoryGroup[] = [];
+  const map = new Map<string, HistoryGroup>();
+  for (const row of history.value) {
+    const key = `${row.operateTime}|${row.source}|${row.operator ?? ''}`;
+    let group = map.get(key);
+    if (!group) {
+      group = {
+        key,
+        time: row.operateTime,
+        sourceLabel: row.sourceLabel,
+        operator: row.operator ?? '-',
+        items: []
+      };
+      map.set(key, group);
+      groups.push(group);
+    }
+    group.items.push(row);
+  }
+  return groups;
+});
 
 async function loadHistory() {
   history.value = [];
   if (!props.rowData?.id) return;
-  loadingHistory.value = true;
-  try {
-    const { data, error } = await fetchGetCmsSampleChangeLog(props.rowData.id);
-    if (error || !data) return;
-    history.value = data.map(row => ({
-      ...row,
-      sourceLabel: HISTORY_SOURCE_LABEL[row.source] ?? row.source,
-      oldText: row.oldValue ?? '—',
-      newText: row.newValue ?? '—'
-    }));
-  } finally {
-    loadingHistory.value = false;
-  }
+  const { data, error } = await fetchGetCmsSampleChangeLog(props.rowData.id);
+  if (error || !data) return;
+  history.value = data.map(row => ({
+    ...row,
+    sourceLabel: HISTORY_SOURCE_LABEL[row.source] ?? row.source,
+    oldText: row.oldValue ?? '—',
+    newText: row.newValue ?? '—'
+  }));
 }
 
 const title = computed(() => {
@@ -186,25 +194,29 @@ watch(visible, () => {
         <NForm ref="formRef" :model="model" :rules="rules" label-placement="top">
           <SampleInfoFormGroups v-model:model="model" :mode="mode" />
         </NForm>
-        <div v-if="mode === 'view' && syncSummary" class="mt-12px text-12px text-#999">
-          最近同步：{{ syncSummary }}
+        <!-- 历史修改信息：放在「最近同步」上方；与上方分组模块同款（竖条标题 + NDescriptions），无修改则整块不展示 -->
+        <div v-if="mode === 'view' && history.length" class="mt-20px">
+          <div class="mb-8px flex items-center gap-8px text-14px font-500">
+            <span class="h-14px w-3px rounded-2px bg-primary"></span>
+            历史修改信息
+            <span class="text-12px color-#8f959e font-400">{{ history.length }} 条</span>
+          </div>
+          <div v-for="group in historyGroups" :key="group.key" class="mb-12px">
+            <div class="mb-6px pl-11px text-12px color-#8f959e">
+              {{ group.time }} · {{ group.sourceLabel }} · {{ group.operator }}
+            </div>
+            <NDescriptions :column="3" bordered size="small" label-placement="top">
+              <NDescriptionsItem v-for="item in group.items" :key="item.id" :label="item.label || item.field">
+                <span class="color-#8f959e">{{ item.oldText }}</span>
+                <span class="mx-6px">→</span>
+                <span>{{ item.newText }}</span>
+              </NDescriptionsItem>
+            </NDescriptions>
+          </div>
         </div>
 
-        <!-- 历史修改信息：数据来自行内从CMS更新 + 抽屉内编辑保存，时间倒序 -->
-        <div v-if="mode === 'view'" class="mt-16px">
-          <div class="mb-8px flex items-center justify-between">
-            <span class="text-14px font-600">历史修改信息</span>
-            <span class="text-12px text-#999">共 {{ history.length }} 条</span>
-          </div>
-          <NDataTable
-            :columns="historyColumns"
-            :data="history"
-            :loading="loadingHistory"
-            :pagination="false"
-            :max-height="320"
-            :bordered="false"
-            size="small"
-          />
+        <div v-if="mode === 'view' && syncSummary" class="mt-12px text-12px text-#999">
+          最近同步：{{ syncSummary }}
         </div>
       </NSpin>
       <template #footer>
