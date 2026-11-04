@@ -157,7 +157,7 @@ function joinItem(item: unknown, index: number) {
 
 /**
  * 处理：只在「不合格」的行上出现，打开「样本质控不合格通知」弹窗（内容与通知文档一致，生成 DOCX 并留一条记录）。
- * 湿实验与生信同一套逻辑，靠 qcCategory 区分：预填取湿实验质控记录、原因按湿实验标准算、落库记 wet_lab。
+ * 湿实验与生信同一套逻辑，靠 notifyType 区分：预填取湿实验质控记录、原因按湿实验标准算、落库记 wet_lab。
  */
 function fixBtn(row: Api.Qc.WetLabQc) {
   // 占位（invisible 保留宽度）→ 修改/删除 在所有行都对齐
@@ -287,10 +287,10 @@ async function handleDelete(id: CommonType.IdType) {
 
     <WetLabQcOperateDrawer v-model:visible="drawerVisible" :row-data="editingData" @submitted="getData" />
 
-    <!-- 处理：样本质控不合格通知（与生信同一套，qcCategory=wet_lab） -->
+    <!-- 处理：样本质控不合格通知（与生信同一套，notifyType=wet_lab） -->
     <QcNotifyModal
       v-model:visible="notifyVisible"
-      qc-category="wet_lab"
+      notify-type="wet_lab"
       :subbarcode="notifySubbarcode"
       @generated="getData"
     />

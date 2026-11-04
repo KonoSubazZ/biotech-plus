@@ -52,6 +52,7 @@ declare module "@elegant-router/types" {
     "report_variant-history": "/report/variant-history";
     "sample": "/sample";
     "sample_bioinfo": "/sample/bioinfo";
+    "sample_notify": "/sample/notify";
     "sample_sample-info": "/sample/sample-info";
     "sample_wet-lab": "/sample/wet-lab";
     "social-callback": "/social-callback";
@@ -165,6 +166,7 @@ declare module "@elegant-router/types" {
     | "report_sample-flow"
     | "report_variant-history"
     | "sample_bioinfo"
+    | "sample_notify"
     | "sample_sample-info"
     | "sample_wet-lab"
     | "system_client"

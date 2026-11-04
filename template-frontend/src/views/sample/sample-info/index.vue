@@ -16,6 +16,7 @@ import SampleInfoImportModal from './modules/sample-info-import-modal.vue';
 import SampleRefreshModal from './modules/sample-refresh-modal.vue';
 import SampleInfoOperateDrawer from './modules/sample-info-operate-drawer.vue';
 import SampleInfoSearch from './modules/sample-info-search.vue';
+import QcNotifyModal from '../modules/qc-notify-modal.vue';
 
 defineOptions({
   name: 'SampleInfoList'
@@ -25,6 +26,21 @@ const appStore = useAppStore();
 const { hasAuth } = useAuth();
 
 const importModalVisible = ref(false);
+
+/** 通知弹窗（样本信息行入口：延期通知 / 样本不合格） */
+const notifyVisible = ref(false);
+const notifyType = ref<'delay' | 'sample'>('delay');
+const notifySubbarcode = ref('');
+
+function openNotify(row: Api.Report.CmsSample, type: 'delay' | 'sample') {
+  if (!row.subbarcode) {
+    window.$message?.error('该行没有诺禾编号，无法生成通知');
+    return;
+  }
+  notifyType.value = type;
+  notifySubbarcode.value = row.subbarcode;
+  notifyVisible.value = true;
+}
 
 const searchParams = ref<Api.Report.CmsSampleSearchParams>({
   pageNum: 1,
@@ -87,63 +103,54 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 150,
+        width: 190,
         fixed: 'right',
         render: row => {
-          // 每个按钮单独判权限；两个都没有时连分隔线都不渲染
-          const divider = () => {
-            if (!hasAuth('report:sampleInfo:edit')) {
-              return null;
-            }
-            return <NDivider vertical />;
-          };
-
-          const editBtn = () => {
-            if (!hasAuth('report:sampleInfo:edit')) {
-              return null;
-            }
-            return (
-              <ButtonIcon
-                text
-                type="primary"
-                icon="material-symbols:drive-file-rename-outline-outline"
-                tooltipContent={$t('common.edit')}
-                onClick={() => openEdit(row.id)}
-              />
-            );
-          };
-
-          const refreshBtn = () => {
-            if (!hasAuth('report:sampleInfo:edit')) {
-              return null;
-            }
-            return (
-              <ButtonIcon
-                text
-                type="primary"
-                icon="material-symbols:refresh-rounded"
-                tooltipContent="从 CMS 刷新"
-                loading={refreshingId.value === row.id}
-                onClick={() => handleRefresh(row)}
-              />
-            );
-          };
-
-          return (
-            <div class="flex-center gap-8px">
-              <NButton text type="primary" onClick={() => openDetail(row)}>
-                查看
-              </NButton>
-              {divider()}
-              {editBtn()}
-              {divider()}
-              {refreshBtn()}
-            </div>
+          /** 与湿实验一致：ButtonIcon + 图标 + tooltip，颜色按动作语义（primary/warning/error） */
+          const iconBtn = (
+            localIcon: string,
+            tip: string,
+            type: 'primary' | 'warning' | 'error',
+            onClick: () => void,
+            loading = false
+          ) => (
+            <ButtonIcon text type={type} localIcon={localIcon} tooltipContent={tip} loading={loading} onClick={onClick} />
           );
+
+          const buttons = [
+            iconBtn('notify-view', '查看', 'primary', () => openDetail(row)),
+            hasAuth('report:sampleInfo:edit')
+              ? iconBtn('notify-edit', $t('common.edit'), 'primary', () => openEdit(row.id))
+              : null,
+            hasAuth('report:sampleInfo:edit')
+              ? iconBtn('notify-refresh', '从 CMS 刷新', 'primary', () => handleRefresh(row), refreshingId.value === row.id)
+              : null,
+            hasAuth('qc:notify:generate')
+              ? iconBtn('notify-delay', '延期通知', 'warning', () => openNotify(row, 'delay'))
+              : null,
+            hasAuth('qc:notify:generate')
+              ? iconBtn('notify-unqualified', '样本不合格', 'error', () => openNotify(row, 'sample'))
+              : null
+          ].filter(item => item !== null);
+
+          return <div class="flex-center gap-4px">{buttons.map(joinItem)}</div>;
         }
       }
     ]
   });
+
+/** 按钮之间插分隔线（首项不插；按实际渲染出的按钮个数算） */
+function joinItem(item: unknown, index: number) {
+  if (index === 0) {
+    return item;
+  }
+  return (
+    <>
+      <NDivider vertical />
+      {item}
+    </>
+  );
+}
 
 const { drawerVisible, operateType, editingData, handleAdd, handleEdit, checkedRowKeys, onBatchDeleted } =
   useTableOperate(data, 'id', getData);
@@ -315,6 +322,13 @@ async function handleRefresh(row: Api.Report.CmsSample) {
       :row-data="editingData"
       @submitted="getData"
       @edit="drawerMode = 'edit'"
+    />
+
+    <QcNotifyModal
+      v-model:visible="notifyVisible"
+      :notify-type="notifyType"
+      :subbarcode="notifySubbarcode"
+      @generated="getData"
     />
 
     <SampleInfoImportModal v-model:visible="importModalVisible" @submitted="getData" />

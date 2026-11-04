@@ -328,7 +328,7 @@ async function handleDelete(id: CommonType.IdType) {
     <!-- 处理：样本质控不合格通知（内容与文档一致，生成 DOCX 并留一条记录） -->
     <QcNotifyModal
       v-model:visible="notifyVisible"
-      qc-category="bioinfo"
+      notify-type="bioinfo"
       :subbarcode="notifySubbarcode"
       @generated="getData"
     />

@@ -42,6 +42,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   "report_sample-flow": () => import("@/views/report/sample-flow/index.vue"),
   "report_variant-history": () => import("@/views/report/variant-history/index.vue"),
   sample_bioinfo: () => import("@/views/sample/bioinfo/index.vue"),
+  sample_notify: () => import("@/views/sample/notify/index.vue"),
   "sample_sample-info": () => import("@/views/sample/sample-info/index.vue"),
   "sample_wet-lab": () => import("@/views/sample/wet-lab/index.vue"),
   system_client: () => import("@/views/system/client/index.vue"),

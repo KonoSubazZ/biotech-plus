@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { jsonClone } from '@sa/utils';
-import { fetchGenerateQcNotify, fetchGetQcNotifyPrefill, fetchRefreshQcNotifySign, fetchSignQcNotify } from '@/service/api/qc/qc-notify';
+import { fetchGenerateQcNotify, fetchGetQcNotifyPrefill, fetchRefreshQcNotifySign, fetchSignQcNotify, fetchSubmitQcNotify } from '@/service/api/qc/qc-notify';
 import { useDownload } from '@/hooks/business/download';
 import { useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
@@ -13,13 +13,32 @@ defineOptions({
 interface Props {
   /** 样本编号（列表页点「处理」时传入） */
   subbarcode: string;
-  /** 质控类型（wet_lab 湿实验 / bioinfo 生信）：预填取对应质控表的记录，生成时落库区分来源 */
-  qcCategory?: string;
+  /** 通知类型（delay 延期 / sample 样本不合格 / wet_lab 湿实验 / bioinfo 干实验） */
+  notifyType: 'delay' | 'sample' | 'wet_lab' | 'bioinfo';
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  qcCategory: 'bioinfo'
+  notifyType: 'bioinfo'
 });
+
+/** 延期通知与三类不合格通知的字段完全不同，模板里按它切换区块 */
+const isDelay = computed(() => props.notifyType === 'delay');
+
+/** 弹窗标题 */
+const modalTitle = computed(() => (isDelay.value ? '检测报告延迟通知' : '样本质控不合格通知'));
+
+/** 状态/签署中文映射（后端存英文码，页面展示中文） */
+const STATUS_LABEL: Record<string, string> = {
+  generated: '已生成（待提交）',
+  pending: '待处理',
+  sent: '发送成功',
+  failed: '发送失败'
+};
+const SIGN_LABEL: Record<string, string> = {
+  none: '未送签',
+  submitted: '已送签',
+  signed: '已签署'
+};
 
 const visible = defineModel<boolean>('visible', { required: true });
 
@@ -56,7 +75,7 @@ const REMEDY_OPTIONS = [
 
 const EMPTY_FORM: Api.Qc.NotifyForm = {
   subbarcode: null,
-  qcCategory: null,
+  notifyType: null,
   studyNo: null,
   projectNo: null,
   participantNo: null,
@@ -65,6 +84,9 @@ const EMPTY_FORM: Api.Qc.NotifyForm = {
   sampleType: null,
   sampleCount: null,
   product: null,
+  sampleNoText: null,
+  delayReason: null,
+  expectedReportDate: null,
   stageReceive: false,
   stagePathology: false,
   stageNucleic: false,
@@ -99,13 +121,18 @@ const signContractId = ref<string | null>(null);
 const signedPdfId = ref<string | null>(null);
 const signing = ref(false);
 const refreshing = ref(false);
+/** 当前记录的签署状态 / 通知状态（提交按钮的可用性判断） */
+const signStatus = ref<string>('none');
+const notifyStatus = ref<string>('generated');
+const submitting = ref(false);
 
 /** 顶部提示：已生成过就报单号/时间/状态 */
 const generatedHint = computed(() => {
   if (!prefill.value?.generated) return '';
-  const status = prefill.value.notifyStatus ? `，状态：${prefill.value.notifyStatus}` : '';
+  const status = notifyStatus.value ? `，状态：${STATUS_LABEL[notifyStatus.value] ?? notifyStatus.value}` : '';
+  const signText = signStatus.value ? `，签署：${SIGN_LABEL[signStatus.value] ?? signStatus.value}` : '';
   const signHint = signContractId.value ? `，合同号：${signContractId.value}` : '';
-  return `该样本已生成过通知：${prefill.value.notifyNo ?? ''}（${prefill.value.lastGeneratedAt ?? ''}）${status}${signHint}；再点生成会新增一条记录`;
+  return `该样本已生成过通知：${prefill.value.notifyNo ?? ''}（${prefill.value.lastGeneratedAt ?? ''}）${status}${signText}${signHint}`;
 });
 
 /** 环节多选：五个布尔位 → 选中项数组（页面好用 NCheckboxGroup，横排） */
@@ -132,13 +159,15 @@ function pickForm(source: Api.Qc.NotifyPrefill): Api.Qc.NotifyForm {
 async function load() {
   loading.value = true;
   try {
-    const { data, error } = await fetchGetQcNotifyPrefill(props.subbarcode, props.qcCategory);
+    const { data, error } = await fetchGetQcNotifyPrefill(props.subbarcode, props.notifyType);
     if (error) return;
     prefill.value = data;
     model.value = pickForm(data);
-    // 质控类型以页面传入的为准（预填里回带的可能来自上次另一种类型的记录）
-    model.value.qcCategory = props.qcCategory;
+    // 通知类型以页面传入的为准（预填里回带的可能来自上次另一种类型的记录）
+    model.value.notifyType = props.notifyType;
     downloadId.value = data.lastNotifyId ?? null;
+    notifyStatus.value = data.notifyStatus ?? 'generated';
+    signStatus.value = data.signStatus ?? 'none';
     pdfAvailable.value = Boolean(data.lastPdfName);
     // 签署相关状态：优先用本条记录带的（刷新页面后按钮仍可用），没有则清空，避免换样本时串用上一条
     signContractId.value = data.signContractId ?? null;
@@ -163,6 +192,10 @@ async function handleGenerate() {
     if (error) return;
     downloadId.value = data.notifyId;
     pdfAvailable.value = Boolean(data.pdfName);
+    notifyStatus.value = 'generated';
+    signStatus.value = 'none';
+    signContractId.value = null;
+    signedPdfId.value = null;
     window.$message?.success(`已生成通知：${data.pdfName ?? data.docxName}`);
     emit('generated');
     load();
@@ -182,9 +215,19 @@ function handleDownload() {
   zip(`/qc/notify/${downloadId.value}/docx`, `${fileBase}.docx`);
 }
 
-/** 发送通知（邮件）：预设无功能，等邮件通道接上后再实现 */
-function handleSend() {
-  window.$message?.info('发送通知（邮件）功能待实现：接上邮件通道后这里改成发送并置状态「已发送（邮件）」');
+/** 提交：签名完成后推进到「待处理」，由异常处理页的人发送 */
+async function handleSubmit() {
+  if (!downloadId.value) return;
+  submitting.value = true;
+  try {
+    const { error } = await fetchSubmitQcNotify(downloadId.value);
+    if (error) return;
+    window.$message?.success('已提交，等待异常处理页发送');
+    emit('generated');
+    load();
+  } finally {
+    submitting.value = false;
+  }
 }
 
 /** 送签（上上签）：前置是已生成通知且有 PDF；成功带回合同号 */
@@ -195,6 +238,7 @@ async function handleSign() {
     const { data, error } = await fetchSignQcNotify(String(downloadId.value));
     if (error) return;
     signContractId.value = data?.contractId ?? null;
+    signStatus.value = data?.signStatus ?? 'submitted';
     window.$message?.success(`已送签，合同号：${data?.contractId ?? ''}`);
   } finally {
     signing.value = false;
@@ -209,8 +253,10 @@ async function handleRefreshSign() {
     const { data, error } = await fetchRefreshQcNotifySign(String(downloadId.value));
     if (error) return;
     signContractId.value = data?.contractId ?? signContractId.value;
+    signStatus.value = data?.signStatus ?? signStatus.value;
     if (data?.signed) {
       signedPdfId.value = String(downloadId.value);
+      signStatus.value = 'signed';
       window.$message?.success(`已签署，签名件：${data?.signedPdfName ?? ''}`);
     } else {
       window.$message?.info(`对方还没签完（网关状态：${data?.contractStatus ?? '未知'}）`);
@@ -228,7 +274,7 @@ function handleDownloadSigned() {
 </script>
 
 <template>
-  <NModal v-model:show="visible" preset="card" title="样本质控不合格通知" class="max-w-90% w-840px" :mask-closable="false">
+  <NModal v-model:show="visible" preset="card" :title="modalTitle" class="max-w-90% w-840px" :mask-closable="false">
     <NSpin :show="loading">
       <NAlert v-if="generatedHint" type="warning" :bordered="false" class="mb-12px">{{ generatedHint }}</NAlert>
 
@@ -244,8 +290,12 @@ function handleDownloadSigned() {
           <NFormItemGi label="试验参与者编号">
             <NInput v-model:value="model.participantNo" placeholder="受试者/患者编号，如 SUBJ-1011" />
           </NFormItemGi>
-          <NFormItemGi label="诺禾样本编号">
-            <NInput :value="model.subbarcode ?? ''" placeholder="来自样本信息（不可修改）" disabled />
+          <NFormItemGi label="诺禾样本编号" :span="isDelay ? 2 : 1">
+            <NInput
+              :value="model.sampleNoText || model.subbarcode || ''"
+              placeholder="来自样本信息（不可修改）"
+              disabled
+            />
           </NFormItemGi>
           <NFormItemGi label="研究中心名称">
             <NInput v-model:value="model.center" placeholder="送检医院/研究中心名称" />
@@ -267,6 +317,23 @@ function handleDownloadSigned() {
           </NFormItemGi>
         </NGrid>
 
+        <!-- 延期通知：只有延迟原因 + 预计出具时间 -->
+        <template v-if="isDelay">
+          <NDivider class="my-8px" />
+          <NFormItem class="notify-section" label="检测报告延迟原因">
+            <NInput
+              v-model:value="model.delayReason"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 6 }"
+              placeholder="如：样本复检 / 生产排期调整 / 补测数据"
+            />
+          </NFormItem>
+          <NFormItem class="notify-section" label="预计报告出具时间">
+            <NInput v-model:value="model.expectedReportDate" placeholder="如 2026-11-20" />
+          </NFormItem>
+        </template>
+
+        <template v-else>
         <NDivider class="my-8px" />
 
         <NFormItem class="notify-section" label="样本质控环节">
@@ -318,6 +385,8 @@ function handleDownloadSigned() {
           </NSpace>
         </NFormItem>
 
+        </template>
+
         <NDivider class="my-8px" />
 
         <NGrid :cols="2" :x-gap="16">
@@ -336,18 +405,36 @@ function handleDownloadSigned() {
         </NGrid>
       </NForm>
 
-      <div class="text-12px text-gray-400">不合格原因默认带出质控标准算出的不达标项、可由生信修改；本页签发的状态为「已生成（文档）」。</div>
+      <div class="text-12px text-gray-400">
+        生成后状态为「已生成（待提交）」；送签并刷新签署状态后才能点「提交」，提交后由异常处理页发送邮件。
+      </div>
     </NSpin>
 
     <template #footer>
       <NSpace :size="16" justify="end">
         <NButton @click="visible = false">{{ $t('common.cancel') }}</NButton>
-        <NButton type="primary" :loading="generating" @click="handleGenerate">生成通知</NButton>
+        <NButton
+          type="primary"
+          :loading="generating"
+          :disabled="notifyStatus === 'pending' || notifyStatus === 'sent'"
+          @click="handleGenerate"
+        >
+          生成通知
+        </NButton>
         <NButton :disabled="!downloadId" @click="handleDownload">下载生成通知</NButton>
-        <NButton :disabled="!downloadId" @click="handleSend">发送通知</NButton>
-        <NButton :disabled="!downloadId" :loading="signing" @click="handleSign">送签</NButton>
-        <NButton :disabled="!signContractId" :loading="refreshing" @click="handleRefreshSign">刷新签署状态</NButton>
+        <NButton :disabled="!downloadId || signStatus !== 'none'" :loading="signing" @click="handleSign">送签</NButton>
+        <NButton :disabled="!signContractId || signStatus === 'signed'" :loading="refreshing" @click="handleRefreshSign">
+          刷新签署状态
+        </NButton>
         <NButton :disabled="!signedPdfId" @click="handleDownloadSigned">下载签名件</NButton>
+        <NButton
+          type="primary"
+          :disabled="signStatus !== 'signed' || notifyStatus !== 'generated'"
+          :loading="submitting"
+          @click="handleSubmit"
+        >
+          提交
+        </NButton>
       </NSpace>
     </template>
   </NModal>

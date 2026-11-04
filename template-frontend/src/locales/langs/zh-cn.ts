@@ -278,6 +278,7 @@ const local: App.I18n.Schema = {
     sample: '样本管理',
     'sample_wet-lab': '湿实验质控',
     sample_bioinfo: '生信质控',
+    sample_notify: '异常处理',
     'project_qc-standard': '质控标准',
     'project_product-config': '产品配置',
     'project_project-config': '项目配置',

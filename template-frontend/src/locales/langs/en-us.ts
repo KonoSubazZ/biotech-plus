@@ -282,6 +282,7 @@ const local: App.I18n.Schema = {
     sample: 'Sample Management',
     'sample_wet-lab': 'Wet Lab QC',
     sample_bioinfo: 'Bioinformatics QC',
+    sample_notify: 'Exception Handling',
     'project_qc-standard': 'QC Standard',
     'project_product-config': 'Product Config',
     'project_project-config': 'Project Config',

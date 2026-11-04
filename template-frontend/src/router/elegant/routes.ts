@@ -313,6 +313,15 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'sample_notify',
+        path: '/sample/notify',
+        component: 'view.sample_notify',
+        meta: {
+          title: 'sample_notify',
+          i18nKey: 'route.sample_notify'
+        }
+      },
+      {
         name: 'sample_sample-info',
         path: '/sample/sample-info',
         component: 'view.sample_sample-info',

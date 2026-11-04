@@ -202,8 +202,8 @@ declare namespace Api {
     interface NotifyForm {
       /** 样本编号（后面所有回填都按它查 cms_sample） */
       subbarcode: string | null;
-      /** 质控类型（wet_lab 湿实验 / bioinfo 生信）—— 在哪个质控页点处理；落库区分通知来源 */
-      qcCategory: string | null;
+      /** 通知类型（delay 延期通知 / sample 样本不合格 / wet_lab 湿实验不合格 / bioinfo 干实验不合格） */
+      notifyType: string | null;
       /** 研究方案编号 */
       studyNo: string | null;
       /** 诺禾项目编号 */
@@ -220,6 +220,12 @@ declare namespace Api {
       sampleCount: string | null;
       /** 检测产品 */
       product: string | null;
+      /** 样本编号展示文本（延期通知：同订单多个样本用「；」分隔；为空时用 subbarcode） */
+      sampleNoText: string | null;
+      /** 检测报告延迟原因（delay 专用） */
+      delayReason: string | null;
+      /** 预计报告出具时间（delay 专用） */
+      expectedReportDate: string | null;
       /** 样本质控环节 */
       stageReceive: boolean;
       stagePathology: boolean;
@@ -255,8 +261,14 @@ declare namespace Api {
       sampleFileId: number | null;
       /** 生信质控 id */
       bioinfoQcId: number | null;
-      /** 湿实验质控 id（湿实验宽表未建，先为 null） */
+      /** 湿实验质控 id */
       wetLabQcId: number | null;
+      /** 通知类型（delay / sample / wet_lab / bioinfo） */
+      notifyType: string | null;
+      /** 样本名称 */
+      sampleName: string | null;
+      /** 样本编号展示文本（延期通知：同订单多个样本用「；」分隔） */
+      sampleNoText: string | null;
       /** 分析时间（质控记录入库时间） */
       analysisTime: string | null;
       /** 客户（= 药企名） */
@@ -275,8 +287,14 @@ declare namespace Api {
       signContractId: string | null;
       /** 签名后 PDF 路径（签署完成并拉取后才有；有值表示可下载签名件） */
       signedPdfPath: string | null;
-      /** 通知状态：已生成（文档）/ 已发送（邮件） */
+      /** 通知状态（generated / pending / sent / failed） */
       notifyStatus: string | null;
+      /** 签署状态（none / submitted / signed） */
+      signStatus: string | null;
+      /** 上次落库的延迟原因（delay 专用） */
+      delayReason: string | null;
+      /** 上次落库的预计报告出具时间（delay 专用） */
+      expectedReportDate: string | null;
       /** 是否已经生成过 */
       generated: boolean | null;
     }
@@ -296,6 +314,109 @@ declare namespace Api {
       pdfPath: string | null;
       /** 生成的 PDF 文件名；转换失败时为空 */
       pdfName: string | null;
+      /** 当前交付件路径（= PDF） */
+      filePath: string | null;
+      /** 本次是否覆盖了同一天的旧记录 */
+      overwritten: boolean | null;
+    }
+
+    /** 通知类型 */
+    type NotifyType = 'delay' | 'sample' | 'wet_lab' | 'bioinfo';
+
+    /** 通知状态 */
+    type NotifyStatus = 'generated' | 'pending' | 'sent' | 'failed';
+
+    /** 签署状态 */
+    type NotifySignStatus = 'none' | 'submitted' | 'signed';
+
+    /** 异常处理列表行（= 后端 SampleNotifyVo） */
+    interface NotifyRow {
+      id: number;
+      notifyNo: string | null;
+      notifyType: NotifyType;
+      notifyStatus: NotifyStatus;
+      signStatus: NotifySignStatus;
+      notifyDate: string;
+      subbarcode: string;
+      sampleName: string | null;
+      studyNo: string | null;
+      projectNo: string | null;
+      participantNo: string | null;
+      product: string | null;
+      customerName: string | null;
+      sampleType: string | null;
+      reason: string | null;
+      delayReason: string | null;
+      expectedReportDate: string | null;
+      qcStage: string | null;
+      terminateMeasure: string | null;
+      remedy: string | null;
+      remedyOther: string | null;
+      reporter: string | null;
+      reportTime: string | null;
+      reviewer: string | null;
+      reviewTime: string | null;
+      jsonPath: string | null;
+      rawDocxPath: string | null;
+      pdfPath: string | null;
+      signedPdfPath: string | null;
+      /** 当前交付件（后端派生：签名件 → PDF → DOCX） */
+      filePath: string | null;
+      signContractId: string | null;
+      handlerBy: number | null;
+      handlerName: string | null;
+      handlerTime: string | null;
+      senderBy: number | null;
+      senderName: string | null;
+      senderTime: string | null;
+      sendTo: string | null;
+      sendCc: string | null;
+      sendError: string | null;
+      createTime: string | null;
+      updateTime: string | null;
+    }
+
+    /** 异常处理查询条件 */
+    interface NotifyQuery extends Common.CommonSearchParams {
+      notifyType?: NotifyType | null;
+      notifyStatus?: NotifyStatus | null;
+      notifyDateStart?: string | null;
+      notifyDateEnd?: string | null;
+      subbarcode?: string | null;
+      projectNo?: string | null;
+      keyword?: string | null;
+    }
+
+    /** 发送页参数（与报告发送同构） */
+    interface NotifyMailPreview {
+      notifyId: number;
+      senderOptions: Report.ReportMailSenderOption[];
+      defaultConfigId: number | null;
+      toCandidates: string[];
+      ccCandidates: string[];
+      subject: string | null;
+      content: string | null;
+      attachmentName: string | null;
+      canSend: boolean;
+      blockedReason: string | null;
+    }
+
+    /** 发送表单 */
+    interface NotifySendForm {
+      configId?: number | null;
+      to: string;
+      cc?: string | null;
+      subject: string;
+      content: string;
+    }
+
+    /** 发送结果 */
+    interface NotifySendResult {
+      notifyId: number;
+      to: string;
+      cc: string | null;
+      fromEmail: string | null;
+      messageId: string | null;
     }
 
     /**
@@ -317,8 +438,10 @@ declare namespace Api {
       signedPdfPath: string | null;
       /** 签名后 PDF 文件名（已签署时才有） */
       signedPdfName: string | null;
-      /** 回写后的通知状态：已送签 / 已签署 等 */
+      /** 回写后的通知状态（generated / pending / sent / failed） */
       notifyStatus: string | null;
+      /** 签署状态（none / submitted / signed） */
+      signStatus: string | null;
     }
   }
 }
