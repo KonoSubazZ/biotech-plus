@@ -104,15 +104,26 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         width: 120,
         fixed: 'right',
         render: row => {
-          /** 与湿实验一致：ButtonIcon + 图标 + tooltip，颜色按动作语义（primary/warning/error） */
+          /**
+           * 与湿实验一致：ButtonIcon + 图标 + tooltip，颜色按动作语义（primary/warning/error）。
+           * refreshing 不用 NButton 的 loading（会插入 spinner 把按钮撑宽 18→42，整组右移溢出），
+           * 改成图标自己旋转，宽度不变。
+           */
           const iconBtn = (
             localIcon: string,
             tip: string,
             type: 'primary' | 'success' | 'warning' | 'error',
             onClick: () => void,
-            loading = false
+            refreshing = false
           ) => (
-            <ButtonIcon text type={type} localIcon={localIcon} tooltipContent={tip} loading={loading} onClick={onClick} />
+            <ButtonIcon
+              text
+              type={type}
+              localIcon={localIcon}
+              tooltipContent={tip}
+              class={refreshing ? 'is-refreshing' : ''}
+              onClick={onClick}
+            />
           );
 
           const buttons = [
@@ -233,6 +244,7 @@ const refreshShowCode = computed(() => {
 });
 
 async function handleRefresh(row: Api.Report.CmsSample) {
+  if (refreshingId.value === row.id) return;
   if (!row.subbarcode) {
     window.$message?.error('该行没有诺禾编号，无法刷新');
     return;
@@ -342,5 +354,16 @@ async function handleRefresh(row: Api.Report.CmsSample) {
 /* 诺禾编号固定单行展示，不换行、不省略 */
 :deep(.barcode-cell) {
   white-space: nowrap;
+}
+
+/* 刷新中：图标自转，按钮宽度保持不变（避免整组图标被挤动） */
+:deep(.is-refreshing svg) {
+  animation: op-spin 0.9s linear infinite;
+}
+
+@keyframes op-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
