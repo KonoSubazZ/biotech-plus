@@ -46,6 +46,12 @@ async function load() {
   }
 }
 
+/** 只展示文件名，不把绝对路径铺在页面上 */
+function fileName(path: string | null | undefined) {
+  if (!path) return '';
+  return path.split('/').pop() ?? '';
+}
+
 watch(visible, value => {
   if (value) load();
 });
@@ -93,10 +99,26 @@ watch(visible, value => {
         <NDescriptionsItem v-if="detail.sendError" label="失败原因" :span="2">{{ detail.sendError }}</NDescriptionsItem>
 
         <NDescriptionsItem label="上上签合同号" :span="2">{{ detail.signContractId || '-' }}</NDescriptionsItem>
-        <NDescriptionsItem label="JSON 路径" :span="2">{{ detail.jsonPath || '-' }}</NDescriptionsItem>
-        <NDescriptionsItem label="DOCX 路径" :span="2">{{ detail.rawDocxPath || '-' }}</NDescriptionsItem>
-        <NDescriptionsItem label="PDF 路径" :span="2">{{ detail.pdfPath || '-' }}</NDescriptionsItem>
-        <NDescriptionsItem label="签名件路径" :span="2">{{ detail.signedPdfPath || '-' }}</NDescriptionsItem>
+
+        <NDescriptionsItem label="通知单 PDF" :span="2">
+          <PdfPreview
+            v-if="detail.pdfPath"
+            :src="`/qc/notify/${detail.id}/pdf`"
+            :name="fileName(detail.pdfPath)"
+          />
+          <span v-else>-</span>
+        </NDescriptionsItem>
+        <NDescriptionsItem label="签名件 PDF" :span="2">
+          <PdfPreview
+            v-if="detail.signedPdfPath"
+            :src="`/qc/notify/${detail.id}/signed-pdf`"
+            :name="fileName(detail.signedPdfPath)"
+          />
+          <span v-else>-</span>
+        </NDescriptionsItem>
+        <NDescriptionsItem label="JSON / DOCX" :span="2">
+          {{ fileName(detail.jsonPath) || '-' }} / {{ fileName(detail.rawDocxPath) || '-' }}
+        </NDescriptionsItem>
       </NDescriptions>
     </NSpin>
 

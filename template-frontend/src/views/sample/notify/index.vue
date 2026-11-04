@@ -92,7 +92,17 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       align: 'center',
       width: 190,
       ellipsis: { tooltip: true },
-      render: row => (row.filePath ? <span title={row.filePath}>{row.filePath.split('/').pop()}</span> : '-')
+      render: row => {
+        const name = row.filePath ? row.filePath.split('/').pop() : '';
+        if (!name) return '-';
+        // 有签名件优先读签名件，其次读转化后的 PDF；只有 DOCX 时不可阅读
+        const src = row.signedPdfPath
+          ? `/qc/notify/${row.id}/signed-pdf`
+          : row.pdfPath
+            ? `/qc/notify/${row.id}/pdf`
+            : '';
+        return <PdfPreview src={src} name={name} />;
+      }
     },
     { key: 'handlerName', title: '处理人', align: 'center', width: 90 },
     { key: 'handlerTime', title: '处理时间', align: 'center', width: 150 },
