@@ -47,7 +47,7 @@ public class ReportArtifactPathsTest {
     }
 
     @Test
-    @DisplayName("通知：沿用 <type>/<stage>/<yyyyMMdd>，json 平铺")
+    @DisplayName("通知：<type>/<stage>/<yyyyMMdd>，json 也按日期分目录")
     void notifyKeepsOwnLayout() {
         Assertions.assertEquals("/app/reports/notify/docx/20261027",
             ReportArtifactPaths.docxDir(ROOT, ReportArtifactPaths.NOTIFY, LOCAL_DAY).toString());
@@ -55,8 +55,8 @@ public class ReportArtifactPathsTest {
             ReportArtifactPaths.pdfDir(ROOT, ReportArtifactPaths.NOTIFY, LOCAL_DAY).toString());
         Assertions.assertEquals("/app/reports/notify/signed/20261027",
             ReportArtifactPaths.signedDir(ROOT, ReportArtifactPaths.NOTIFY, LOCAL_DAY).toString());
-        Assertions.assertEquals("/app/reports/notify/json",
-            ReportArtifactPaths.jsonDir(ROOT, ReportArtifactPaths.NOTIFY).toString());
+        Assertions.assertEquals("/app/reports/notify/json/20261027",
+            ReportArtifactPaths.jsonDir(ROOT, ReportArtifactPaths.NOTIFY, LOCAL_DAY).toString());
         Assertions.assertEquals(ReportArtifactPaths.stageDir(ROOT, "notify", "pdf", LOCAL_DAY),
             ReportArtifactPaths.pdfDir(ROOT, ReportArtifactPaths.NOTIFY, LOCAL_DAY));
     }

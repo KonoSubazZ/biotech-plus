@@ -184,7 +184,7 @@ public class SampleNotifyServiceImpl implements ISampleNotifyService {
         }
 
         String fileBase = buildFileBase(sample, bo, type, notifyDate);
-        Path jsonPath = ReportArtifactPaths.jsonDir(artifactRoot, ReportArtifactPaths.NOTIFY)
+        Path jsonPath = ReportArtifactPaths.jsonDir(artifactRoot, ReportArtifactPaths.NOTIFY, today)
             .resolve(fileBase + ".json");
         Path docxPath = ReportArtifactPaths.docxDir(artifactRoot, ReportArtifactPaths.NOTIFY, today)
             .resolve(fileBase + ".docx");

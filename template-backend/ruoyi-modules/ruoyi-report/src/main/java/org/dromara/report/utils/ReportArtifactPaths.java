@@ -115,9 +115,9 @@ public final class ReportArtifactPaths {
         return stageDir(root, docType, SIGNED, date);
     }
 
-    /** JSON 目录（通知）：<root>/<type>/json */
-    public static Path jsonDir(String root, String docType) {
-        return Paths.get(root, docType, JSON);
+    /** JSON 目录（通知）：<root>/<type>/json/<yyyyMMdd>，与 docx/pdf/signed 同一套日期目录 */
+    public static Path jsonDir(String root, String docType, LocalDate date) {
+        return stageDir(root, docType, JSON, date);
     }
 
     /** <root>/<type>/<stage>/<yyyyMMdd> */
