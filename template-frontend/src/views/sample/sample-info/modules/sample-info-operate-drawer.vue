@@ -74,7 +74,6 @@ const HISTORY_SOURCE_LABEL: Record<string, string> = {
 const history = ref<HistoryRow[]>([]);
 
 const historyColumns: DataTableColumns<HistoryRow> = [
-  { key: 'operateTime', title: '操作时间', width: 150, align: 'center' },
   { key: 'sourceLabel', title: '操作类型', width: 100, align: 'center' },
   {
     key: 'label',
@@ -86,7 +85,8 @@ const historyColumns: DataTableColumns<HistoryRow> = [
   },
   { key: 'oldText', title: '旧值', ellipsis: { tooltip: true } },
   { key: 'newText', title: '新值', ellipsis: { tooltip: true } },
-  { key: 'operator', title: '操作人', width: 100, align: 'center' }
+  { key: 'operator', title: '操作人', width: 100, align: 'center' },
+  { key: 'operateTime', title: '操作时间', width: 150, align: 'center' }
 ];
 
 async function loadHistory() {
@@ -94,11 +94,12 @@ async function loadHistory() {
   if (!props.rowData?.id) return;
   const { data, error } = await fetchGetCmsSampleChangeLog(props.rowData.id);
   if (error || !data) return;
+  // 空值就是空字符串：有些字段的真实值本身就是 "-"，不能用占位符混淆
   history.value = data.map(row => ({
     ...row,
     sourceLabel: HISTORY_SOURCE_LABEL[row.source] ?? row.source,
-    oldText: row.oldValue ?? '—',
-    newText: row.newValue ?? '—'
+    oldText: row.oldValue ?? '',
+    newText: row.newValue ?? ''
   }));
 }
 
