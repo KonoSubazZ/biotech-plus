@@ -10,19 +10,26 @@ import org.dromara.common.core.utils.StringUtils;
 import org.dromara.common.excel.utils.ExcelUtil;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
+import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.CmsSample;
 import org.dromara.report.domain.bo.CmsSampleBo;
+import org.dromara.report.domain.vo.CmsFieldChangeVo;
 import org.dromara.report.domain.vo.CmsSampleExcelRow;
 import org.dromara.report.domain.vo.CmsSampleImportResultVo;
 import org.dromara.report.domain.vo.CmsSampleVo;
 import org.dromara.report.mapper.CmsSampleMapper;
+import org.dromara.report.service.ICmsSampleChangeLogService;
 import org.dromara.report.service.ICmsSampleService;
+import org.springframework.beans.BeanWrapper;
+import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,7 +50,14 @@ import java.util.Set;
 @Service
 public class CmsSampleServiceImpl implements ICmsSampleService {
 
+    /** 变更流水来源：页面编辑 */
+    private static final String SOURCE_EDIT = "edit";
+
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private final CmsSampleMapper baseMapper;
+
+    private final ICmsSampleChangeLogService changeLogService;
 
     @Override
     public TableDataInfo<CmsSampleVo> selectPageList(CmsSampleBo bo, PageQuery pageQuery) {
@@ -75,11 +89,54 @@ public class CmsSampleServiceImpl implements ICmsSampleService {
         if (bo.getId() == null) {
             throw new ServiceException("修改样本信息必须提供主键");
         }
-        // 先确认记录存在，避免把「改不到」当成「改成功」
-        queryById(bo.getId());
+        // 先确认记录存在，避免把「改不到」当成「改成功」；同时拿旧值算变更明细
+        CmsSample old = baseMapper.selectById(bo.getId());
+        if (old == null) {
+            throw new ServiceException("样本信息不存在：id=" + bo.getId());
+        }
         assertSubbarcodeUsable(bo.getSubbarcode(), bo.getId());
         CmsSample entity = MapstructUtils.convert(bo, CmsSample.class);
-        return baseMapper.updateById(entity) > 0;
+        List<CmsFieldChangeVo> changes = diffChanges(old, entity);
+        boolean updated = baseMapper.updateById(entity) > 0;
+        if (updated && !changes.isEmpty()) {
+            changeLogService.record(old.getSubbarcode(), SOURCE_EDIT, changes);
+        }
+        return updated;
+    }
+
+    /**
+     * 逐字段比对 45 个设计字段，收集「编辑保存」的变更明细。
+     * <p>
+     * 只记「新值非空且与旧值不同」的字段：{@code updateById} 本身忽略 null，
+     * 所以 null 代表「这次没提交该字段」，不是「清空」，不能记成变更。
+     *
+     * @param old  库里的旧记录
+     * @param now  本次提交（由 bo 转换，未提交字段为 null）
+     * @return 变更明细；空 = 没有实际变化
+     */
+    private List<CmsFieldChangeVo> diffChanges(CmsSample old, CmsSample now) {
+        List<CmsFieldChangeVo> changes = new ArrayList<>();
+        String operator = LoginHelper.getUsername();
+        String at = LocalDateTime.now().format(TS);
+        BeanWrapper oldWrapper = new BeanWrapperImpl(old);
+        BeanWrapper nowWrapper = new BeanWrapperImpl(now);
+        CmsFieldMapping.PROP_LABEL.forEach((prop, label) -> {
+            String newValue = asText(nowWrapper.getPropertyValue(prop));
+            if (newValue == null) {
+                return;
+            }
+            String oldValue = asText(oldWrapper.getPropertyValue(prop));
+            if (newValue.equals(oldValue)) {
+                return;
+            }
+            changes.add(new CmsFieldChangeVo(prop, label, oldValue, newValue, operator, at));
+        });
+        return changes;
+    }
+
+    /** 字段值转字符串：null 保持 null（区分「没提交」），其余 trim */
+    private String asText(Object value) {
+        return value == null ? null : String.valueOf(value).trim();
     }
 
     @Override

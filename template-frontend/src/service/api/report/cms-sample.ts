@@ -58,3 +58,11 @@ export function fetchRefreshCmsSample(subbarcode: string) {
     params: { subbarcode }
   });
 }
+
+/** 历史修改信息：「从CMS更新」+「编辑保存」的变更流水，时间倒序 */
+export function fetchGetCmsSampleChangeLog(id: number) {
+  return request<Api.Report.CmsSampleChangeLog[]>({
+    url: `/report/cmsSample/${id}/change-log`,
+    method: 'get'
+  });
+}

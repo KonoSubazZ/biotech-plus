@@ -111,6 +111,21 @@ declare namespace Api {
       at: string;
     }
 
+    /** 样本信息变更流水（抽屉底部「历史修改信息」，一行 = 一个字段的一次变更） */
+    interface CmsSampleChangeLog {
+      id: number;
+      subbarcode: string;
+      /** refresh=行内从CMS更新，edit=页面编辑 */
+      source: string;
+      field: string;
+      label: string | null;
+      oldValue: string | null;
+      newValue: string | null;
+      operator: string | null;
+      /** yyyy-MM-dd HH:mm:ss */
+      operateTime: string;
+    }
+
     /** 行内「刷新」的返回 */
     interface CmsSampleRefresh {
       changed: boolean;

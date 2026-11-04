@@ -12,6 +12,7 @@ import org.dromara.report.domain.CmsSample;
 import org.dromara.report.domain.vo.CmsFieldChangeVo;
 import org.dromara.report.domain.vo.CmsSampleRefreshVo;
 import org.dromara.report.mapper.CmsSampleMapper;
+import org.dromara.report.service.ICmsSampleChangeLogService;
 import org.dromara.report.service.ICmsSyncService;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
@@ -58,7 +59,11 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
     private final CmsApiClient client;
     private final CmsApiProperties props;
     private final CmsSampleMapper sampleMapper;
+    private final ICmsSampleChangeLogService changeLogService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /** 行内刷新的历史留痕来源；定时同步传 null = 不写历史（用户口径只记刷新与编辑） */
+    private static final String SOURCE_REFRESH = "refresh";
 
     @Override
     public CmsSampleRefreshVo syncBySubbarcode(String subbarcode, String operator) {
@@ -66,7 +71,7 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
             throw new ServiceException("样本编号不能为空");
         }
         String at = LocalDateTime.now().format(TS);
-        CmsSampleRefreshVo primary = applyRemote(queryBySampleId(subbarcode), operator, at);
+        CmsSampleRefreshVo primary = applyRemote(queryBySampleId(subbarcode), operator, at, SOURCE_REFRESH);
         primary.setSiblings(syncSiblings(primary, subbarcode, operator, at));
         return primary;
     }
@@ -107,7 +112,7 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
         List<String> siblingCodes = localSiblingBarcodes(orderNo, subbarcode);
         for (String code : siblingCodes) {
             try {
-                siblings.add(applyRemote(queryBySampleId(code), operator, at));
+                siblings.add(applyRemote(queryBySampleId(code), operator, at, SOURCE_REFRESH));
             } catch (Exception e) {
                 log.warn("同订单样本刷新失败 orderNo={} subbarcode={} err={}", orderNo, code, e.getMessage());
             }
@@ -174,7 +179,7 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
         for (JsonNode row : rows) {
             tally.scanned++;
             try {
-                CmsSampleRefreshVo one = applyRemote(row, operator, at);
+                CmsSampleRefreshVo one = applyRemote(row, operator, at, null);
                 tally.count(one);
             } catch (Exception e) {
                 tally.failed++;
@@ -219,12 +224,13 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
     /**
      * 唯一写库口：库中无则插入，有则按字段差异更新并把变更写进 sync_log。
      *
-     * @param row      CMS 返回的一条 orderSamples
-     * @param operator 操作人
-     * @param at       本次操作时间
+     * @param row           CMS 返回的一条 orderSamples
+     * @param operator      操作人
+     * @param at            本次操作时间
+     * @param historySource 变更流水来源（refresh=行内刷新；null=不写流水，如定时同步）
      * @return 变更结果
      */
-    private CmsSampleRefreshVo applyRemote(JsonNode row, String operator, String at) {
+    private CmsSampleRefreshVo applyRemote(JsonNode row, String operator, String at, String historySource) {
         String subbarcode = text(row, "BARCODE");
         if (subbarcode.isBlank()) {
             throw new ServiceException("CMS 返回样本缺少 BARCODE");
@@ -243,6 +249,7 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
             TenantContext.withoutTenant(() -> {
                 sampleMapper.insert(entity);
             });
+            recordHistory(subbarcode, historySource, insertChanges);
             return result(true, insertChanges, operator, at, entity.getId());
         }
 
@@ -257,7 +264,26 @@ public class CmsSyncServiceImpl implements ICmsSyncService {
         TenantContext.withoutTenant(() -> {
             sampleMapper.updateById(target);
         });
+        recordHistory(subbarcode, historySource, changes);
         return result(true, changes, operator, at, target.getId());
+    }
+
+    /**
+     * 写历史修改流水：留痕失败只记日志，不阻断刷新主流程。
+     *
+     * @param subbarcode 样本编号
+     * @param source     refresh / edit；null 表示本次不留痕
+     * @param changes    变更明细
+     */
+    private void recordHistory(String subbarcode, String source, List<CmsFieldChangeVo> changes) {
+        if (source == null || changes.isEmpty()) {
+            return;
+        }
+        try {
+            changeLogService.record(subbarcode, source, changes);
+        } catch (Exception e) {
+            log.warn("写样本变更流水失败 subbarcode={} err={}", subbarcode, e.getMessage());
+        }
     }
 
     /**

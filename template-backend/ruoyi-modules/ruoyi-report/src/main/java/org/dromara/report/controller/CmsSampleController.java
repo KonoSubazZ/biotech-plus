@@ -18,10 +18,12 @@ import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.CmsSampleBo;
+import org.dromara.report.domain.vo.CmsSampleChangeLogVo;
 import org.dromara.report.domain.vo.CmsSampleExcelRow;
 import org.dromara.report.domain.vo.CmsSampleImportResultVo;
 import org.dromara.report.domain.vo.CmsSampleRefreshVo;
 import org.dromara.report.domain.vo.CmsSampleVo;
+import org.dromara.report.service.ICmsSampleChangeLogService;
 import org.dromara.report.service.ICmsSampleService;
 import org.dromara.report.service.ICmsSyncService;
 import org.springframework.http.MediaType;
@@ -62,6 +64,8 @@ public class CmsSampleController extends BaseController {
 
     private final ICmsSyncService cmsSyncService;
 
+    private final ICmsSampleChangeLogService changeLogService;
+
     /**
      * 分页查询样本信息
      *
@@ -85,6 +89,20 @@ public class CmsSampleController extends BaseController {
     @GetMapping("/{id}")
     public R<CmsSampleVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long id) {
         return R.ok(cmsSampleService.queryById(id));
+    }
+
+    /**
+     * 历史修改信息：按样本编号查「从CMS更新」与「编辑保存」的变更流水（时间倒序）
+     * <p>
+     * 刷新可能重建行导致主键变化，所以入参用主键、内部转成 subbarcode 查询。
+     *
+     * @param id 样本主键
+     * @return 变更流水
+     */
+    @SaCheckPermission("report:sampleInfo:query")
+    @GetMapping("/{id}/change-log")
+    public R<List<CmsSampleChangeLogVo>> changeLog(@NotNull(message = "主键不能为空") @PathVariable Long id) {
+        return R.ok(changeLogService.listBySubbarcode(cmsSampleService.queryById(id).getSubbarcode()));
     }
 
     /**

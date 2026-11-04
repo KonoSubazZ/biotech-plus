@@ -1,7 +1,13 @@
-<script setup lang="ts">
+<script setup lang="tsx">
 import { computed, ref, watch } from 'vue';
 import { jsonClone } from '@sa/utils';
-import { fetchCreateCmsSample, fetchGetCmsSample, fetchUpdateCmsSample } from '@/service/api/report/cms-sample';
+import type { DataTableColumns } from 'naive-ui';
+import {
+  fetchCreateCmsSample,
+  fetchGetCmsSample,
+  fetchGetCmsSampleChangeLog,
+  fetchUpdateCmsSample
+} from '@/service/api/report/cms-sample';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
 import { createEmptyCmsSampleForm } from './cms-sample-fields';
@@ -53,6 +59,55 @@ const { createRequiredRule } = useFormRules();
 const saving = ref(false);
 const loadingDetail = ref(false);
 
+/** 历史修改信息（从CMS更新 + 编辑保存）；只在查看模式展示 */
+interface HistoryRow extends Api.Report.CmsSampleChangeLog {
+  sourceLabel: string;
+  oldText: string;
+  newText: string;
+}
+
+const HISTORY_SOURCE_LABEL: Record<string, string> = {
+  refresh: '从CMS更新',
+  edit: '编辑'
+};
+
+const history = ref<HistoryRow[]>([]);
+const loadingHistory = ref(false);
+
+const historyColumns: DataTableColumns<HistoryRow> = [
+  { key: 'operateTime', title: '操作时间', width: 150, align: 'center' },
+  { key: 'sourceLabel', title: '操作类型', width: 100, align: 'center' },
+  {
+    key: 'label',
+    title: '字段',
+    width: 130,
+    align: 'center',
+    ellipsis: { tooltip: true },
+    render: row => row.label || row.field
+  },
+  { key: 'oldText', title: '旧值', ellipsis: { tooltip: true } },
+  { key: 'newText', title: '新值', ellipsis: { tooltip: true } },
+  { key: 'operator', title: '操作人', width: 100, align: 'center' }
+];
+
+async function loadHistory() {
+  history.value = [];
+  if (!props.rowData?.id) return;
+  loadingHistory.value = true;
+  try {
+    const { data, error } = await fetchGetCmsSampleChangeLog(props.rowData.id);
+    if (error || !data) return;
+    history.value = data.map(row => ({
+      ...row,
+      sourceLabel: HISTORY_SOURCE_LABEL[row.source] ?? row.source,
+      oldText: row.oldValue ?? '—',
+      newText: row.newValue ?? '—'
+    }));
+  } finally {
+    loadingHistory.value = false;
+  }
+}
+
 const title = computed(() => {
   if (props.mode === 'view') return '查看样本信息';
   return props.mode === 'add' ? '新增样本信息' : '编辑样本信息';
@@ -67,11 +122,13 @@ const rules = {
 /** 打开抽屉时准备数据：查看直接用行数据；编辑重新拉详情，避免用列表里的旧值覆盖 */
 async function prepareModel() {
   model.value = createEmptyCmsSampleForm();
+  history.value = [];
 
   if (props.mode === 'add') return;
 
   if (props.mode === 'view') {
     if (props.rowData) Object.assign(model.value, jsonClone(props.rowData));
+    loadHistory();
     return;
   }
 
@@ -131,6 +188,23 @@ watch(visible, () => {
         </NForm>
         <div v-if="mode === 'view' && syncSummary" class="mt-12px text-12px text-#999">
           最近同步：{{ syncSummary }}
+        </div>
+
+        <!-- 历史修改信息：数据来自行内从CMS更新 + 抽屉内编辑保存，时间倒序 -->
+        <div v-if="mode === 'view'" class="mt-16px">
+          <div class="mb-8px flex items-center justify-between">
+            <span class="text-14px font-600">历史修改信息</span>
+            <span class="text-12px text-#999">共 {{ history.length }} 条</span>
+          </div>
+          <NDataTable
+            :columns="historyColumns"
+            :data="history"
+            :loading="loadingHistory"
+            :pagination="false"
+            :max-height="320"
+            :bordered="false"
+            size="small"
+          />
         </div>
       </NSpin>
       <template #footer>

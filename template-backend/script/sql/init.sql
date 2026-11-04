@@ -521,6 +521,41 @@ CREATE TABLE `cms_sample` (
 /*!40000 ALTER TABLE `cms_sample` ENABLE KEYS */;
 
 --
+-- Table structure for table `cms_sample_change_log`
+--
+
+DROP TABLE IF EXISTS `cms_sample_change_log`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `cms_sample_change_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `subbarcode` varchar(128) NOT NULL COMMENT '诺禾样本编号（刷新会重建行、id 会变，所以按编号关联）',
+  `source` varchar(16) NOT NULL COMMENT '来源（refresh=行内从CMS更新 / edit=页面编辑）',
+  `field` varchar(64) NOT NULL COMMENT '字段属性名，如 sampleType',
+  `label` varchar(64) DEFAULT NULL COMMENT '字段中文名，如 样本类型',
+  `old_value` text COMMENT '旧值',
+  `new_value` text COMMENT '新值',
+  `operator` varchar(64) DEFAULT NULL COMMENT '操作人（登录名）',
+  `operate_time` datetime NOT NULL COMMENT '操作时间',
+  `create_by` bigint(20) DEFAULT NULL COMMENT '创建者',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_by` bigint(20) DEFAULT NULL COMMENT '更新者',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  `tenant_id` varchar(20) NOT NULL DEFAULT '000000' COMMENT '租户编号',
+  PRIMARY KEY (`id`),
+  KEY `idx_tenant_id` (`tenant_id`),
+  KEY `idx_sample_time` (`tenant_id`,`subbarcode`,`operate_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='样本信息变更流水（历史修改信息；追加写，不覆盖）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `cms_sample_change_log`
+--
+
+/*!40000 ALTER TABLE `cms_sample_change_log` DISABLE KEYS */;
+/*!40000 ALTER TABLE `cms_sample_change_log` ENABLE KEYS */;
+
+--
 -- Table structure for table `compliance_document`
 --
 
