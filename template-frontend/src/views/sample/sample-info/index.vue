@@ -101,7 +101,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 190,
+        width: 120,
         fixed: 'right',
         render: row => {
           /** 与湿实验一致：ButtonIcon + 图标 + tooltip，颜色按动作语义（primary/warning/error） */
@@ -125,7 +125,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                   refreshingId.value === row.id
                 )
               : null,
-            iconBtn('notify-view', '查看详情', 'success', () => openDetail(row)),
+            iconBtn('notify-view', '查看详情', 'primary', () => openDetail(row)),
             hasAuth('qc:notify:generate')
               ? iconBtn('notify-generate', '生成通知', 'warning', () => openNotify(row))
               : null
