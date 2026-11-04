@@ -342,19 +342,19 @@ watch(() => [props.analysisId, props.reportId], loadAll, { immediate: true });
 
         <NDescriptions :column="3" label-placement="left" size="small" bordered>
           <NDescriptionsItem label="报告ID">{{ text(report?.reportId) }}</NDescriptionsItem>
-          <NDescriptionsItem label="样本编号">{{ text(report?.subbarcode ?? sampleInfo.sampleCode) }}</NDescriptionsItem>
-          <NDescriptionsItem label="患者编号">{{ text(sampleInfo.participantNumber) }}</NDescriptionsItem>
+          <NDescriptionsItem label="样本编号">{{ text(report?.subbarcode ?? sampleInfo.subbarcode) }}</NDescriptionsItem>
+          <NDescriptionsItem label="患者编号">{{ text(sampleInfo.subjectNo) }}</NDescriptionsItem>
           <NDescriptionsItem label="产品">{{ text(report?.productBio) }}</NDescriptionsItem>
-          <NDescriptionsItem label="解读癌种">{{ text(report?.analysisDisease ?? sampleInfo.disease) }}</NDescriptionsItem>
+          <NDescriptionsItem label="解读癌种">{{ text(report?.analysisDisease ?? sampleInfo.diseaseType) }}</NDescriptionsItem>
           <NDescriptionsItem label="模板">{{ text(report?.template) }}</NDescriptionsItem>
           <NDescriptionsItem label="报告日期">{{ text(reportInfo.reportDate) }}</NDescriptionsItem>
           <NDescriptionsItem label="解读人">{{ text(reportInfo.analyzer) }}</NDescriptionsItem>
-          <NDescriptionsItem label="标本类型">{{ text(reportInfo.specimentType ?? sampleInfo.sampleType) }}</NDescriptionsItem>
-          <NDescriptionsItem label="研究中心">{{ text(sampleInfo.researchCenterName) }}</NDescriptionsItem>
-          <NDescriptionsItem label="性别">{{ text(sampleInfo.gender) }}</NDescriptionsItem>
+          <NDescriptionsItem label="标本类型">{{ text(reportInfo.specimenType ?? sampleInfo.sampleType) }}</NDescriptionsItem>
+          <NDescriptionsItem label="研究中心">{{ text(sampleInfo.researchCenter) }}</NDescriptionsItem>
+          <NDescriptionsItem label="性别">{{ text(sampleInfo.sex) }}</NDescriptionsItem>
           <NDescriptionsItem label="出生年份">{{ text(sampleInfo.birthYear) }}</NDescriptionsItem>
-          <NDescriptionsItem label="收样日期">{{ text(sampleInfo.receivedDate) }}</NDescriptionsItem>
-          <NDescriptionsItem label="采样日期">{{ text(sampleInfo.tissueCollectionDate) }}</NDescriptionsItem>
+          <NDescriptionsItem label="收样确认时间">{{ text(sampleInfo.receiveConfirmTime) }}</NDescriptionsItem>
+          <NDescriptionsItem label="采集日期">{{ text(sampleInfo.collectionDate) }}</NDescriptionsItem>
           <NDescriptionsItem label="集群文件个数">{{ fileCount ?? '/' }}</NDescriptionsItem>
           <NDescriptionsItem label="报告产出人">{{ text(report?.reportGeneratedBy) }}</NDescriptionsItem>
           <NDescriptionsItem label="生成时间">{{ text(report?.reportGeneratedAt) }}</NDescriptionsItem>
@@ -384,24 +384,6 @@ watch(() => [props.analysisId, props.reportId], loadAll, { immediate: true });
           <div v-for="item in preview.warnings" :key="item">{{ item }}</div>
         </NAlert>
 
-        <!-- 体细胞变异解析 -->
-        <div class="mb-8px flex flex-wrap items-center gap-x-12px gap-y-8px">
-          <span class="font-medium">体细胞变异解析</span>
-          <NTag v-for="tag in somaticTags" :key="tag.key" size="small">{{ tag.label }}</NTag>
-          <span class="text-12px op-60">
-            报出 {{ somaticSummary?.reportedCount ?? 0 }} · 已匹配 {{ somaticSummary?.matchedCount ?? 0 }} ·
-            无证据 {{ somaticSummary?.unmatchedCount ?? 0 }}
-          </span>
-        </div>
-        <NDataTable
-          :columns="somaticColumns"
-          :data="somaticRows"
-          :row-key="variantRowKey"
-          :scroll-x="1500"
-          size="small"
-        />
-        <NDivider class="my-16px!" />
-
         <!-- 肿瘤遗传风险（胚系） -->
         <div class="mb-8px flex flex-wrap items-center gap-x-12px gap-y-8px">
           <span class="font-medium">肿瘤遗传风险（胚系）</span>
@@ -416,6 +398,24 @@ watch(() => [props.analysisId, props.reportId], loadAll, { immediate: true });
           :data="germlineRows"
           :row-key="variantRowKey"
           :scroll-x="1350"
+          size="small"
+        />
+        <NDivider class="my-16px!" />
+
+        <!-- 体细胞变异解析 -->
+        <div class="mb-8px flex flex-wrap items-center gap-x-12px gap-y-8px">
+          <span class="font-medium">体细胞变异解析</span>
+          <NTag v-for="tag in somaticTags" :key="tag.key" size="small">{{ tag.label }}</NTag>
+          <span class="text-12px op-60">
+            报出 {{ somaticSummary?.reportedCount ?? 0 }} · 已匹配 {{ somaticSummary?.matchedCount ?? 0 }} ·
+            无证据 {{ somaticSummary?.unmatchedCount ?? 0 }}
+          </span>
+        </div>
+        <NDataTable
+          :columns="somaticColumns"
+          :data="somaticRows"
+          :row-key="variantRowKey"
+          :scroll-x="1500"
           size="small"
         />
       </NCard>

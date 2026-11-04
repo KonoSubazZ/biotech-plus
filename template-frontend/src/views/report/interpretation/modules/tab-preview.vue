@@ -89,7 +89,7 @@ const candidateLoading = ref(false);
 const contextLine = computed(() => {
   const info = preview.value?.sampleInfo ?? {};
   const part = (key: string) => (info[key] === null || info[key] === undefined ? '-' : String(info[key]));
-  return `样本 ${part('sampleCode')} · 癌种 ${part('disease')} · 性别 ${part('gender')}`;
+  return `样本 ${part('subbarcode')} · 癌种 ${part('diseaseType')} · 性别 ${part('sex')}`;
 });
 
 /** JSON 原文（放 script 里，模板只负责渲染字符串） */
@@ -677,7 +677,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         :report-id="props.reportId"
         :preset-template-id="props.templateId"
         :template-locked="Boolean(props.reportVersion)"
-        :preset-disease="(preview?.sampleInfo?.disease as string | null) ?? null"
+        :preset-disease="(preview?.sampleInfo?.diseaseType as string | null) ?? null"
         :preset-report-date="(preview?.reportInfo?.reportDate as string | null) ?? null"
         :preset-analyzer="(preview?.reportInfo?.analyzer as string | null) ?? null"
         :locked="!canGenerate"

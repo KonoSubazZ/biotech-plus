@@ -28,7 +28,7 @@ defineOptions({
 interface Props {
   analysisId: number;
   reportId: number;
-  /** 报告自带的解读癌种（第一版预览 JSON 的 sampleInfo.disease），只在用户没动过该控件时用于回填默认值 */
+  /** 报告自带的解读癌种（第一版预览 JSON 的 sampleInfo.diseaseType），只在用户没动过该控件时用于回填默认值 */
   presetDisease?: string | null;
   /** 报告自带的报告日期（第一版预览 JSON 的 reportInfo.reportDate），同上只在没动过时回填 */
   presetReportDate?: string | null;
