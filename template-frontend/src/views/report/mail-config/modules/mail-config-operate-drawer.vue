@@ -58,9 +58,8 @@ const model = ref<Api.Report.ReportMailConfigForm>(jsonClone(EMPTY_FORM));
 /** 该行是否已设置密码（决定密码框的占位提示） */
 const passwordSet = ref(false);
 
-/** 可用变量 + 样例值（都由后端给，前端不自己维护清单） */
+/** 可用变量（由后端给，前端不自己维护清单） */
 const mailVars = ref<string[]>([]);
-const mailSample = ref<Record<string, string>>({});
 
 const title = computed(() => (props.operateType === 'add' ? '新增发件邮箱' : '编辑发件邮箱'));
 
@@ -75,19 +74,6 @@ const rules = {
   ]
 };
 
-/** 试算：把 {{x}} 换成样例值；未知变量原样显示（仅示意，真正校验在后端保存时） */
-function tryout(text: string | undefined) {
-  if (!text) {
-    return '';
-  }
-  return text.replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (all, key: string) =>
-    key in mailSample.value ? mailSample.value[key] : all
-  );
-}
-
-const smtpSummary = computed(() =>
-  model.value.smtpHost ? `${model.value.smtpHost}:${model.value.smtpPort ?? ''}` : '后端默认 smtp.exmail.qq.com:465'
-);
 
 /** 打开抽屉时：add 用空模型，edit 拉详情回填（密码永远留空 = 不修改） */
 async function init() {
@@ -97,7 +83,6 @@ async function init() {
     const variables = await fetchGetReportMailVariables();
     if (!variables.error && variables.data) {
       mailVars.value = variables.data.variables ?? [];
-      mailSample.value = variables.data.sample ?? {};
     }
     if (props.operateType === 'add') {
       model.value = jsonClone(EMPTY_FORM);
@@ -166,7 +151,7 @@ async function handleSubmit() {
           </NFormItem>
 
           <NFormItem label="发件人昵称">
-            <NInput v-model:value="model.fromName" placeholder="留空用默认：诺禾致源报告" clearable />
+            <NInput v-model:value="model.fromName" placeholder="请输入发件人昵称" clearable />
           </NFormItem>
 
           <NFormItem label="邮箱密码">
@@ -179,26 +164,20 @@ async function handleSubmit() {
           </NFormItem>
 
           <NFormItem label="启用">
-            <NSpace align="center" :size="12">
-              <NSwitch
-                :value="model.enabled === '1'"
-                @update:value="(value: boolean) => (model.enabled = value ? '1' : '0')"
-              />
-              <span class="text-12px op-60">停用后报告发送页会把它置灰，不能选来发信</span>
-            </NSpace>
+            <NSwitch
+              :value="model.enabled === '1'"
+              @update:value="(value: boolean) => (model.enabled = value ? '1' : '0')"
+            />
           </NFormItem>
 
           <NFormItem label="默认邮箱">
-            <NSpace align="center" :size="12">
-              <NSwitch
-                :value="model.isDefault === '1'"
-                @update:value="(value: boolean) => (model.isDefault = value ? '1' : '0')"
-              />
-              <span class="text-12px op-60">报告发送页默认选中的就是它（一个租户只能有一个默认）</span>
-            </NSpace>
+            <NSwitch
+              :value="model.isDefault === '1'"
+              @update:value="(value: boolean) => (model.isDefault = value ? '1' : '0')"
+            />
           </NFormItem>
 
-          <NDivider class="my-8px!">SMTP（留空用后端默认 smtp.exmail.qq.com:465 + SSL）</NDivider>
+          <NDivider class="my-8px!">SMTP</NDivider>
 
           <NFormItem label="SMTP 服务器">
             <NInput v-model:value="model.smtpHost" placeholder="smtp.exmail.qq.com" clearable />
@@ -226,10 +205,6 @@ async function handleSubmit() {
 
           <div class="mb-12px pl-120px text-12px leading-20px op-60">
             可用变量：{{ mailVars.length ? mailVars.join('、') : '加载中…' }}
-            <br />
-            当前连接：{{ smtpSummary }}
-            <br />
-            标题试算：{{ tryout(model.defaultSubject) || '（留空 = 用系统默认标题）' }}
           </div>
 
           <NFormItem label="默认正文">
@@ -237,13 +212,9 @@ async function handleSubmit() {
               v-model:value="model.defaultContent"
               type="textarea"
               :autosize="{ minRows: 5, maxRows: 12 }"
-              placeholder="支持 HTML 片段，换行可用 <br>；留空 = 用系统默认正文"
+              placeholder="支持 HTML 片段，换行可用 <br>"
             />
           </NFormItem>
-
-          <div class="mb-8px pl-120px text-12px leading-20px op-60">
-            正文试算：{{ tryout(model.defaultContent) || '（留空 = 用系统默认正文）' }}
-          </div>
         </NForm>
       </NSpin>
 
