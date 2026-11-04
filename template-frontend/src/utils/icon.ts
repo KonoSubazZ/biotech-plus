@@ -1,16 +1,6 @@
 import { ICONIFY_ALL_ICONS, ICONIFY_MENU_ICONS } from '@/constants/iconify-icons';
 import type { IconifyMenuItem } from '@/constants/iconify-icons';
 
-export function getLocalIcons() {
-  const svgIcons = import.meta.glob('/src/assets/svg-icon/*.svg');
-
-  const keys = Object.keys(svgIcons)
-    .map(item => item.split('/').at(-1)?.replace('.svg', '') || '')
-    .filter(Boolean);
-
-  return keys;
-}
-
 /**
  * 菜单可选的 iconify 图标（ant-design 同族，带视觉尺寸归一化系数）
  *
