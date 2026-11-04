@@ -4,7 +4,6 @@ import { jsonClone } from '@sa/utils';
 import {
   fetchAddReportMailConfig,
   fetchGetReportMailConfig,
-  fetchGetReportMailVariables,
   fetchUpdateReportMailConfig
 } from '@/service/api/report/mail-config';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
@@ -58,8 +57,6 @@ const model = ref<Api.Report.ReportMailConfigForm>(jsonClone(EMPTY_FORM));
 /** 该行是否已设置密码（决定密码框的占位提示） */
 const passwordSet = ref(false);
 
-/** 可用变量（由后端给，前端不自己维护清单） */
-const mailVars = ref<string[]>([]);
 
 const title = computed(() => (props.operateType === 'add' ? '新增发件邮箱' : '编辑发件邮箱'));
 
@@ -80,10 +77,6 @@ async function init() {
   restoreValidation();
   loading.value = true;
   try {
-    const variables = await fetchGetReportMailVariables();
-    if (!variables.error && variables.data) {
-      mailVars.value = variables.data.variables ?? [];
-    }
     if (props.operateType === 'add') {
       model.value = jsonClone(EMPTY_FORM);
       passwordSet.value = false;
@@ -203,9 +196,6 @@ async function handleSubmit() {
             />
           </NFormItem>
 
-          <div class="mb-12px pl-120px text-12px leading-20px op-60">
-            可用变量：{{ mailVars.length ? mailVars.join('、') : '加载中…' }}
-          </div>
 
           <NFormItem label="默认正文">
             <NInput

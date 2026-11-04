@@ -107,16 +107,18 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
           // 与 ai-templates/frontend-module/index.vue 同一套写法：每个按钮单独判权限、图标 + tooltip，
           // gap-8px，只在实际渲染出的按钮之间画竖线
           const defaultBtn = () => {
-            // 已经是默认的不再给按钮
-            if (!canEdit() || row.isDefault === '1') {
+            if (!canEdit()) {
               return null;
             }
+            // 固定占一个位置（已是默认时置灰），这样每行图标个数一致、上下行图标才能对齐
+            const isDefault = row.isDefault === '1';
             return (
               <ButtonIcon
                 text
                 type="primary"
-                icon="material-symbols:star-outline"
-                tooltipContent="设为默认"
+                icon="ant-design:star-outlined"
+                tooltipContent={isDefault ? '已是默认邮箱' : '设为默认'}
+                disabled={isDefault}
                 onClick={() => handleSetDefault(row.id!)}
               />
             );
