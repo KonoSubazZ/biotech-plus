@@ -134,15 +134,18 @@ public class ReportMailPreviewService {
         return options;
     }
 
-    /** 默认选中的发件邮箱：优先带默认标记的，否则第一条（与后端发信的兜底顺序一致） */
+    /** 默认选中的发件邮箱：优先「启用 + 带默认标记」，其次任意一条启用的，最后才退回第一条（与后端发信的兜底顺序一致） */
     private Long defaultConfigId(List<ReportMailSenderOptionVo> options) {
         if (options.isEmpty()) {
             return null;
         }
         ReportMailSenderOptionVo preferred = options.stream()
-            .filter(option -> "1".equals(option.getIsDefault()))
+            .filter(option -> "1".equals(option.getEnabled()) && "1".equals(option.getIsDefault()))
             .findFirst()
-            .orElse(options.get(0));
+            .orElseGet(() -> options.stream()
+                .filter(option -> "1".equals(option.getEnabled()))
+                .findFirst()
+                .orElse(options.get(0)));
         return preferred.getConfigId();
     }
 
