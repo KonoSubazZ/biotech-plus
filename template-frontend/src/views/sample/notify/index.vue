@@ -1,6 +1,7 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
 import { NButton, NDivider, NTag } from 'naive-ui';
+import ButtonIcon from '@/components/custom/button-icon.vue';
 import { fetchGetNotifyPage } from '@/service/api/qc/qc-notify';
 import { useDownload } from '@/hooks/business/download';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
@@ -51,6 +52,10 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
     searchParams.value.pageSize = params.pageSize ?? 10;
   },
   columns: () => [
+    { key: 'subbarcode', title: '样本编号', align: 'center', width: 150, ellipsis: { tooltip: true } },
+    { key: 'sampleName', title: '样本名称', align: 'center', width: 110, ellipsis: { tooltip: true } },
+    { key: 'subjectNo', title: '试验参与者编号', align: 'center', width: 140, ellipsis: { tooltip: true } },
+    { key: 'projectNo', title: '项目编号', align: 'center', width: 110, ellipsis: { tooltip: true } },
     {
       key: 'notifyType',
       title: '通知类型',
@@ -63,6 +68,20 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
             {meta.label}
           </NTag>
         );
+      }
+    },
+    { key: 'notifyDate', title: '通知日期', align: 'center', width: 100 },
+    { key: 'schemeNo', title: '研究方案编号', align: 'center', width: 140, ellipsis: { tooltip: true } },
+    {
+      key: 'fileName',
+      title: '文件',
+      align: 'center',
+      width: 190,
+      ellipsis: { tooltip: true },
+      render: row => {
+        // 只提供签署后的成品；原始 PDF 不展示、不提供阅读
+        if (!row.signedPdfPath) return '-';
+        return <PdfPreview src={`/qc/notify/${row.id}/signed-pdf`} name={row.fileName ?? ''} />;
       }
     },
     {
@@ -80,24 +99,6 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
         return row.sendError ? <span title={row.sendError}>{tag}</span> : tag;
       }
     },
-    { key: 'subbarcode', title: '样本编号', align: 'center', width: 150, ellipsis: { tooltip: true } },
-    { key: 'sampleName', title: '样本名称', align: 'center', width: 110, ellipsis: { tooltip: true } },
-    { key: 'subjectNo', title: '试验参与者编号', align: 'center', width: 140, ellipsis: { tooltip: true } },
-    { key: 'projectNo', title: '项目编号', align: 'center', width: 110, ellipsis: { tooltip: true } },
-    { key: 'notifyDate', title: '通知日期', align: 'center', width: 100 },
-    { key: 'schemeNo', title: '研究方案编号', align: 'center', width: 140, ellipsis: { tooltip: true } },
-    {
-      key: 'fileName',
-      title: '文件路径',
-      align: 'center',
-      width: 190,
-      ellipsis: { tooltip: true },
-      render: row => {
-        // 只提供签署后的成品；原始 PDF 不展示、不提供阅读
-        if (!row.signedPdfPath) return '-';
-        return <PdfPreview src={`/qc/notify/${row.id}/signed-pdf`} name={row.fileName ?? ''} />;
-      }
-    },
     { key: 'handlerName', title: '处理人', align: 'center', width: 90 },
     { key: 'handlerTime', title: '处理时间', align: 'center', width: 150 },
     { key: 'senderName', title: '发送人', align: 'center', width: 90 },
@@ -106,26 +107,35 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      width: 190,
+      width: 130,
       fixed: 'right',
       render: row => (
-        <div class="flex-center gap-8px">
-          <NButton text type="primary" onClick={() => openDetail(row)}>
-            查看
-          </NButton>
-          <NDivider vertical />
-          <NButton text type="primary" disabled={!row.signedPdfPath} onClick={() => download(row)}>
-            下载
-          </NButton>
-          <NDivider vertical />
-          <NButton
+        <div class="flex-center gap-4px">
+          <ButtonIcon
             text
             type="primary"
+            icon="material-symbols:visibility-outline"
+            tooltipContent="查看"
+            onClick={() => openDetail(row)}
+          />
+          <NDivider vertical />
+          <ButtonIcon
+            text
+            type="primary"
+            icon="material-symbols:download-rounded"
+            tooltipContent="下载"
+            disabled={!row.signedPdfPath}
+            onClick={() => download(row)}
+          />
+          <NDivider vertical />
+          <ButtonIcon
+            text
+            type="primary"
+            icon="material-symbols:outgoing-mail"
+            tooltipContent="发送"
             disabled={row.notifyStatus !== 'pending' && row.notifyStatus !== 'failed'}
             onClick={() => openSend(row)}
-          >
-            发送
-          </NButton>
+          />
         </div>
       )
     }

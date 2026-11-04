@@ -116,7 +116,7 @@ async function handleSend() {
         {{ preview.blockedReason }}
       </NAlert>
 
-      <NForm label-placement="left" :label-width="90" :show-feedback="false">
+      <NForm label-placement="left" :label-width="90" :show-feedback="false" class="flex flex-col gap-14px">
         <NFormItem label="发件邮箱">
           <NSelect
             v-model:value="senderId"
@@ -156,7 +156,7 @@ async function handleSend() {
         </NFormItem>
       </NForm>
 
-      <div class="text-12px text-gray-400">附件取签名件；发送成功置「发送成功」，失败置「发送失败」并记录原因，可重发。</div>
+      <div class="mt-16px text-12px text-gray-400">附件取签名件；发送成功置「发送成功」，失败置「发送失败」并记录原因，可重发。</div>
     </NSpin>
 
     <template #footer>
