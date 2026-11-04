@@ -7,10 +7,10 @@ import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.utils.StringUtils;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.AnalysisReport;
-import org.dromara.report.domain.AnalysisReportEmailLog;
+import org.dromara.report.domain.DeliveryEmailLog;
 import org.dromara.report.domain.ReportMailConfig;
 import org.dromara.report.domain.bo.InterpretationSendBo;
-import org.dromara.report.mapper.AnalysisReportEmailLogMapper;
+import org.dromara.report.service.IDeliveryEmailLogService;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IReportMailConfigService;
@@ -65,7 +65,7 @@ public class ReportMailSendService {
 
     private final AnalysisReportMapper analysisReportMapper;
 
-    private final AnalysisReportEmailLogMapper emailLogMapper;
+    private final IDeliveryEmailLogService deliveryEmailLogService;
 
     private final ReportFileService reportFileService;
 
@@ -96,7 +96,7 @@ public class ReportMailSendService {
         ReportMailConfig config = mailConfigService.loadForSend(bo.getConfigId());
 
         List<String> recipients = splitAddresses(bo.getTo());
-        AnalysisReportEmailLog logRow = insertSendingLog(bo, recipients);
+        DeliveryEmailLog logRow = insertSendingLog(bo, config, recipients);
         String messageId;
         try {
             messageId = mailSender.send(config, bo.getTo(), bo.getCc(), bo.getSubject(),
@@ -147,36 +147,30 @@ public class ReportMailSendService {
         return new File[]{reportFileService.loadReportFile(bo.getReportId(), bo.getAnalysisId())};
     }
 
-    /** 写一条 SENDING 日志（必须在发信之前，发信失败的痕迹才有落点） */
-    private AnalysisReportEmailLog insertSendingLog(InterpretationSendBo bo, List<String> recipients) {
-        AnalysisReportEmailLog row = new AnalysisReportEmailLog();
-        row.setTraceId(UUID.randomUUID().toString().replace("-", ""));
+    /** 写一条 SENDING 记录（必须在发信之前，发信失败的痕迹才有落点） */
+    private DeliveryEmailLog insertSendingLog(InterpretationSendBo bo, ReportMailConfig config, List<String> recipients) {
+        DeliveryEmailLog row = new DeliveryEmailLog();
+        row.setTargetType(IDeliveryEmailLogService.TARGET_REPORT);
+        row.setTargetId(bo.getReportId());
         row.setAnalysisId(bo.getAnalysisId());
-        row.setReportId(bo.getReportId());
         row.setRecipients(String.join(";", recipients));
         row.setRecipientCount((long) recipients.size());
-        row.setTemplateCode(TEMPLATE_CODE);
-        row.setStatus("SENDING");
+        row.setCc(bo.getCc());
+        row.setSubject(bo.getSubject());
+        row.setMailConfigId(config == null ? null : config.getId());
+        row.setFromAddr(config == null ? null : config.getFromEmail());
         row.setTriggeredBy(LoginHelper.getUsername());
-        row.setRequestedAt(new Date());
-        emailLogMapper.insert(row);
+        Long id = deliveryEmailLogService.start(row);
+        row.setId(id);
         return row;
     }
 
     private void markSuccess(Long logId, String messageId) {
-        emailLogMapper.update(null, Wrappers.<AnalysisReportEmailLog>lambdaUpdate()
-            .eq(AnalysisReportEmailLog::getId, logId)
-            .set(AnalysisReportEmailLog::getStatus, "SUCCESS")
-            .set(AnalysisReportEmailLog::getProviderMessageId, messageId)
-            .set(AnalysisReportEmailLog::getFinishedAt, new Date()));
+        deliveryEmailLogService.markSuccess(logId, messageId);
     }
 
     private void markFailed(Long logId, String reason) {
-        emailLogMapper.update(null, Wrappers.<AnalysisReportEmailLog>lambdaUpdate()
-            .eq(AnalysisReportEmailLog::getId, logId)
-            .set(AnalysisReportEmailLog::getStatus, "FAILED")
-            .set(AnalysisReportEmailLog::getFailureReason, truncate(reason))
-            .set(AnalysisReportEmailLog::getFinishedAt, new Date()));
+        deliveryEmailLogService.markFailed(logId, reason);
     }
 
     /**

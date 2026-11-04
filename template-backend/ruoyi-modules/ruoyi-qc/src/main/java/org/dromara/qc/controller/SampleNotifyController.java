@@ -23,6 +23,8 @@ import org.dromara.qc.domain.vo.SampleNotifySignVo;
 import org.dromara.qc.domain.vo.SampleNotifyVo;
 import org.dromara.qc.service.ISampleNotifyDeliveryService;
 import org.dromara.qc.service.ISampleNotifyService;
+import org.dromara.report.domain.vo.DeliveryEmailLogVo;
+import org.dromara.report.service.IDeliveryEmailLogService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.List;
 
 /**
  * 样本通知台账 接口（四类通知：延期 / 样本不合格 / 湿实验不合格 / 干实验不合格）
@@ -51,6 +54,8 @@ public class SampleNotifyController extends BaseController {
 
     private final ISampleNotifyService notifyService;
     private final ISampleNotifyDeliveryService deliveryService;
+
+    private final IDeliveryEmailLogService deliveryEmailLogService;
 
     /**
      * 处理弹窗预填：表头按样本编号回填 + 默认值 + 上次生成内容
@@ -90,6 +95,13 @@ public class SampleNotifyController extends BaseController {
     @GetMapping("/{id}")
     public R<SampleNotifyVo> detail(@PathVariable Long id) {
         return R.ok(notifyService.queryById(id));
+    }
+
+    /** 发送记录：该通知的邮件发送历史（报告与通知共用 delivery_email_log） */
+    @SaCheckPermission("qc:notify:query")
+    @GetMapping("/{id}/mail-logs")
+    public R<List<DeliveryEmailLogVo>> mailLogs(@PathVariable Long id) {
+        return R.ok(deliveryEmailLogService.listByTarget(IDeliveryEmailLogService.TARGET_NOTIFY, id));
     }
 
     /**

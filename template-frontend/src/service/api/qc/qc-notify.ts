@@ -101,3 +101,11 @@ export function fetchSendNotify(id: number | string, data: Api.Qc.NotifySendForm
     data
   });
 }
+
+/** 发送记录：该通知的邮件发送历史（报告与通知共用 delivery_email_log） */
+export function fetchGetNotifyMailLogs(id: number) {
+  return request<Api.Qc.DeliveryEmailLog[]>({
+    url: `/qc/notify/${id}/mail-logs`,
+    method: 'get'
+  });
+}

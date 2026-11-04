@@ -12,6 +12,9 @@ import java.util.Date;
 /**
  * 报告邮件发送审计日志对象 analysis_report_email_log
  * <p>
+ * ⚠️ 已废弃（2026-11-04）：报告与通知的发送记录统一写 {@link DeliveryEmailLog}（delivery_email_log）。
+ * 本表停止写入，仅保留历史数据只读；新功能不要再往这里写。
+ * <p>
  * 表**早已存在**（建表在 script/sql/business/report-interpretation.sql，与 16 张报告链路的表一起），
  * 本次只是把 Java 侧补上：发送前写 SENDING，发送后回写 SUCCESS / FAILED。
  * <p>
@@ -21,7 +24,9 @@ import java.util.Date;
  * 按 {@code providerStatus} 记原始状态即可，本类先不落那一列。
  *
  * @author <你的名字>
+ * @deprecated 用 {@link DeliveryEmailLog}（表 delivery_email_log）替代
  */
+@Deprecated
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("analysis_report_email_log")

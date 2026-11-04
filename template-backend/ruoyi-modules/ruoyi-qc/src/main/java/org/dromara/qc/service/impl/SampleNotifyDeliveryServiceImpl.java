@@ -15,8 +15,10 @@ import org.dromara.qc.domain.vo.SampleNotifySignVo;
 import org.dromara.qc.mapper.SampleNotifyMapper;
 import org.dromara.qc.service.ISampleNotifyDeliveryService;
 import org.dromara.qc.utils.NotifyConstants;
+import org.dromara.report.domain.DeliveryEmailLog;
 import org.dromara.report.domain.ReportMailConfig;
 import org.dromara.report.domain.vo.ReportMailSenderOptionVo;
+import org.dromara.report.service.IDeliveryEmailLogService;
 import org.dromara.report.service.IReportMailConfigService;
 import org.dromara.report.service.ISsqSignService;
 import org.dromara.report.service.impl.ReportMailSender;
@@ -67,6 +69,7 @@ public class SampleNotifyDeliveryServiceImpl implements ISampleNotifyDeliverySer
     private final IReportMailConfigService mailConfigService;
     private final ReportMailSender mailSender;
     private final NotifyQcStatusWriter qcStatusWriter;
+    private final IDeliveryEmailLogService deliveryEmailLogService;
 
     /** 制品根目录（容器内 /app/reports） */
     @Value("${report.artifact.root:/app/reports}")
@@ -219,16 +222,19 @@ public class SampleNotifyDeliveryServiceImpl implements ISampleNotifyDeliverySer
         }
         // 先取发件邮箱：配置有问题（没配/停用/缺密码）要在这里就拦掉，不落发送失败状态
         ReportMailConfig config = mailConfigService.loadForSend(bo.getConfigId());
+        Long mailLogId = startMailLog(record, bo, config);
         String messageId;
         try {
             messageId = mailSender.send(config, bo.getTo(), bo.getCc(), bo.getSubject(),
                 toHtml(bo.getContent()), new File(record.getSignedPdfPath()));
         } catch (RuntimeException e) {
+            deliveryEmailLogService.markFailed(mailLogId, e.getMessage());
             markFailed(id, bo.getTo(), bo.getCc(), e.getMessage());
             throw e instanceof ServiceException serviceException
                 ? serviceException
                 : new ServiceException("邮件发送失败：" + e.getMessage());
         }
+        deliveryEmailLogService.markSuccess(mailLogId, messageId);
         notifyMapper.update(null, Wrappers.<SampleNotify>lambdaUpdate()
             .set(SampleNotify::getNotifyStatus, NotifyConstants.Status.SENT)
             .set(SampleNotify::getSenderBy, LoginHelper.getUserId())
@@ -240,6 +246,24 @@ public class SampleNotifyDeliveryServiceImpl implements ISampleNotifyDeliverySer
             .eq(SampleNotify::getId, id));
         qcStatusWriter.write(record.getSubbarcode(), record.getNotifyType(), NotifyConstants.Status.SENT);
         return new SampleNotifySendVo(id, bo.getTo(), bo.getCc(), config.getFromEmail(), messageId);
+    }
+
+    /** 发信前落一条 SENDING 记录（报告与通知共用 delivery_email_log） */
+    private Long startMailLog(SampleNotify record, SampleNotifySendBo bo, ReportMailConfig config) {
+        DeliveryEmailLog row = new DeliveryEmailLog();
+        row.setTargetType(IDeliveryEmailLogService.TARGET_NOTIFY);
+        row.setTargetId(record.getId());
+        row.setTargetNo(record.getNotifyNo());
+        row.setNotifyType(record.getNotifyType());
+        row.setSubbarcode(record.getSubbarcode());
+        row.setRecipients(bo.getTo());
+        row.setRecipientCount((long) splitAddresses(bo.getTo()).size());
+        row.setCc(bo.getCc());
+        row.setSubject(bo.getSubject());
+        row.setAttachmentName(record.getFileName());
+        row.setMailConfigId(config == null ? null : config.getId());
+        row.setFromAddr(config == null ? null : config.getFromEmail());
+        return deliveryEmailLogService.start(row);
     }
 
     /** 发送失败：独立落库（不在发信事务里，失败痕迹不会回滚） */

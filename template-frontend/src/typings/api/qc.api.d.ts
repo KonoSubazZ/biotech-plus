@@ -330,6 +330,30 @@ declare namespace Api {
     type NotifySignStatus = 'none' | 'submitted' | 'signed';
 
     /** 异常处理列表行（= 后端 SampleNotifyVo） */
+    /** 交付物邮件发送记录（报告与通知共用 delivery_email_log） */
+    interface DeliveryEmailLog {
+      id: number;
+      traceId: string;
+      targetType: 'report' | 'notify';
+      targetId: number;
+      targetNo: string | null;
+      notifyType: string | null;
+      subbarcode: string | null;
+      recipients: string;
+      recipientCount: number;
+      cc: string | null;
+      subject: string | null;
+      attachmentName: string | null;
+      fromAddr: string | null;
+      /** SENDING / SUCCESS / FAILED */
+      status: string;
+      providerMessageId: string | null;
+      failureReason: string | null;
+      triggeredBy: string;
+      requestedAt: string;
+      finishedAt: string | null;
+    }
+
     interface NotifyRow {
       id: number;
       notifyNo: string | null;

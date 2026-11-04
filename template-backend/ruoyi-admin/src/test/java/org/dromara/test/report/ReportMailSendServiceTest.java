@@ -7,10 +7,10 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.report.domain.AnalysisReport;
-import org.dromara.report.domain.AnalysisReportEmailLog;
+import org.dromara.report.domain.DeliveryEmailLog;
 import org.dromara.report.domain.ReportMailConfig;
 import org.dromara.report.domain.bo.InterpretationSendBo;
-import org.dromara.report.mapper.AnalysisReportEmailLogMapper;
+import org.dromara.report.service.IDeliveryEmailLogService;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IReportMailConfigService;
@@ -51,7 +51,7 @@ public class ReportMailSendServiceTest {
 
     private InterpretationMapper interpretationMapper;
     private AnalysisReportMapper analysisReportMapper;
-    private AnalysisReportEmailLogMapper emailLogMapper;
+    private IDeliveryEmailLogService deliveryEmailLogService;
     private ReportFileService reportFileService;
     private IReportMailConfigService mailConfigService;
     private ReportMailSender mailSender;
@@ -62,17 +62,17 @@ public class ReportMailSendServiceTest {
         // LambdaUpdateWrapper 需要实体的 TableInfo（正常由 Spring/MyBatis 启动时注册）；
         // 纯 Mockito 单测没有容器，这里手动注册一次，否则 getSqlSet() 会抛 can not find lambda cache
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
-            AnalysisReportEmailLog.class);
+            DeliveryEmailLog.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
             AnalysisReport.class);
 
         interpretationMapper = Mockito.mock(InterpretationMapper.class);
         analysisReportMapper = Mockito.mock(AnalysisReportMapper.class);
-        emailLogMapper = Mockito.mock(AnalysisReportEmailLogMapper.class);
+        deliveryEmailLogService = Mockito.mock(IDeliveryEmailLogService.class);
         reportFileService = Mockito.mock(ReportFileService.class);
         mailConfigService = Mockito.mock(IReportMailConfigService.class);
         mailSender = Mockito.mock(ReportMailSender.class);
-        service = new ReportMailSendService(interpretationMapper, analysisReportMapper, emailLogMapper,
+        service = new ReportMailSendService(interpretationMapper, analysisReportMapper, deliveryEmailLogService,
             reportFileService, mailConfigService, mailSender, ReportTestLocks.direct(),
             Mockito.mock(ReportVersionAllocator.class), Mockito.mock(ReportRevisionMapper.class));
 
@@ -124,7 +124,7 @@ public class ReportMailSendServiceTest {
 
         Assertions.assertEquals(400, error.getCode());
         Assertions.assertTrue(error.getMessage().contains("报告待发送"), error.getMessage());
-        Mockito.verifyNoInteractions(emailLogMapper);
+        Mockito.verifyNoInteractions(deliveryEmailLogService);
         Mockito.verifyNoInteractions(mailSender);
         Mockito.verifyNoInteractions(analysisReportMapper);
     }
@@ -153,7 +153,7 @@ public class ReportMailSendServiceTest {
         ServiceException error = Assertions.assertThrows(ServiceException.class, () -> service.send(bo()));
 
         Assertions.assertEquals(400, error.getCode());
-        Mockito.verifyNoInteractions(emailLogMapper);
+        Mockito.verifyNoInteractions(deliveryEmailLogService);
         Mockito.verifyNoInteractions(mailSender);
     }
 
@@ -172,15 +172,15 @@ public class ReportMailSendServiceTest {
         Assertions.assertEquals("<msg-id@exmail>", result.get("messageId"));
         Assertions.assertEquals("novomedicine-report@novogene.com", result.get("fromEmail"));
 
-        ArgumentCaptor<AnalysisReportEmailLog> inserted = ArgumentCaptor.forClass(AnalysisReportEmailLog.class);
-        Mockito.verify(emailLogMapper).insert(inserted.capture());
+        ArgumentCaptor<DeliveryEmailLog> inserted = ArgumentCaptor.forClass(DeliveryEmailLog.class);
+        Mockito.verify(deliveryEmailLogService).start(inserted.capture());
         Assertions.assertEquals("SENDING", inserted.getValue().getStatus());
         Assertions.assertEquals("a@example.com;b@example.com", inserted.getValue().getRecipients());
         Assertions.assertEquals(2L, inserted.getValue().getRecipientCount());
 
-        String logSet = captureSet(emailLogMapper, AnalysisReportEmailLog.class);
-        Assertions.assertTrue(logSet.contains("SUCCESS"), logSet);
-        Assertions.assertTrue(logSet.contains("provider_message_id"), logSet);
+        Mockito.verify(deliveryEmailLogService).markFailed(Mockito.any(), Mockito.contains("连接超时"));
+
+        Mockito.verify(deliveryEmailLogService).markSuccess(Mockito.any(), Mockito.eq("<msg-id@exmail>"));
 
         String reportSet = captureSet(analysisReportMapper, AnalysisReport.class);
         // 发送成功 → report_status = 62（完成报告）+ 记录发送人/时间
@@ -202,9 +202,9 @@ public class ReportMailSendServiceTest {
         ServiceException error = Assertions.assertThrows(ServiceException.class, () -> service.send(bo()));
         Assertions.assertTrue(error.getMessage().contains("连接超时"), error.getMessage());
 
-        String logSet = captureSet(emailLogMapper, AnalysisReportEmailLog.class);
-        Assertions.assertTrue(logSet.contains("FAILED"), logSet);
-        Assertions.assertTrue(logSet.contains("failure_reason"), logSet);
+        Mockito.verify(deliveryEmailLogService).markFailed(Mockito.any(), Mockito.contains("连接超时"));
+
+
 
         // 失败要把报告置 61（报告发送失败），页面才能重发
         String reportSet = captureSet(analysisReportMapper, AnalysisReport.class);
