@@ -311,10 +311,10 @@ public class SampleNotifyDeliveryServiceImpl implements ISampleNotifyDeliverySer
         values.put("prefix", NotifyConstants.Type.mailSubjectPrefix(record.getNotifyType()));
         values.put("subbarcode", nvl(record.getSubbarcode()));
         values.put("sampleName", nvl(record.getSampleName()));
-        values.put("participantNo", nvl(record.getParticipantNo()));
+        values.put("subjectNo", nvl(record.getParticipantNo()));
         values.put("projectNo", nvl(record.getProjectNo()));
         values.put("notifyDate", nvl(record.getNotifyDate()));
-        values.put("studyNo", nvl(record.getStudyNo()));
+        values.put("schemeNo", nvl(record.getStudyNo()));
         values.put("sampleType", nvl(record.getSampleType()));
         values.put("reason", nvl(record.getReason()));
         values.put("delayReason", nvl(record.getDelayReason()));

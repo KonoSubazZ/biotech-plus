@@ -104,13 +104,13 @@ public final class NotifyConstants {
     public static final class Mail {
         /** 标题模板（前缀按类型取 {@link Type#mailSubjectPrefix(String)}） */
         public static final String SUBJECT =
-            "{{prefix}}{{subbarcode}}-{{sampleName}}（{{participantNo}}）-{{projectNo}}-{{notifyDate}}";
+            "{{prefix}}{{subbarcode}}-{{sampleName}}（{{subjectNo}}）-{{projectNo}}-{{notifyDate}}";
 
         /** 延期通知正文 */
         public static final String BODY_DELAY = """
             老师，您好！
 
-            您的送检订单{{studyNo}}（研究方案编号）项目 {{participantNo}}（试验参与者编号）样本，\
+            您的送检订单{{schemeNo}}（研究方案编号）项目 {{subjectNo}}（试验参与者编号）样本，\
             因（{{delayReason}}）原因，检测报告延迟至（{{expectedReportDate}}）出具，请查看附件检测报告延迟通知单。
 
             如您对报告有任何问题请联系诺禾实验室项目负责人。或发邮件至lab.oncology.ct@novogene.com。\
@@ -120,7 +120,7 @@ public final class NotifyConstants {
         public static final String BODY_QC = """
             老师，您好！
 
-            您的送检订单{{studyNo}}（研究方案编号）项目 {{participantNo}}（试验参与者编号）\
+            您的送检订单{{schemeNo}}（研究方案编号）项目 {{subjectNo}}（试验参与者编号）\
             {{sampleType}}（样本类型）样本，因（{{reason}}）原因，样本质控不合格，请查看附件样本质控不合格通知单。
 
             如对报告有任何问题请联系诺禾实验室项目负责人。或发邮件至lab.oncology.ct@novogene.com。\
