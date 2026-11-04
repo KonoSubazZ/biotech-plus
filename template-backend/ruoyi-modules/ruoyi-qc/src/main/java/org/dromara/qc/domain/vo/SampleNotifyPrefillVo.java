@@ -3,28 +3,28 @@ package org.dromara.qc.domain.vo;
 import lombok.Data;
 
 /**
- * 不合格通知「处理」弹窗的预填数据
+ * 样本通知「处理」弹窗的预填数据
  * <p>
- * 表头字段按 subbarcode 从 cms_sample 回填；若该样本已经生成过通知，则用**最新一条记录**的值覆盖
+ * 表头字段按 subbarcode 从 cms_sample 回填；若该样本同类型已经生成过通知，则用**最新一条记录**的值覆盖
  * （lastGenerated* 带上一次生成的单据信息，前端据此提示「已生成」并可直接改后重新生成）。
  *
  * @author <你的名字>
  */
 @Data
-public class QcFailedNotifyPrefillVo {
+public class SampleNotifyPrefillVo {
 
     // ── 关联关系（表头信息） ───────────────────────────────────────
     /** cms_sample.id（一定有） */
     private Long sampleFileId;
 
-    /** 生信质控 id（湿实验合格后才可能有） */
+    /** 生信质控 id（干实验不合格时才有） */
     private Long bioinfoQcId;
 
     /** 湿实验质控 id（wet_lab_qc.id；在湿实验页点处理时带回） */
     private Long wetLabQcId;
 
-    /** 质控类型（wet_lab 湿实验 / bioinfo 生信）—— 这条通知是在哪个质控页点处理产生的 */
-    private String qcCategory;
+    /** 通知类型（delay / sample / wet_lab / bioinfo） */
+    private String notifyType;
 
     /** 分析时间（质控记录入库时间，自动带出） */
     private String analysisTime;
@@ -38,8 +38,11 @@ public class QcFailedNotifyPrefillVo {
     /** 通知单号（上次生成时的） */
     private String notifyNo;
 
-    /** 通知状态：已生成（文档）/ 已发送（邮件） */
+    /** 通知状态（generated / pending / sent / failed） */
     private String notifyStatus;
+
+    /** 签署状态（none / submitted / signed） */
+    private String signStatus;
 
     /** 上次生成时间 */
     private String lastGeneratedAt;
@@ -65,12 +68,24 @@ public class QcFailedNotifyPrefillVo {
     /** 上次落库的建议处理办法（中文名） */
     private String remedy;
 
+    /** 上次落库的延迟原因（delay 专用） */
+    private String delayReason;
+
+    /** 上次落库的预计报告出具时间（delay 专用） */
+    private String expectedReportDate;
+
     /** 是否已经生成过 */
     private Boolean generated;
 
     // ── 表单字段（与文档一一对应） ─────────────────────────────────
     /** 样本编号 */
     private String subbarcode;
+
+    /** 样本名称 */
+    private String sampleName;
+
+    /** 样本编号展示文本（延期通知：同订单多个样本用「；」分隔） */
+    private String sampleNoText;
 
     /** 研究方案编号 */
     private String studyNo;

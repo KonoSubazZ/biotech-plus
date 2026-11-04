@@ -6,12 +6,12 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 质控通知送签结果（送签 / 刷新签署状态共用）。
+ * 样本通知送签结果（送签 / 刷新签署状态共用）。
  *
  * @author <你的名字>
  */
 @Data
-public class QcFailedNotifySignVo implements Serializable {
+public class SampleNotifySignVo implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -34,6 +34,9 @@ public class QcFailedNotifySignVo implements Serializable {
     /** 签名后 PDF 文件名（未完成时为空） */
     private String signedPdfName;
 
-    /** 通知状态（已送签 / 已签署） */
+    /** 签署状态（none / submitted / signed） */
+    private String signStatus;
+
+    /** 通知状态（generated / pending / sent / failed） */
     private String notifyStatus;
 }

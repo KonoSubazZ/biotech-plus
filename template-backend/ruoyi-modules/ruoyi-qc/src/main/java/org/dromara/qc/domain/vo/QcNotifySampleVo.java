@@ -3,11 +3,12 @@ package org.dromara.qc.domain.vo;
 import lombok.Data;
 
 /**
- * 不合格通知要回填的样本字段（来自 cms_sample，按 subbarcode 取）
+ * 通知要回填的样本字段（来自 cms_sample，按 subbarcode 取）
  * <p>
- * 只取通知单表头用得上的几个列（示例口径）：研究方案编号 ← contracts_no、诺禾项目编号 ← order_code、
- * 试验参与者编号 ← pcode、研究中心名称 ← testing_institution、样本接收日期 ← collect_date、
- * 样本类型/数量 ← sample_type/specimen_num、检测产品 ← erp_test_name、客户 ← customer_name。
+ * 口径与样本信息页一致：研究方案编号 ← scheme_no、诺禾项目编号 ← project_no、
+ * 试验参与者编号 ← subject_no、研究中心名称 ← research_center、样本接收日期 ← receive_confirm_time、
+ * 样本类型/数量 ← sample_type/sample_quantity、检测产品 ← product_name、客户 ← customer_name、
+ * 报告接收邮箱 ← report_email（通知邮件收件人）。
  *
  * @author <你的名字>
  */
@@ -20,30 +21,39 @@ public class QcNotifySampleVo {
     /** 样本编号 */
     private String subbarcode;
 
-    /** 研究方案编号（cms_sample.contracts_no） */
+    /** 样本名称（文件命名用） */
+    private String sampleName;
+
+    /** 订单编号（cms_sample.order_no；延期通知按它取同订单的兄弟样本） */
+    private String orderNo;
+
+    /** 研究方案编号（cms_sample.scheme_no） */
     private String studyNo;
 
-    /** 诺禾项目编号（cms_sample.order_code） */
+    /** 诺禾项目编号（cms_sample.project_no） */
     private String projectNo;
 
-    /** 试验参与者编号（cms_sample.pcode） */
+    /** 试验参与者编号（cms_sample.subject_no） */
     private String participantNo;
 
-    /** 研究中心名称（cms_sample.testing_institution） */
+    /** 研究中心名称（cms_sample.research_center） */
     private String center;
 
-    /** 样本接收日期（cms_sample.collect_date） */
+    /** 样本接收日期（cms_sample.receive_confirm_time） */
     private String receiveDate;
 
     /** 样本类型 */
     private String sampleType;
 
-    /** 样本数量（cms_sample.specimen_num） */
+    /** 样本数量（cms_sample.sample_quantity） */
     private String sampleCount;
 
-    /** 检测产品（cms_sample.erp_test_name） */
+    /** 检测产品（cms_sample.product_name） */
     private String product;
 
     /** 客户（= 药企名，用于解析归属药企） */
     private String customerName;
+
+    /** 报告接收邮箱（cms_sample.report_email，通知邮件收件人） */
+    private String reportEmail;
 }

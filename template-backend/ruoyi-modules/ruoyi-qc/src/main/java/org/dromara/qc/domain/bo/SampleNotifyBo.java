@@ -8,32 +8,31 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 样本质控不合格通知 表单对象（= 通知单弹窗里的字段，与文档一一对应）
+ * 样本通知 表单对象（= 通知单弹窗里的字段，与文档一一对应）
  * <p>
- * 勾选项（样本质控环节 / 是否终止检测 / 建议处理办法）传 boolean：
- * 页面用多选框，落库时服务端转成中文名（顿号分隔），渲染时模板用 {@code {{ box(flag) }}} 输出 ☑/□。
+ * 四类通知共用：{@code delay} 只填「延迟原因 / 预计报告出具时间」；
+ * 其余三类填质控环节 / 终止检测 / 处理办法 / 不合格原因。
+ * 勾选项传 boolean：页面用多选框，落库时服务端转成中文名（顿号分隔），渲染时模板用 {@code {{ box(flag) }}} 输出 ☑/□。
  *
  * @author <你的名字>
  */
 @Data
-public class QcFailedNotifyBo implements Serializable {
+public class SampleNotifyBo implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 样本编号（必填；后面所有回填都按它查 cms_sample） */
+    /** 样本编号（必填；所有回填都按它查 cms_sample） */
     @NotBlank(message = "样本编号不能为空")
-    @Size(max = 100, message = "样本编号长度不能超过 100")
+    @Size(max = 128, message = "样本编号长度不能超过 128")
     private String subbarcode;
 
-    /**
-     * 质控类型（wet_lab 湿实验 / bioinfo 生信）—— 在哪个质控页点「处理」的；
-     * 为空按 bioinfo 处理（老调用方兼容），落库进 qc_failed_notify.qc_category
-     */
-    @Size(max = 20, message = "质控类型长度不能超过 20")
-    private String qcCategory;
+    /** 通知类型（delay 延期通知 / sample 样本不合格 / wet_lab 湿实验不合格 / bioinfo 干实验不合格） */
+    @NotBlank(message = "通知类型不能为空")
+    @Size(max = 20, message = "通知类型长度不能超过 20")
+    private String notifyType;
 
-    // ── 通知单表头 ────────────────────────────────────────────────
+    // ── 通知单表头（按 cms_sample 回填，页面可微调） ────────────────
     /** 研究方案编号 */
     @Size(max = 200, message = "研究方案编号过长")
     private String studyNo;
@@ -54,7 +53,11 @@ public class QcFailedNotifyBo implements Serializable {
     @Size(max = 64, message = "样本接收日期过长")
     private String receiveDate;
 
-    /** 样本类型 */
+    /** 样本编号展示文本（延期通知：同订单多个样本用「；」分隔；为空时用 subbarcode） */
+    @Size(max = 500, message = "样本编号展示文本过长")
+    private String sampleNoText;
+
+    /** 样本类型（延期通知：同订单多个样本用「；」分隔） */
     @Size(max = 100, message = "样本类型过长")
     private String sampleType;
 
@@ -65,6 +68,15 @@ public class QcFailedNotifyBo implements Serializable {
     /** 检测产品 */
     @Size(max = 256, message = "检测产品过长")
     private String product;
+
+    // ── 延期通知专用 ─────────────────────────────────────────────
+    /** 检测报告延迟原因 */
+    @Size(max = 500, message = "延迟原因长度不能超过 500")
+    private String delayReason;
+
+    /** 预计报告出具时间 */
+    @Size(max = 32, message = "预计报告出具时间过长")
+    private String expectedReportDate;
 
     // ── 样本质控环节（多选） ───────────────────────────────────────
     /** 样本接收 */

@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.qc.mapper.SampleNotifyMapper">
+
+    <!-- 按样本编号回填通知单表头字段（跨表只读；调用方需 withoutTenant）
+         口径与样本信息页一致：scheme_no=研究方案编号、project_no=项目编号、
+         subject_no=试验参与者编号、research_center=研究中心名称、report_email=收件邮箱 -->
+    <select id="selectSampleForNotify" resultType="org.dromara.qc.domain.vo.QcNotifySampleVo">
+        SELECT id,
+               subbarcode            AS subbarcode,
+               sample_name           AS sampleName,
+               order_no              AS orderNo,
+               scheme_no             AS studyNo,
+               project_no            AS projectNo,
+               subject_no            AS participantNo,
+               research_center       AS center,
+               receive_confirm_time  AS receiveDate,
+               sample_type           AS sampleType,
+               sample_quantity       AS sampleCount,
+               product_name          AS product,
+               customer_name         AS customerName,
+               report_email          AS reportEmail
+        FROM cms_sample
+        WHERE subbarcode = #{subbarcode}
+          AND del_flag = '0'
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 同一订单下的兄弟样本（延期通知表头用；租户条件由拦截器补） -->
+    <select id="selectSiblingsByOrder" resultType="org.dromara.qc.domain.vo.QcNotifySampleVo">
+        SELECT subbarcode,
+               sample_name     AS sampleName,
+               sample_type     AS sampleType,
+               sample_quantity AS sampleCount
+        FROM cms_sample
+        WHERE order_no = #{orderNo}
+          AND del_flag = '0'
+        ORDER BY id
+    </select>
+
+    <!-- 按样本编号取归属药企（cms_sample.tenant_id）。调用方需 withoutTenant。 -->
+    <select id="selectTenantIdBySubbarcode" resultType="java.lang.String">
+        SELECT tenant_id
+        FROM cms_sample
+        WHERE subbarcode = #{subbarcode}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 该样本该类型最近一条通知记录（回显「已生成」与上次填写内容） -->
+    <select id="selectLatestByType" resultType="org.dromara.qc.domain.vo.SampleNotifyPrefillVo">
+        SELECT n.id                 AS lastNotifyId,
+               n.subbarcode        AS subbarcode,
+               n.sample_name       AS sampleName,
+               n.sample_file_id    AS sampleFileId,
+               n.notify_type       AS notifyType,
+               n.wet_lab_qc_id     AS wetLabQcId,
+               n.bioinfo_qc_id     AS bioinfoQcId,
+               n.notify_no         AS notifyNo,
+               n.notify_status     AS notifyStatus,
+               n.sign_status       AS signStatus,
+               n.analysis_time     AS analysisTime,
+               n.product           AS product,
+               n.customer_name     AS customerName,
+               n.sample_type       AS sampleType,
+               n.qc_stage          AS qcStage,
+               n.terminate_measure AS terminateMeasure,
+               n.remedy            AS remedy,
+               n.reason            AS reason,
+               n.delay_reason      AS delayReason,
+               n.expected_report_date AS expectedReportDate,
+               n.remedy_other      AS remedyOtherText,
+               n.reporter          AS reporter,
+               n.report_time       AS reportTime,
+               n.reviewer          AS reviewer,
+               n.review_time       AS reviewTime,
+               n.raw_docx_path     AS lastDocxName,
+               n.pdf_path          AS lastPdfName,
+               n.sign_contract_id  AS signContractId,
+               n.signed_pdf_path   AS signedPdfPath,
+               DATE_FORMAT(n.create_time, '%Y-%m-%d %H:%i:%s') AS lastGeneratedAt,
+               TRUE                AS `generated`   -- generated 是 MySQL 保留字，别名必须反引号
+        FROM sample_notify n
+        WHERE n.subbarcode = #{subbarcode}
+          AND n.notify_type = #{notifyType}
+          AND n.del_flag = '0'
+        ORDER BY n.id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 同日覆盖规则用：同一样本 + 同类型 + 同一天 -->
+    <select id="selectByDayAndType" resultType="org.dromara.qc.domain.SampleNotify">
+        SELECT *
+        FROM sample_notify
+        WHERE subbarcode = #{subbarcode}
+          AND notify_type = #{notifyType}
+          AND notify_date = #{notifyDate}
+          AND del_flag = '0'
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 异常处理分页：只列「已签名且已提交」的记录（pending / sent / failed）
+         file_path 用 signed → pdf → docx 派生；处理人/发送人 join sys_user 取名 -->
+    <select id="selectPageList" resultType="org.dromara.qc.domain.vo.SampleNotifyVo">
+        SELECT n.id,
+               n.notify_no,
+               n.notify_type,
+               n.notify_status,
+               n.sign_status,
+               n.notify_date,
+               n.subbarcode,
+               n.sample_name,
+               n.study_no,
+               n.project_no,
+               n.participant_no,
+               n.product,
+               n.customer_name,
+               n.sample_type,
+               n.reason,
+               n.delay_reason,
+               n.expected_report_date,
+               n.qc_stage,
+               n.terminate_measure,
+               n.remedy,
+               n.remedy_other,
+               n.reporter,
+               n.report_time,
+               n.reviewer,
+               n.review_time,
+               n.json_path,
+               n.raw_docx_path,
+               n.pdf_path,
+               n.signed_pdf_path,
+               COALESCE(NULLIF(n.signed_pdf_path, ''), NULLIF(n.pdf_path, ''), n.raw_docx_path) AS file_path,
+               n.sign_contract_id,
+               n.handler_by,
+               hu.nick_name AS handler_name,
+               n.handler_time,
+               n.sender_by,
+               su.nick_name AS sender_name,
+               n.sender_time,
+               n.send_to,
+               n.send_cc,
+               n.send_error,
+               n.create_time,
+               n.update_time
+        FROM sample_notify n
+        LEFT JOIN sys_user hu ON hu.user_id = n.handler_by
+        LEFT JOIN sys_user su ON su.user_id = n.sender_by
+        WHERE n.del_flag = '0'
+          AND n.sign_status = 'signed'
+          AND n.notify_status IN ('pending', 'sent', 'failed')
+        <if test="q.notifyType != null and q.notifyType != ''">
+            AND n.notify_type = #{q.notifyType}
+        </if>
+        <if test="q.notifyStatus != null and q.notifyStatus != ''">
+            AND n.notify_status = #{q.notifyStatus}
+        </if>
+        <if test="q.notifyDateStart != null and q.notifyDateStart != ''">
+            AND n.notify_date &gt;= #{q.notifyDateStart}
+        </if>
+        <if test="q.notifyDateEnd != null and q.notifyDateEnd != ''">
+            AND n.notify_date &lt;= #{q.notifyDateEnd}
+        </if>
+        <if test="q.subbarcode != null and q.subbarcode != ''">
+            AND n.subbarcode LIKE CONCAT('%', #{q.subbarcode}, '%')
+        </if>
+        <if test="q.projectNo != null and q.projectNo != ''">
+            AND n.project_no LIKE CONCAT('%', #{q.projectNo}, '%')
+        </if>
+        <if test="q.keyword != null and q.keyword != ''">
+            AND (n.subbarcode LIKE CONCAT('%', #{q.keyword}, '%')
+                 OR n.sample_name LIKE CONCAT('%', #{q.keyword}, '%')
+                 OR n.participant_no LIKE CONCAT('%', #{q.keyword}, '%'))
+        </if>
+        ORDER BY n.id DESC
+    </select>
+
+    <!-- 项目行抄送邮箱 -->
+    <select id="selectProjectCcEmail" resultType="java.lang.String">
+        SELECT cc_email
+        FROM project_config
+        WHERE project_no = #{projectNo}
+          AND parent_id = 0
+          AND del_flag = '0'
+        LIMIT 1
+    </select>
+
+    <!-- 研究中心行收件邮箱（按项目 + 中心名称匹配中心行） -->
+    <select id="selectCenterReceiveEmail" resultType="java.lang.String">
+        SELECT c.receive_email
+        FROM project_config p
+        JOIN project_config c
+          ON c.project_no = p.project_no
+         AND c.parent_id = p.id
+         AND c.del_flag = '0'
+        WHERE p.project_no = #{projectNo}
+          AND p.parent_id = 0
+          AND p.del_flag = '0'
+          AND c.research_center_name = #{centerName}
+        LIMIT 1
+    </select>
+
+</mapper>
