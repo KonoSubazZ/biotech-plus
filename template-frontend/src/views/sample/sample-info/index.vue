@@ -27,17 +27,15 @@ const { hasAuth } = useAuth();
 
 const importModalVisible = ref(false);
 
-/** 通知弹窗（样本信息行入口：延期通知 / 样本不合格） */
+/** 通知弹窗（样本信息行入口：合并「延期通知 / 样本不合格」，弹窗内 tab 切换） */
 const notifyVisible = ref(false);
-const notifyType = ref<'delay' | 'sample'>('delay');
 const notifySubbarcode = ref('');
 
-function openNotify(row: Api.Report.CmsSample, type: 'delay' | 'sample') {
+function openNotify(row: Api.Report.CmsSample) {
   if (!row.subbarcode) {
     window.$message?.error('该行没有诺禾编号，无法生成通知');
     return;
   }
-  notifyType.value = type;
   notifySubbarcode.value = row.subbarcode;
   notifyVisible.value = true;
 }
@@ -110,7 +108,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
           const iconBtn = (
             localIcon: string,
             tip: string,
-            type: 'primary' | 'warning' | 'error',
+            type: 'primary' | 'success' | 'warning' | 'error',
             onClick: () => void,
             loading = false
           ) => (
@@ -118,18 +116,18 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
           );
 
           const buttons = [
-            iconBtn('notify-view', '查看', 'primary', () => openDetail(row)),
             hasAuth('report:sampleInfo:edit')
-              ? iconBtn('notify-edit', $t('common.edit'), 'primary', () => openEdit(row.id))
+              ? iconBtn(
+                  'notify-refresh',
+                  '从CMS更新样本信息',
+                  'primary',
+                  () => handleRefresh(row),
+                  refreshingId.value === row.id
+                )
               : null,
-            hasAuth('report:sampleInfo:edit')
-              ? iconBtn('notify-refresh', '从 CMS 刷新', 'primary', () => handleRefresh(row), refreshingId.value === row.id)
-              : null,
+            iconBtn('notify-view', '查看详情', 'success', () => openDetail(row)),
             hasAuth('qc:notify:generate')
-              ? iconBtn('notify-delay', '延期通知', 'warning', () => openNotify(row, 'delay'))
-              : null,
-            hasAuth('qc:notify:generate')
-              ? iconBtn('notify-unqualified', '样本不合格', 'error', () => openNotify(row, 'sample'))
+              ? iconBtn('notify-generate', '生成通知', 'warning', () => openNotify(row))
               : null
           ].filter(item => item !== null);
 
@@ -152,7 +150,7 @@ function joinItem(item: unknown, index: number) {
   );
 }
 
-const { drawerVisible, operateType, editingData, handleAdd, handleEdit, checkedRowKeys, onBatchDeleted } =
+const { drawerVisible, operateType, editingData, handleAdd, checkedRowKeys, onBatchDeleted } =
   useTableOperate(data, 'id', getData);
 
 /**
@@ -188,11 +186,6 @@ function openDetail(row: Api.Report.CmsSample) {
 function openAdd() {
   drawerMode.value = 'add';
   handleAdd();
-}
-
-function openEdit(id: CommonType.IdType) {
-  drawerMode.value = 'edit';
-  handleEdit(id);
 }
 
 /** 批量删除：与单条删除共用同一个批量接口 */
@@ -326,7 +319,8 @@ async function handleRefresh(row: Api.Report.CmsSample) {
 
     <QcNotifyModal
       v-model:visible="notifyVisible"
-      :notify-type="notifyType"
+      notify-type="delay"
+      switchable
       :subbarcode="notifySubbarcode"
       @generated="getData"
     />

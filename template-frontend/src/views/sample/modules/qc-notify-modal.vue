@@ -15,17 +15,26 @@ interface Props {
   subbarcode: string;
   /** 通知类型（delay 延期 / sample 样本不合格 / wet_lab 湿实验 / bioinfo 干实验） */
   notifyType: 'delay' | 'sample' | 'wet_lab' | 'bioinfo';
+  /** 是否允许在弹窗内切换「延期通知 / 样本不合格」（样本信息页入口用，质控页保持固定类型） */
+  switchable?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  notifyType: 'bioinfo'
+  notifyType: 'bioinfo',
+  switchable: false
 });
 
-/** 延期通知与三类不合格通知的字段完全不同，模板里按它切换区块 */
-const isDelay = computed(() => props.notifyType === 'delay');
+/** 当前生效的类型：switchable 时由弹窗顶部 tab 切换，否则跟 props 走 */
+const activeType = ref<Props['notifyType']>(props.notifyType);
 
-/** 弹窗标题 */
-const modalTitle = computed(() => (isDelay.value ? '检测报告延迟通知' : '样本质控不合格通知'));
+/** 延期通知与三类不合格通知的字段完全不同，模板里按它切换区块 */
+const isDelay = computed(() => activeType.value === 'delay');
+
+/** 弹窗标题：合并入口统一叫「生成通知」，类型由 tab 区分 */
+const modalTitle = computed(() => {
+  if (props.switchable) return '生成通知';
+  return isDelay.value ? '检测报告延迟通知' : '样本质控不合格通知';
+});
 
 /** 状态/签署中文映射（后端存英文码，页面展示中文） */
 const STATUS_LABEL: Record<string, string> = {
@@ -159,12 +168,12 @@ function pickForm(source: Api.Qc.NotifyPrefill): Api.Qc.NotifyForm {
 async function load() {
   loading.value = true;
   try {
-    const { data, error } = await fetchGetQcNotifyPrefill(props.subbarcode, props.notifyType);
+    const { data, error } = await fetchGetQcNotifyPrefill(props.subbarcode, activeType.value);
     if (error) return;
     prefill.value = data;
     model.value = pickForm(data);
-    // 通知类型以页面传入的为准（预填里回带的可能来自上次另一种类型的记录）
-    model.value.notifyType = props.notifyType;
+    // 通知类型以当前 tab / 页面传入的为准（预填里回带的可能来自上次另一种类型的记录）
+    model.value.notifyType = activeType.value;
     downloadId.value = data.lastNotifyId ?? null;
     notifyStatus.value = data.notifyStatus ?? 'generated';
     signStatus.value = data.signStatus ?? 'none';
@@ -177,8 +186,16 @@ async function load() {
   }
 }
 
+/** 切换 tab：按新类型重新预填（延期＝同订单多样本，不合格＝质控不达标项） */
+function handleTabChange(value: string) {
+  activeType.value = value as Props['notifyType'];
+  load();
+}
+
 watch(visible, value => {
   if (value) {
+    // 每次打开都回到入口类型（样本信息页默认「延期通知」，用户在弹窗里再切）
+    activeType.value = props.notifyType;
     load();
   }
 });
@@ -276,6 +293,13 @@ function handleDownloadSigned() {
 <template>
   <NModal v-model:show="visible" preset="card" :title="modalTitle" class="max-w-90% w-840px" :mask-closable="false">
     <NSpin :show="loading">
+      <!-- 合并入口：一个弹窗两种通知类型，tab 切换后按新类型重新预填 -->
+      <NTabs v-if="switchable" :value="activeType" type="line" :tabs-padding="0" class="mb-12px"
+        @update:value="handleTabChange">
+        <NTabPane name="delay" tab="延期通知" />
+        <NTabPane name="sample" tab="样本不合格" />
+      </NTabs>
+
       <NAlert v-if="generatedHint" type="warning" :bordered="false" class="mb-12px">{{ generatedHint }}</NAlert>
 
       <!-- 与通知单文档同序、同排布：表头一行两个 → 环节 → 不合格原因（下方参考文案）→ 是否终止检测 → 建议处理办法 → 反馈与复核 -->
