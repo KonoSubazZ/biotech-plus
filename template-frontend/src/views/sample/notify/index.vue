@@ -99,10 +99,10 @@ const { columns, data, getData, getDataByPage, loading, mobilePagination, scroll
       key: 'operate',
       title: $t('common.operate'),
       align: 'center',
-      width: 130,
+      width: 150,
       fixed: 'right',
       render: row => (
-        <div class="flex-center gap-4px">
+        <div class="flex-center gap-8px">
           <ButtonIcon
             text
             type="primary"

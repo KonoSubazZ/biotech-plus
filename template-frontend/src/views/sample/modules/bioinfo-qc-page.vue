@@ -166,14 +166,14 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 120,
+        width: 150,
         fixed: 'right',
         render: row => {
           // 顺序固定「修改 | 删除 | 处理」：按条件出现的「处理」放最后，
           // 这样不同行的 修改/删除 永远在同一列（对齐），不会因为多一个按钮就整体错位
           const buttons = [editBtn(row), deleteBtn(row), fixBtn(row)].filter(item => item !== null);
-          // 间隙收窄：3 个按钮 + 两根分隔线也要能被 120px 的操作列包住，不然整组会被挤得偏左
-          return <div class="flex-center gap-4px">{buttons.map(joinItem)}</div>;
+          // 3 个按钮 + 两根分隔线，gap-8px（与 ai-templates 一致），操作列宽 150 包得住
+          return <div class="flex-center gap-8px">{buttons.map(joinItem)}</div>;
         }
       }
     ]

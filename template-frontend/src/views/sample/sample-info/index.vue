@@ -101,7 +101,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 120,
+        width: 150,
         fixed: 'right',
         render: row => {
           /**
@@ -142,7 +142,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
               : null
           ].filter(item => item !== null);
 
-          return <div class="flex-center gap-4px">{buttons.map(joinItem)}</div>;
+          return <div class="flex-center gap-8px">{buttons.map(joinItem)}</div>;
         }
       }
     ]
