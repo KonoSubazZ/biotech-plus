@@ -5,7 +5,7 @@ import { jsonClone } from '@sa/utils';
 import { menuIconTypeOptions, menuIsFrameOptions, menuLayoutOptions, menuTypeOptions } from '@/constants/business';
 import { fetchCreateMenu, fetchUpdateMenu } from '@/service/api/system';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
-import { getLocalMenuIcons } from '@/utils/icon';
+import { getIconifyMenuIcons, getLocalMenuIcons, isIconifyIconAvailable } from '@/utils/icon';
 import { isNotNull } from '@/utils/common';
 import { $t } from '@/locales';
 import SvgIcon from '@/components/custom/svg-icon.vue';
@@ -125,6 +125,35 @@ const localIconOptions = localIcons.map<SelectOption>(item => ({
   ),
   value: `local-icon-${item}`
 }));
+
+// iconify 图标（ant-design 同族，带视觉尺寸归一化系数）
+const iconifyIcons = getIconifyMenuIcons();
+const iconifyIconOptions = iconifyIcons.map<SelectOption>(item => ({
+  label: () => (
+    <div class="flex-y-center gap-16px">
+      {/* 固定尺寸的槽位 + 按 scale 缩放的图标：让所有图标视觉大小一致，文字也左对齐 */}
+      <span class="inline-flex flex-none items-center justify-center" style={{ width: '1.35em', height: '1.35em' }}>
+        <SvgIcon icon={item.name} style={{ width: `${item.scale}em`, height: `${item.scale}em` }} />
+      </span>
+      <span>{item.name}</span>
+    </div>
+  ),
+  value: item.name
+}));
+
+// 填了离线包里没有的图标：能保存，但菜单上不会显示
+const iconifyIconUnavailable = computed(() => {
+  const icon = model.value.icon;
+  if (isLocalIcon.value || !icon) return false;
+  return !isIconifyIconAvailable(icon);
+});
+
+// 下拉过滤按图标全名匹配（label 是渲染函数，走默认过滤会失效）
+function filterIconifyIcon(pattern: string, option: SelectOption) {
+  return String(option.value ?? '')
+    .toLowerCase()
+    .includes(pattern.toLowerCase());
+}
 
 function handleInitModel() {
   queryList.value = [];
@@ -353,15 +382,19 @@ function onCreate() {
               />
             </template>
             <template v-else>
-              <NInput
-                v-model:value="model.icon"
-                :placeholder="$t('page.system.menu.placeholder.iconifyIconPlaceholder')"
-                class="flex-1"
-              >
-                <template #suffix>
-                  <SvgIcon v-if="model.icon" :icon="model.icon" class="text-icon" />
-                </template>
-              </NInput>
+              <div class="w-full">
+                <NSelect
+                  v-model:value="model.icon"
+                  :placeholder="$t('page.system.menu.placeholder.iconifyIconPlaceholder')"
+                  filterable
+                  tag
+                  :filter="filterIconifyIcon"
+                  :options="iconifyIconOptions"
+                />
+                <NText v-if="iconifyIconUnavailable" type="error" class="mt-1 block text-12px">
+                  {{ $t('page.system.menu.iconifyNotAvailable') }}
+                </NText>
+              </div>
             </template>
           </NFormItemGi>
           <NFormItemGi v-if="!isBtn" :span="12" path="isFrame">

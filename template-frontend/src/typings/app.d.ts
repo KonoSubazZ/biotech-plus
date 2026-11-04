@@ -787,6 +787,7 @@ declare namespace App {
             menuDetail: string;
             cascadeDeleteContent: string;
             iconifyTip: string;
+            iconifyNotAvailable: string;
             isFrameTip: string;
             isCacheTip: string;
             visibleTip: string;

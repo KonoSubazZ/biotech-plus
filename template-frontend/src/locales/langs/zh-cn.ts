@@ -769,6 +769,7 @@ const local: App.I18n.Schema = {
         menuDetail: '菜单详情',
         cascadeDeleteContent: '级联删除菜单将删除所选中的菜单，是否继续？',
         iconifyTip: 'iconify 地址：https://icones.js.org',
+        iconifyNotAvailable: '该图标不在本地离线包中，保存后菜单上不会显示',
         isFrameTip: '选择是外链则路由地址需要以`http(s)://`开头',
         isCacheTip: '选择是则会被`keep-alive`缓存，需要匹配组件的`name`和地址保持一致',
         visibleTip: '选择隐藏则路由将不会出现在侧边栏，但仍然可以访问',
@@ -840,7 +841,7 @@ const local: App.I18n.Schema = {
           }
         },
         placeholder: {
-          iconifyIconPlaceholder: '请输入图标',
+          iconifyIconPlaceholder: '请选择图标',
           localIconPlaceholder: '请选择本地图标',
           queryKey: '请输入 Key',
           queryValue: '请输入 Value',

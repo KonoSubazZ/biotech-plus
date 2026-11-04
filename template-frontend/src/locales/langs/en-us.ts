@@ -773,6 +773,7 @@ const local: App.I18n.Schema = {
         menuDetail: 'Menu Detail',
         cascadeDeleteContent: 'Cascade delete menu will delete the selected menu and all its sub-menus, are you sure?',
         iconifyTip: 'iconify address：`https://icones.js.org`',
+        iconifyNotAvailable: 'This icon is not in the local offline pack and will not be displayed in the menu',
         isFrameTip: 'If you choose External Link, the routing address needs to start with `http(s)://`',
         isCacheTip:
           'If you select yes, it will be cached by `keep-alive`, and the `name` and address of the matching component must be consistent',
@@ -848,7 +849,7 @@ const local: App.I18n.Schema = {
           }
         },
         placeholder: {
-          iconifyIconPlaceholder: 'Please enter an icon',
+          iconifyIconPlaceholder: 'Please select an icon',
           localIconPlaceholder: 'Please select the local icon',
           queryKey: 'Please enter a key',
           queryValue: 'Please enter a value',

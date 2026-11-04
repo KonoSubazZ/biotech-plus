@@ -124,7 +124,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'home',
       i18nKey: 'route.home',
-      icon: 'mdi:monitor-dashboard',
+      icon: 'ant-design:bar-chart-outlined',
       order: 1
     }
   },
