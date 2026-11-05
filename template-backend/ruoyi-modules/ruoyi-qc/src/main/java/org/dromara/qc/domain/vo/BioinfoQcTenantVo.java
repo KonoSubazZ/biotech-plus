@@ -13,7 +13,7 @@ public class BioinfoQcTenantVo {
     /** 入参样本编号 */
     private String subbarcode;
 
-    /** sample_file.customer_name（= 药企名） */
+    /** cms_sample.customer_name（= 药企名） */
     private String customerName;
 
     /** 解析出的药企编号（sys_tenant.tenant_id） */

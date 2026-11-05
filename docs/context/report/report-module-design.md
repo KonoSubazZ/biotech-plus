@@ -6,7 +6,7 @@
 >
 > 设计原则：关联关系由业务代码维护，数据库不建立物理外键；`report_template.module_code` 只负责选择 Java 业务处理器；模板不保存复杂业务规则；完整预览结果不落库，只保存可复用的位点匹配历史，并在正式生成时冻结最终 JSON。
 
-## 0. 当前实现权威快照（2026-09-14）
+## 0. 当前实现权威快照（2026-09-14，最新修订 2026-10-27）
 
 本节是给后续重写 Agent 的实现基线。若本文后续“目标草案”或“分阶段实施”与本节冲突，以本节、当前 Java 代码及 Flyway 迁移为准。
 
@@ -21,7 +21,7 @@
 SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1
 ```
 
-- 当前 JSON 协议版本为 `1.2`。个性化结果分别写入 `shengyuSomaticVariants`、`shengyuGermlineVariants` 和圣域质控字段，公共预览仍保留在根对象中供页面使用。
+- 当前 JSON 协议版本为 `1.3`（sampleInfo 改为 cms_sample 的 45 个字段，旧 JSON 不迁移）。个性化结果分别写入 `shengyuSomaticVariants`、`shengyuGermlineVariants` 和圣域质控字段，公共预览仍保留在根对象中供页面使用。
 
 ### 0.2 圣域 1238 业务规则
 
@@ -30,26 +30,37 @@ SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1
 - 其他实体瘤：圣域个性化体细胞结果为空，只输出胚系结果。
 - 两类结果都按当前产品启用的 `product_gene` 过滤和补空行；产品未配置启用基因时结果为空并返回告警，不得静默当作“全部基因”。
 - `novopm2_tis_1238` 与 `novopm2_blo_1238` 使用同一模板 `pharma-shengyu` 和同一组 8 个基因：`BRCA1`、`BRCA2`、`PALB2`、`RAD51C`、`RAD51D`、`BRIP1`、`BARD1`、`FANCD2`。
-- 数据库中的稳定产品编码分别为 `SYN-818-102_novopm2_tis_1238`、`SYN-818-102_novopm2_blo_1238`；`analysis_data.product` 当前保存短产品名。`analysis_data.product_id` 为空时，查询必须兼容按 `product_code` 或 `product_name` 定位产品。
+- 数据库中的稳定产品编码分别为 `SYN-818-102_novopm2_tis_1238`、`SYN-818-102_novopm2_blo_1238`；`analysis_data.product_bio` 当前保存短产品名。`analysis_data.product_bio_id` 为空时，查询必须兼容按 `product_code` 或 `product_name` 定位产品。
 
 ### 0.3 胚系历史、临床意义与改靶
 
 - 胚系来源是 `file_CR_ALL` 中 `is_reported = 1` 的记录；所有报出胚系位点都进入 `history_germline`/NKB 的 `G` 类匹配，不再依赖 `omics.rp_cr.has_drug` 或 `rp_cr.Clinical_significance`。
 - 药物匹配历史键包含：基因、规范位点、原始位点、NKB 癌种 ID/名称、性别、客户、产品、来源类型、突变类型、合子状态和人工父级 `parent_mutation_id`。
 - 客户和产品相同并不代表无条件复用；癌种、性别和位点等全部维度也必须一致。`source_analysis_id`、`source_report_id`、`source_variant_id` 只用于审计，不进入跨报告复用键。
-- `history_germline.clinical_significance` 保存人工确认的五级临床意义：`1=致病`、`2=可能致病`、`3=未知临床意义`、`4=可能良性`、`5=良性`，默认值为 3。
-- 页面允许对每个胚系位点执行“修改临床意义”和“改靶/调整改靶”。保存临床意义要求该位点已经通过预览建立历史记录。
-- 改靶会更新 `file_CR_ALL.parent_mutation_id`，因此药物匹配生成新的技术历史键；新历史记录必须继承同一客户、产品、癌种、性别、位点和合子状态下最近一条临床意义，不能恢复为默认值 3。
+- `history_germline.clinical_significance` 保存人工确认的五级临床意义：`1=致病`、`2=可能致病`、`3=未知临床意义`、`4=可能良性`、`5=良性`，默认值为 3。**该值只在审核通过冻结时写入**（未命中首条 `INSERT IGNORE`），已入库后不可再改。
+- 页面允许对每个胚系位点执行“修改临床意义”和“改靶”，但**只有未入库的位点（`history_germline` 没有该 match_key，页面来源=知识库）允许改临床意义**；已入库（来源=历史）整行只读：临床意义下拉、改靶、突变说明编辑都禁用，后端同样拒绝。对 `history_*` 的更新只允许命中历史时的 `reuse_count+1` / `last_reused_at`（冻结结果与 `match_result` 不被覆盖）。
+  未入库时改的值存报告级 `analysis_report.report_variant_edits`（键 `<gene>_<variant>_<sourceType>:<sourceId>`）；预览/生成套用它，审核通过从生成 JSON 冻结时写进 `history_germline.clinical_significance`。
+- 改靶（父靶点）**不再写源位点表** `file_*.parent_mutation_id`：写入 `report_variant_edits.parentMutationIds`，只影响本报告匹配；空数组 = 取消改靶。
 - 临床意义继承明确忽略 `parent_mutation_id`，但不忽略癌种和性别；药物证据复用仍包含 `parent_mutation_id`，两种语义不可合并成一个宽松键。
+- **位点人工修改**（2026-11-05 统一口径）：三类修改 —— 父靶点（体细胞/胚系）、胚系临床意义、突变说明 —— 统一存
+  `analysis_report.report_variant_edits`（`json`，键 `<gene>_<variant>_<sourceType>:<sourceId>`，**报告粒度**，只存改过的位点）。
+  - 只有未入库位点可改（`history_*` 无该 match_key）；来源=历史（已入库）整行只读（前端置灰、后端拒绝）。
+  - 只有 `ReportRevisionPolicy.GENERATABLE`（31/32/33/52）允许写，40+ 已送审/已发送只读（UPDATE 的 WHERE 兜底）。
+  - 不写 history_*、不写 `file_*.parent_mutation_id`；预览/生成共用的 `assemble()` 读取并套用，**只影响本报告生成的 JSON**。
+  - 突变说明默认 = HGVS 中文译文 + NKB 位点说明直接拼接（en7 口径，NKB 无位点说明用 `description` 兜底），每次实时算、不进冻结。
+  - JSON 字段：`items[].mutationDescription`；历史 DOCX 模板没有该占位符，新模板用 `{{it.mutationDescription or ''}}`。
 
 ### 0.4 报告 JSON 生命周期与存储位置
 
 - 预览 JSON 只存在于 Java 对象和 HTTP 响应，不写数据库，也不创建预览文件。
+- 例外只有「人工修改」：它不是预览 JSON 的快照，而是**输入侧**的一列 `analysis_report.report_variant_edits`（json，报告粒度）。预览与生成都读它；生成后写进 JSON，审核通过从 JSON 冻结 history_*。见 §0.3。
 - 正式生成时服务端重新查询最新 LIMS、报出位点、改靶、临床意义、产品基因和模板配置，不接受前端回传的预览 JSON。
-- 当前实现把最终 JSON 写入 `<artifact-root>/report/json/`、原始 DOCX 写入 `<artifact-root>/report/docx/<yyyyMMdd>/`（均不再建 reportId 子目录）；转化 PDF 与签名后 PDF 分别落 `<artifact-root>/report/pdf|signed/<yyyyMMdd>/`（见 report-docx-renderer.md 的「制品目录」）。
+- 当前实现把最终 JSON 写入 `<artifact-root>/report/json/<analysis_date>/`、原始 DOCX 写入 `<artifact-root>/report/docx/<analysis_date>/`、转化 PDF 写 `<artifact-root>/report/pdf/<analysis_date>/`、签名后 PDF 写 `<artifact-root>/report/signed/<analysis_date>/`（同样取 analysis_date，不取签名当天）（均不再建 reportId/版本子目录，日期取 `analysis_report.analysis_date`；见 report-docx-renderer.md 的「制品目录」）。
 - DOCX 与 JSON 使用相同文件名前缀；`analysis_report.report_json_path` 保存 JSON 路径，`report_file_raw_path` 保存 DOCX 路径，`template_id/template/report_generated_by/report_generated_at` 同时更新。
 - 再次生成会重新组装数据并创建新的唯一 JSON/DOCX 文件，因此内容可能随最新业务数据变化；数据库路径会指向最新制品，旧 JSON 文件不会被原地修改。
 - 当前运行代码不把 JSON 内容写入 `analysis_report.report_detail`，也未使用 `report_json_hash`。本文后续出现的 `report_detail`/哈希方案属于旧目标草案，重写时不得当作已实现行为。
+- 生成失败不归档：本轮制品先写在临时区 `<root>/.work/<tenant>_<reportId>_<轮次>/`，全部成功才逐阶段 move 到日期目录；失败只丢弃临时区（不建 `failed/` 目录、不留半成品、不落库），状态落 33。
+- 审核驳回归档：把该报告已有的 JSON/DOCX/PDF/签名件 move 到 `<root>/report/rejected/<analysis_date>/<subbarcode>_V<version>/{json,docx,pdf,signed}/`，同目录写一份 `manifest.json`；移出后用 `clearReportArtifact` 把库里 4 个路径字段置空（归档位置**不入库**），避免下载接口拿到已失效路径。
 
 ### 0.5 当前接口
 
@@ -81,11 +92,99 @@ POST /admin/report/template/generate
 
 已执行过的 Flyway 迁移不可回改。已有环境通过后续版本增量升级；新语言实现可以按版本顺序复现，或据此生成一份等价的全量初始化脚本。
 
+### 0.7 流转状态码、生信认领、只读查看与历史冻结时机（2026-10-27 现行口径）
+
+本节是 2026-10-27 落地的四条现行口径。本文后续章节若出现 `PENDING_REVIEW` / `APPROVED` / `REJECTED` 这类英文枚举，
+或“提交审核即冻结历史”的表述，**都属于早期草案，以本节与代码为准**。
+
+#### 0.7.1 状态码（`analysis_report.report_status`，权威定义 `utils/ReportStatus.java`）
+
+线性主链 + 失败旁支，没有前一状态就没有后一状态的数据：
+
+| 码 | 含义 | 进入条件 |
+| -- | ---- | -------- |
+| 20 | 生信看点 | 生信在样本流转「生信看点」点「处理」，建/复用该批次的报告记录 |
+| 21 | 生信审核 | 看点完成（20→21），**必须由另一个人**复核 |
+| 30 | 报告待解读 | 生信复核通过（21→30） |
+| 31 | 报告解读中 | 解读员进入/认领；也是审核驳回后的回退落点 |
+| 32 | 报告生成成功 | JSON/DOCX/PDF 三件套全部生成成功 |
+| 33 | 报告生成失败 | 生成异常，可重新生成（临时区已丢弃） |
+| 40 | 报告待审核 | 提交审核（32→40） |
+| 41 | 报告审核中 | 复核员认领（40→41） |
+| 42 | 报告审核失败 | 已定义但**当前不落库**：审核驳回直接回退 31，来源状态记进 `report_revert_from` |
+| 43 | 报告审核成功 | 瞬时态：写入审核人后立即自动送签转 50 |
+| 50 | 报告签名中 | 已送上上签，等回调或手动刷新 |
+| 52 | 报告签名失败 | 可重新送签 |
+| 53 | 报告签名成功 | 已定义但**当前不落库**：收到签名件由签名服务直接写 60（查询过滤里仍兼容 50/52/53） |
+| 60 | 报告待发送 | 签名件已落盘 |
+| 61 | 报告发送失败 | 可重发 |
+| 62 | 报告发送成功 | 终态；也是“可以再新建报告”的判据 |
+
+#### 0.7.2 生信看点 / 生信审核的认领（方案 B：不加字段、复用 `*_by`）
+
+「处理」先占人、不改状态；「完成」再校验占人并推进状态。字段就是原有的
+`report_bioinfo_viewed_by/at`、`report_bioinfo_reviewed_by/at`（存 user_id，不新增 `claimed_*` 列）。
+
+| 动作 | 入口 | 写入 | SQL 条件 | 冲突结果 |
+| ---- | ---- | ---- | -------- | -------- |
+| 认领看点 | 样本流转「生信看点」点处理 → `POST /report/flow/handle`（tab=bioinfo-view） | `report_bioinfo_viewed_by` | `report_status=20 AND (viewed_by IS NULL OR viewed_by=当前用户)` | 影响 0 行 → 「该报告已被他人认领，请刷新列表」 |
+| 认领复核 | 「生信审核」点处理（tab=bioinfo-review） | `report_bioinfo_reviewed_by` | `report_status=21 AND (reviewed_by IS NULL OR reviewed_by=当前用户)` | 同上；且看点人不能复核自己看点的报告 |
+| 看点完成 | 筛选位点页签提交 | `report_bioinfo_viewed_at` + 状态 21 | 认领人必须是当前用户；未认领时先幂等占位 | 0 行 → 「报告状态已变化，请刷新后重试」 |
+| 复核通过 | 筛选位点页签提交 | `report_bioinfo_reviewed_at` + 状态 30 | 同上，且 `viewed_by ≠ 当前用户` | 同上 |
+
+已知限制（方案 B 的固有限制，未额外加机制）：
+
+- 认领只是“防多人同时处理”的占位，**不是硬前置**：审核接口允许 40（未认领）直接审核 / 驳回；40→41 只在点「处理」时发生。
+- 认领**不会自动释放**：认领人不处理就卡住，需要改库（或以后加超时释放）。
+- 列表**不显示认领人姓名**（字段存 user_id），要显示需 JOIN `sys_user`。
+- 认领后别人仍能打开详情、能看，只是点「完成」会被拒；要“别人完全看不到”得再加读侧过滤。
+
+#### 0.7.3 已完成报告（62）的只读查看
+
+- `POST /report/interpretation/enter` 入参加 `readonly`：`readonly=true` 时**只按 `analysisId` 找该批次已有报告直接返回**，
+  不新建报告、不补快照、不校验流转状态；该批次没有报告直接报错。
+- 前端列表对 62 的行给两个按钮：**查看解读**（`readonly=true`）与 **重新解读**（原链路：重扫出新批次、新建报告）。
+- 详情页带 `readonly=1` 时：顶部出现「只读查看」标签，9 个页签都能浏览，页签内按钮/输入框/下拉/开关
+  （`pointer-events:none` + 变灰）全部不可操作；预览页签对 62 自动读冻结 JSON（原有逻辑）。
+- 重新解读：只允许 62 → 走驱动 `type=REINTERPRET` 建新 `analysis_id` → `enterAfterRescan` 建新报告，
+  `source_report_id` 指向来源报告；已有子报告时直接返回子报告（幂等）。
+
+#### 0.7.4 位点历史冻结时机：审核通过才写
+
+| 环节 | 是否写历史 |
+| ---- | ---------- |
+| 预览 / 生成（32） | 不写；只读历史（命中就复用冻结结果），未命中查最新知识库 |
+| 提交审核（32→40/41） | **不写**（2026-10-27 起从这里移走） |
+| 审核通过（40/41→43） | **写**：命中历史 → `reuse_count+1` + `last_reused_at` + 写一条 `history_reuse_log`；未命中 → `INSERT IGNORE` 冻结首条，并写 `report_variant_history`（历史检出） |
+| 审核驳回 | 不写（所以驳回的报告不会污染历史） |
+
+- 冻结与状态更新在**同一事务**：`freezeHistory` 抛错则审核通过回滚。
+- 副作用（有意接受）：提交审核后到审核通过前，「历史检出」页看不到本报告的位点，审核通过那一刻才出现。
+
+#### 0.7.5 驳回处置
+
+- 只有 40/41 能驳回；驳回原因必填；产出人不能审核/驳回自己的报告；状态条件更新，重复点击后到的那次影响 0 行直接报错。
+- 归档：`report/rejected/<analysis_date>/<subbarcode>_V<version>/` + `manifest.json`
+  （`reportId / reportVersion / reportGenerationNo / reportName / analysisDate / rejectedBy / rejectedAt / reason`）。
+- 归档失败 → 抛错且**状态不变**（不会出现“文件移走了但状态没回退”）。
+- 库里 4 个路径字段置空，状态回 31，来源状态与原因写进 `report_revert_from` / `comment`，
+  「报告解读中」页签据此打「审核失败回退」标签。
+
+#### 0.7.6 代码落点（复现这 5 条时改这几处）
+
+| 口径 | 落点 |
+| ---- | ---- |
+| 只读查看 | `InterpretationEnterBo.readonly` · `IInterpretationService.enter(analysisId, readonly)` · `InterpretationServiceImpl.enter` · `InterpretationController.enter` · 前端 `views/report/interpretation/index.vue`（两按钮 + `readonly=1`）、`modules/interpretation-detail.vue`（props + 只读标签/样式） |
+| 生信认领 | `IInterpretationService.claimBioinfoView/claimBioinfoReview` · `InterpretationMapper.xml` 的 `claimBioinfoView/claimBioinfoReview`（新增）与 `updateBioinfoViewed/updateBioinfoReviewed`（加“认领人=当前用户”条件） · `SampleFlowServiceImpl`（两个页签「处理」时调认领） |
+| 冻结时机 | `InterpretationReviewService.submitLocked`（删 `freezeHistory`）· `approveLocked`（加 `freezeHistory`） |
+| 驳回归档 | `ReportArtifactStore.rejected` · `ReportArtifactPaths.rejectedDir` · `InterpretationReviewService.rejectLocked`（先归档再清路径再回退状态） |
+| 制品目录 | `ReportArtifactPaths`（`reportDir/rejectedDir/requireDay`）· `ReportArtifactStore`（`.work` 临时区 → 日期目录）· `ReportGenerationService` · `ReportSignSsqService` |
+
 ## 1. 架构结论
 
 报告模块分为四层：
 
-1. 数据层：`scanner.py` 负责把文件写入 `data_file_status` 和各 `file_*` 明细表。
+1. 数据层：`scanner.py` 负责把文件写入 `analysis_file_status` 和各 `file_*` 明细表。
 2. 解读层：Java 动态读取 LIMS、文件、位点、产品和模板，并允许修改共享的 `file_* .is_reported`。
 3. 匹配层：Java 先组装公共字段，再按 `report_template.module_code` 的分号顺序执行个性化处理器；精确命中 `history_somatic/history_germline` 时复用冻结的位点匹配，否则查询最新知识库并首次写入历史。
 4. 生成层：点击生成时重新执行匹配，把最终 JSON 和 DOCX 写入制品目录，并分别把路径登记到 `analysis_report.report_json_path` 和 `report_file_raw_path`。
@@ -110,7 +209,7 @@ POST /admin/report/template/generate
 | --------- | --------------------------------------------------------------------- | ---------------------------------------------- |
 | 数据上传  | `docs/report-driver/scanner.py`                                       | 解析路径并启动文件扫描                         |
 | 分析批次  | `core/file_scanner.py`、`analysis_data`                               | 按样本、产品、分析日期创建或复用 `analysis_id` |
-| 文件记录  | `data_file_status`                                                    | 保存文件路径、类型、状态、解析信息             |
+| 文件记录  | `analysis_file_status`                                                    | 保存文件路径、类型、状态、解析信息             |
 | 文件明细  | `file_Somatic_SNV_Indel`、`file_CNV`、`file_Fusion`、`file_CR_ALL` 等 | Processor 按 `file_id` 写入对应子表            |
 | 报告入口  | `ReportService`、`analysis_report`                                    | 点击解读创建或进入 `report_id`                 |
 | LIMS 展示 | `ReportMapper.selectLimsInfo`                                         | `subbarcode = BARCODE`，按最新记录动态读取     |
@@ -136,7 +235,7 @@ POST /admin/report/template/generate
 ### 3.1 业务关系
 
 ```text
-analysis_data 1 --- N data_file_status 1 --- N file_* 明细
+analysis_data 1 --- N analysis_file_status 1 --- N file_* 明细
       |
       +--- N analysis_report
 
@@ -158,7 +257,7 @@ file_CR_ALL --- history_germline 通过来源 ID 逻辑追踪
 
 | 关联字段                                  | 写入前逻辑校验                                   | 删除规则                       |
 | ----------------------------------------- | ------------------------------------------------ | ------------------------------ |
-| `data_file_status.analysis_id`            | `analysis_data` 存在且未删除                     | 分析数据存在文件时禁止物理删除 |
+| `analysis_file_status.analysis_id`            | `analysis_data` 存在且未删除                     | 分析数据存在文件时禁止物理删除 |
 | `analysis_report.analysis_id`             | 分析数据存在且驱动状态可解读                     | 报告存在时分析数据只能逻辑删除 |
 | `analysis_report.product_id`              | 产品存在且启用，并与分析数据产品一致             | 被报告引用的产品禁止物理删除   |
 | `analysis_report.template_id`             | 模板存在且启用，`module_code` 已注册，且 `product_template` 允许该组合 | 被报告引用的模板禁止物理删除   |
@@ -296,7 +395,7 @@ MySQL 5.7 无法通过普通唯一索引表达“同一产品只能有一个启�
 
 ### 4.6 分析数据增量字段
 
-现有 `analysis_data.product` 继续保留为上传时的产品名称，同时增加逻辑产品 ID：
+现有 `analysis_data.product_bio` 继续保留为上传时的产品名称，同时增加逻辑产品 ID：
 
 ```sql
 ALTER TABLE `analysis_data`
@@ -304,7 +403,7 @@ ALTER TABLE `analysis_data`
   ADD KEY `idx_analysis_product_id` (`product_id`, `deleted`);
 ```
 
-回填时用 `analysis_data.product = product.product_code` 匹配。未匹配数据先输出清单，不应自动创建未知产品。
+回填时用 `analysis_data.product_bio = product.product_code` 匹配。未匹配数据先输出清单，不应自动创建未知产品。
 
 ### 4.7 报告增量字段
 
@@ -323,7 +422,7 @@ ALTER TABLE `analysis_report`
 沿用现有字段：
 
 - `analysis_id`：报告所属分析。
-- `product`：当前报告产品短名称；产品主数据通过 `analysis_data.product_id` 或产品名称兼容查询。
+- `product`：当前报告产品短名称；产品主数据通过 `analysis_data.product_bio_id` 或产品名称兼容查询。
 - `template_id`、`template`：本次生成使用的模板 ID 和编码。
 - `report_json_path`：本次最新正式生成 JSON 的文件路径。
 - `report_file_raw_path`：生成的 DOCX 路径。
@@ -339,10 +438,14 @@ ALTER TABLE `analysis_report`
 实际建表迁移为 `V8__report_match_history.sql`；v2 键口径 + 复用留痕由
 `script/sql/update/update_5.6.4-history-reuse-tracking.sql` 增量落地。两张表字段结构保持一致：
 
-- **复用键（v2，当前口径）**：`project_code`（产品项目）、`disease_id/disease`（癌种）、`gender`、
-  `gene`、`variant`、`ori_variant`、`parent_mutation_id`（人工改靶）。
-  键 = 上列规范化后 `sha256("v2|产品项目|癌种|性别|基因|位点|原始位点|改靶父级")`。
-  同产品项目下同一位点（同癌种、同性别、同改靶）复用同一条冻结结果。
+- **复用键（v4，当前口径，2026-10-22）**：`project_no`（项目编号）、`project_code`（产品项目 = product_bio）、
+  `disease_id/disease`（癌种）、`gender`、`gene`、`variant`、`ori_variant`。
+  键 = 上列规范化后 `sha256("v4|项目编号|产品项目|癌种|性别|基因|位点|原始位点")`。
+  即匹配到历史位点必须 **gene + variant + disease + gender + project_no + product_bio**（+ 原始位点）一致，
+  避免跨项目复用；胚系临床意义继承的 where 也同步加上 `project_no`。
+  **改靶父级（parent_mutation_id）不进复用键**：历史的语义是「位点 → 已匹配结果」的缓存（自动匹配、人工改靶都会留历史），
+  匹配顺序是**先查历史、命中即复用，命中不到才走知识库匹配与用药逻辑**；父级属于匹配结果侧而非位点身份，
+  带上会让同一位置因父级不同而命中不上历史。该列仍填充、仍参与"首次实时匹配"的用药计算。
 - `customer`（医院）、`source_type`、`mutation_type`、`measurement`（合子）：**列保留、继续填充，但已不进复用键**。
   复用边界是「产品项目」，不按医院；来源类型/突变类型/合子是位点短名的派生或次要维度。
 - `key_version`：复用键口径版本（1=旧键含 customer，2=当前键）。迁移把 v1 行 `del_flag='1'` 退役，不物理删除。
@@ -354,7 +457,7 @@ ALTER TABLE `analysis_report`
 - `source_analysis_id`、`source_report_id`、`source_variant_id`：仅用于审计追踪，不建立外键。
 - `match_key`：全部匹配条件规范化后计算 SHA-256，并使用唯一索引保证首次结果不会被后续知识库更新覆盖。
 
-上下文映射：`customer` 依次取最新 LIMS 的 `CUSTOMERNAME`、`CUSTOMEDESC`、`corpdesc`；全部为空时使用 `UNKNOWN_CUSTOMER@ANALYSIS:{analysisId}`，仅允许同一分析下的多报告复用，避免未知客户跨样本串用。`project_code = analysis_data.product`。项目编号缺失时不读写历史，直接使用最新知识库结果。
+上下文映射：`customer` 依次取最新 LIMS 的 `CUSTOMERNAME`、`CUSTOMEDESC`、`corpdesc`；全部为空时使用 `UNKNOWN_CUSTOMER@ANALYSIS:{analysisId}`，仅允许同一分析下的多报告复用，避免未知客户跨样本串用。`project_code = analysis_data.product_bio`。项目编号缺失时不读写历史，直接使用最新知识库结果。
 
 查找规则：
 
@@ -452,7 +555,7 @@ LIMS 通常不变，因此不做版本化。若 LIMS 在报告正式生成前发
 更新前服务层必须校验：
 
 1. `source_id` 存在且未删除。
-2. 通过 `file_id -> data_file_status.analysis_id` 验证位点属于请求中的分析批次。
+2. 通过 `file_id -> analysis_file_status.analysis_id` 验证位点属于请求中的分析批次。
 3. `is_reported` 只能是 `0` 或 `1`。
 4. 设为不报出时，过滤理由是否必填由当前业务规则决定。
 
@@ -611,30 +714,65 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
 
 ```json
 {
-  "schemaVersion": "1.2",
+  "schemaVersion": "1.3",
   "templateCode": "pharma-shengyu",
   "templateVersion": "v1",
   "analysisId": 123,
   "reportId": 456,
   "reportInfo": {
     "reportDate": "2026-09-14",
-    "specimentType": "tissue"
+    "specimenType": "tissue"
   },
   "showTissueBloodSample": true,
   "showBloodOnlySample": false,
   "sampleInfo": {
-    "researchCenterName": "示例研究中心",
-    "participantNumber": "SUBJECT-001",
-    "gender": "女",
+    "orderNo": "ORDER-001",
+    "batchNo": "BATCH-001",
+    "customerName": "示例医院",
+    "contractName": "示例合同",
+    "contractNo": "HT-2026-001",
+    "schemeNo": "UAT-PROTOCOL-20261012-01",
+    "projectNo": "NG0101",
+    "researchCenter": "示例研究中心",
+    "operatorName": "运营-张三",
+    "contractContactEmail": "contact@example.com",
+    "senderName": "送检-李四",
+    "senderPhone": "13800000000",
+    "sendDate": "2026-08-18",
+    "expressCompany": "顺丰",
+    "expressNo": "SF1234567890",
+    "transportCondition": "常温",
+    "hasTemperatureLogger": "否",
+    "subbarcode": "SAMPLE-001",
+    "subbarcodes": "SAMPLE-001、SAMPLE-002",
+    "customerSamplingCode": "CUST-001",
+    "sampleName": "示例样本",
+    "subjectNo": "SUBJECT-001",
+    "sex": "女",
     "birthYear": "1980",
-    "disease": "乳腺癌",
-    "visitCycle": null,
-    "sampleCode": "SAMPLE-001",
+    "diseaseType": "乳腺癌",
+    "visitCycle": "C1D1",
     "sampleType": "组织+全血",
-    "tissueCollectionDate": null,
-    "sectionDate": null,
-    "bloodCollectionDate": null,
-    "receivedDate": "2026-08-19"
+    "sampleTypes": "石蜡切片、全血(白细胞)",
+    "sampleQuantity": "15",
+    "quantityUnit": "张",
+    "sampleAttribute": "石蜡切片",
+    "collectionSite": "乳腺",
+    "tissueType": "FFPE",
+    "tumorType": "实体瘤",
+    "primaryTumorSite": "乳腺",
+    "collectionDate": "2026-08-17",
+    "assayMethod": "NGS",
+    "productCode": "novopm2_tis_1238",
+    "productName": "双样本-实体瘤组织1238基因检测",
+    "controlType": "组织对照",
+    "remark": "示例备注",
+    "abnormalRemark": null,
+    "reportReceiver": "王医生",
+    "reportEmail": "doctor@example.com",
+    "receiveConfirmTime": "2026-08-19 10:00:00",
+    "orderSubmitTime": "2026-08-18 09:00:00",
+    "arrivalTime": "2026-08-19 09:30:00"
   },
   "somaticVariants": {
     "summary": {},
@@ -650,6 +788,7 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
         "zygosity": "杂合",
         "clinicalSignificance": 1,
         "clinicalSignificanceLabel": "致病",
+        "fromHistory": true,
         "matchStatus": "MATCHED",
         "drugMatch": {}
       }
@@ -697,6 +836,16 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
   "warnings": []
 }
 ```
+
+- sampleInfo 自 2026-11-04 起多两个订单维度汇总字段（冗余、含当前样本）：
+  `sampleTypes`（订单下全部样本类型，按编号升序去重、“、”连接，如 `石蜡切片、全血(白细胞)`）、
+  `subbarcodes`（订单下全部诺禾编号，按编号升序、“、”连接）。双样本（组织 + 对照血）在 cms_sample 是同一
+  `order_no` 的两行，报告仍只用组织那条（`sampleType`/`subbarcode` 不变），这两个字段只是把订单其余样本带出来；
+  单样本时与本条同值。数据源 `cms_sample.order_no`，由 `InterpretationServiceImpl#selectOrderSamples` 查询。
+
+- 位点 item（`somaticVariants/germlineVariants.items[]`）自 2026-11-04 起多两个字段：
+  `mutationDescription`（报告用整段说明：人工改写优先，否则 HGVS 中文译文 + 位点说明，直接拼接）、
+  `mutationDescriptionEdited`（是否人工改过）。DOCX 取 `{{it.mutationDescription or ''}}`（`or ''` 必须有，否则 `None` 会印成字面量）。
 
 模板以后直接使用：
 
@@ -753,7 +902,7 @@ modules.hrr.data.somatic.items
 | 个性化数据 | 三个圣域 Handler 分别生成体细胞、胚系和质控字段 |
 | 业务配置 | 运行时不读取 `manifest.json`；癌种规则在 Java，基因来自 `product_gene` |
 | 胚系解释 | 来源为 `history_germline.clinical_significance`，支持五级人工修改和改靶继承 |
-| JSON DTO | `ReportTemplateData`，当前 `schemaVersion=1.2` |
+| JSON DTO | `ReportTemplateData`，当前 `schemaVersion=1.3` |
 | 示例 JSON | `payload.example.json` 仅用于说明和契约测试，不参与运行时决策 |
 | 正式生成 | Java 已重新构建 JSON、写 JSON 文件并调用 Python 渲染 DOCX；数据库登记两个文件路径 |
 | PDF | OnlyOffice PDF 转换尚未接入当前 `ReportGenerationService` |
@@ -791,7 +940,7 @@ POST /admin/report/template/data
 
 ```json
 {
-  "schemaVersion": "1.2",
+  "schemaVersion": "1.3",
   "templateCode": "pharma-shengyu",
   "analysisId": 123,
   "reportId": 456,
@@ -862,7 +1011,7 @@ POST /admin/report/template/generate
 
 ```json
 {
-  "schemaVersion": "1.2",
+  "schemaVersion": "1.3",
   "templateCode": "pharma-shengyu",
   "templateVersion": "v1",
   "analysisId": 123,
@@ -877,6 +1026,10 @@ POST /admin/report/template/generate
 ```
 
 `schemaVersion` 用于 Python 识别 JSON 协议，不代表数据库快照版本。`module_code` 保存在模板记录中，用于 Java 选择处理器；一般不需要放入渲染 JSON。正式 JSON 不包含处理器执行堆栈、数据库连接信息或前端临时状态。
+
+> `germlineVariants.items[].fromHistory` / `somaticVariants.items[].fromHistory`（2026-11-04 起序列化）：
+> 该位点本次匹配是复用冻结历史（`true`）还是查最新知识库（`false`），供预览页「来源」列展示。
+> **这是「同输入同 JSON」的唯一例外**：同一输入在不同历史状态下生成，该字段可能不同（其余匹配结果一致）。
 
 每次生成都创建新的 JSON/DOCX 文件并把数据库路径更新到最新制品，因此再次生成时内容可以变化。已经生成的旧 JSON 文件不会被原地修改，但当前代码也没有制品版本表；若审核和发送必须永久绑定某次生成，应在重写时增加不可变制品记录或严格状态锁。
 
@@ -932,10 +1085,13 @@ Python 不再执行以下操作：
 
 ### 11.1 审核
 
-- 只有 `PENDING_REVIEW` 可以审核。
+> **现行口径（2026-10-27）见 §0.7**：状态用数字码（40/41 可审核、43 瞬时通过、驳回回退 31），
+> 且**位点历史改为“审核通过才冻结”**（提交审核不再写历史）。下面几条保留为早期枚举草案的对照。
+
+- 只有 `PENDING_REVIEW` 可以审核（现行：只有 40 待审核 / 41 审核中可审核）。
 - 产出人不能审核自己的报告。
-- 审核通过更新为 `APPROVED`。
-- 驳回更新为 `REJECTED`，驳回原因必填。
+- 审核通过更新为 `APPROVED`（现行：写 43 后立即自动送签转 50）。
+- 驳回更新为 `REJECTED`，驳回原因必填（现行：归档到 `report/rejected/` 后回退 31，不切独立状态）。
 - 审核动作使用状态条件更新，避免重复审核。
 
 ### 11.2 重出
@@ -971,7 +1127,7 @@ Python 不再执行以下操作：
 本阶段只做基线确认：
 
 1. 保留现有单测。
-2. 确认相同输入重复调用得到相同 JSON。
+2. 确认相同输入重复调用得到相同 JSON（唯一例外：`items[].fromHistory` 取决于生成时该位点是否已有历史，见 §7.6）。
 3. 确认缺失值为 `null`。
 4. 确认非适用癌种输出空的 `shengyuSomaticVariants`，但仍生成 `shengyuGermlineVariants`。
 

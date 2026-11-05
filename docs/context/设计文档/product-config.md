@@ -8,18 +8,35 @@
 
 ### product_config（产品配置表）
 
+> 2026-10-22 列重排（迁移脚本 `script/sql/update/update_5.6.32-product-config-columns.sql`）：
+> 原 `name` 一列同时被当生信编码和对外产品名用，现拆成 `product_bio` + `product_name`；`code` 改名 `product_code`。
+> 2026-11-03 按产品配置图补齐字段（迁移脚本 `script/sql/update/update_5.6.51-product-config-refactor.sql`）。
+> 下表已是落库后的实际结构。
+
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
-| id | uuid | PK, defaultRandom | 主键 |
-| name | varchar(120) | NOT NULL | 产品名称，关联 sample_file.product_name、QC 自动判定链 |
-| code | varchar(60) | NOT NULL, UNIQUE | 产品编码 |
-| test_type | varchar(60) | - | 检测类型 |
-| related_diseases | varchar(500) | - | 相关疾病 |
-| report_cycle_days | integer | - | 报告周期（天） |
+| id | bigint | PK, AUTO_INCREMENT | 主键 |
+| product_code | varchar(60) | NOT NULL, UNIQUE(tenant_id, product_code) | 产品编码（对外） |
+| trade_name | varchar(120) | - | 商品名（诺卓康） |
+| product_bio | varchar(120) | NOT NULL | 生信编码：逐字等于上传目录第 2 层 product / analysis_data.product_bio（驱动与报告定位靠它） |
+| product_name | varchar(120) | NOT NULL | 产品名称（系统用） |
+| related_diseases | varchar(500) | - | 适应症 |
+| test_type | varchar(60) | - | 样本类型（组织 / 血液） |
+| control_type | varchar(60) | - | 对照（血液 / PBMC / 无） |
+| product_version | varchar(30) | - | 版本（LDT / IVD） |
+| sequencing_platform | varchar(60) | - | 测序平台（surf5000 Dx） |
+| gene_count | int | - | 基因数/DNA（1238） |
+| report_cycle_days | int | - | 报告周期（天） |
+| maintain_lab | varchar(60) | - | 维护实验室 |
+| related_process | varchar(100) | - | 关联工序（全流程） |
+| probe_type | varchar(120) | - | 探针类型（正常1238探针 / +UMI） |
+| panel_type | varchar(60) | - | panel类型（DNA / RNA / DNA_RNA / WES / HRD 等；配置图里没有，冗余保留） |
 | status | varchar(20) | NOT NULL, default 'active' | active / inactive |
 | remark | varchar(500) | - | 备注 |
 | _created_at / _created_by | - | 系统字段 | - |
 | _updated_at / _updated_by | - | 系统字段 | - |
+
+> 检测方式（来样即检 / 批量检测）不入库，业务默认「来样即检」；样本取材类型、去dup前测序深度、数据量本次不入表。
 
 ---
 
@@ -46,10 +63,10 @@
 ```mermaid
 flowchart TD
     A[页面：产品配置\n/system/product-config] --> B[GET /api/product-config/list\n全量加载]
-    B --> C[展示表格：名称/编码/检测类型/疾病/周期/状态/操作]
+    B --> C[展示表格：产品编码/商品名/产品名称/生信编码/适应症/样本类型/对照/版本/测序平台/基因数/报告周期/维护实验室/关联工序/探针类型/状态/操作]
     
     C --> D[「新增」/行内「编辑」]
-    D --> E[ProductFormDialog\n名称*/编码*/类型/疾病/周期/状态/备注]
+    D --> E[ProductFormDrawer\n编码*/名称*/生信编码*/商品名/适应症/样本类型/对照/版本/测序平台/基因数/报告周期/维护实验室/关联工序/探针类型/panel类型/状态/备注]
     E --> F[POST /api/product-config/save]
     F --> G[code 唯一性校验]
     G --> H{唯一?}

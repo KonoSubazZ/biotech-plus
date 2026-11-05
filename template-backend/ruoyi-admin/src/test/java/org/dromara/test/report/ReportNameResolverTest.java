@@ -48,9 +48,9 @@ public class ReportNameResolverTest {
     @Test
     @DisplayName("模板为空 → 用默认拼接规则 {{subbarcode}}{{client}}{{template_name}}{{report_id}}")
     void defaultPatternWhenBlank() {
-        Assertions.assertEquals("{{subbarcode}}{{client}}{{templateName}}{{reportId}}",
+        Assertions.assertEquals("{{client}}_{{subbarcode}}_{{templateName}}",
             ReportNameResolver.DEFAULT_PATTERN);
-        String expected = "YKHS260031036-1A圣域同源重组修复（HRR）通路基因检测报告-圣域3";
+        String expected = "圣域_YKHS260031036-1A_同源重组修复（HRR）通路基因检测报告-圣域";
         Assertions.assertEquals(expected, ReportNameResolver.render(null, variables()));
         Assertions.assertEquals(expected, ReportNameResolver.render("   ", variables()));
     }

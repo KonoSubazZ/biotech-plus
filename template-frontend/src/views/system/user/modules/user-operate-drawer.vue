@@ -6,7 +6,6 @@ import { fetchCreateUser, fetchGetUserInfo, fetchUpdateUser } from '@/service/ap
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useAuthStore } from '@/store/modules/auth';
 import { $t } from '@/locales';
-import TenantSelect from '@/components/custom/tenant-select.vue';
 
 defineOptions({
   name: 'UserOperateDrawer'
@@ -52,7 +51,8 @@ const roleOptions = ref<CommonType.Option<CommonType.IdType>[]>([]);
 
 function createDefaultModel(): Model {
   return {
-    tenantId: String(authStore.userInfo.user?.userId) === '1' ? null : (authStore.userInfo.user?.tenantId ?? null),
+    // 单药企模式：页面不再展示租户，统一继承当前登录用户所在租户（超管即 000000）
+    tenantId: authStore.userInfo.user?.tenantId ?? '000000',
     userName: '',
     nickName: '',
     email: '',
@@ -67,11 +67,10 @@ function createDefaultModel(): Model {
 
 type RuleKey = Extract<
   keyof Model,
-  'tenantId' | 'userName' | 'nickName' | 'password' | 'status' | 'phonenumber' | 'roleIds'
+  'userName' | 'nickName' | 'password' | 'status' | 'phonenumber' | 'roleIds'
 >;
 
 const rules: Record<RuleKey, App.Global.FormRule[]> = {
-  tenantId: [createRequiredRule($t('page.system.tenant.selectTenant'))],
   userName: [createRequiredRule($t('page.system.user.form.userName.required'))],
   nickName: [createRequiredRule($t('page.system.user.form.nickName.required'))],
   password: [{ ...patternRules.pwd, required: props.operateType === 'add' }],
@@ -170,9 +169,6 @@ watch(visible, () => {
     <NDrawerContent :title="title" :native-scrollbar="false" closable>
       <NSpin :show="loading">
         <NForm ref="formRef" :model="model" :rules="rules" novalidate>
-          <NFormItem :label="$t('page.system.tenant.tenantName')" path="tenantId">
-            <TenantSelect v-model:value="model.tenantId" :disabled="operateType === 'edit'" />
-          </NFormItem>
           <NFormItem :label="$t('page.system.user.nickName')" path="nickName">
             <NInput v-model:value="model.nickName" :placeholder="$t('page.system.user.form.nickName.required')" />
           </NFormItem>

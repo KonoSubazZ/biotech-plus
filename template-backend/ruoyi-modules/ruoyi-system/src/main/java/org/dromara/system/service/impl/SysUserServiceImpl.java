@@ -50,6 +50,10 @@ import java.util.*;
 public class SysUserServiceImpl implements ISysUserService, UserService {
 
     private void validateUserTenant(SysUserBo user, boolean edit) {
+        // 单药企模式：页面不再展示租户字段，前端可能不传 → 默认归属当前登录用户所在租户
+        if (StringUtils.isBlank(user.getTenantId())) {
+            user.setTenantId(TenantContext.getTenantId());
+        }
         tenantService.checkTenant(user.getTenantId());
         if (!LoginHelper.isSuperAdmin() && !TenantContext.getTenantId().equals(user.getTenantId())) {
             throw new ServiceException("只能为当前租户创建或编辑用户");

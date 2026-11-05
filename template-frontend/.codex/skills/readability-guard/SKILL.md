@@ -21,7 +21,7 @@ effort: high
 2. **写完/改完立刻跑闸门**：
 
 ```bash
-python3 tools/readability_check.py --changed-only origin/main
+python3 tools/readability_check.py --changed-only origin/master
 ```
 
 3. **error 必须清零**才能提交；warn 要在 PR 描述里逐条说明理由。

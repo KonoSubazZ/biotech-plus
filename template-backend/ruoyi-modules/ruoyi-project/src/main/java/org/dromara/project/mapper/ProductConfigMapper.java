@@ -26,4 +26,19 @@ public interface ProductConfigMapper extends BaseMapperPlus<ProductConfig, Produ
      * @return 引用条数
      */
     Long countQcStandardByProductId(@Param("productId") Long productId);
+
+    /**
+     * 统计同产品编码的行数，<b>含逻辑删除行</b>（编码唯一校验用）。
+     * <p>
+     * 唯一键 uk_product_config_product_code 不含 del_flag —— 软删的产品仍占着编码。
+     * 而 MyBatis-Plus 的 @TableLogic 会给普通查询自动补 del_flag='0'，看不到这些行，
+     * 于是「删了再用同编码新建」会通过校验、然后在 insert 撞唯一键报 500。
+     * 产品编码是业务唯一标识、不复用，所以这里手写一条不带 del_flag 条件的计数。
+     *
+     * @param productCode 产品编码
+     * @param excludeId   要排除的主键（修改场景传自身 id，新增传 null）
+     * @return 命中的行数
+     */
+    Long countByProductCodeIncludeDeleted(@Param("productCode") String productCode,
+                                          @Param("excludeId") Long excludeId);
 }

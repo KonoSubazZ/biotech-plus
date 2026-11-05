@@ -1,6 +1,5 @@
 package org.dromara.report.domain.vo;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.io.Serial;
@@ -59,12 +58,12 @@ public class PreviewVariantVo implements Serializable {
     private String variationClass;
 
     /**
-     * 是否复用冻结的历史匹配结果。
+     * 是否复用冻结的历史匹配结果（true=历史，false/null=本次知识库匹配）。
      * <p>
-     * **不序列化**：首次预览会写历史、第二次就变成复用，若把它放进 JSON 会破坏
-     * 「同输入产生相同 JSON」这条契约。需要看的话在服务端日志里查。
+     * 会序列化进报告 JSON / 预览响应，供页面「来源」列打 tag。
+     * ⚠️ 这让制品内容依赖「生成时该位点是否已有历史」：同一份输入在不同历史状态下生成，
+     * JSON 里的 fromHistory 会不同（其余匹配结果一致）。
      */
-    @JsonIgnore
     private Boolean fromHistory;
 
     /** 人工改靶：源位点表 parent_mutation_id（逗号分隔的 NKB 节点ID，可多个；参与匹配键，用于区分改靶前后） */
@@ -133,7 +132,19 @@ public class PreviewVariantVo implements Serializable {
     /** 突变说明（HGVS → 中文，移植 en7 的 translate_hgvs.pl + mutation_explanation.pm） */
     private String mutationExplanation;
 
-    /** 来源文件类型（data_file_status.file_type：SNP / Indel / CNV / Fusion / CR_ALL） */
+    /**
+     * 报告里展示的「突变说明」整段文本：人工修改优先，否则
+     * = {@link #mutationExplanation} + ({@link #variantDescription} 或 {@link #description})（en7 口径，直接拼接）。
+     * <p>
+     * 由 {@link org.dromara.report.service.impl.preview.VariantNotes#apply} 在组装时统一填，
+     * DOCX 模板用 {@code {{it.mutationDescription or ''}}} 取值。
+     */
+    private String mutationDescription;
+
+    /** 突变说明是否被人工改过（界面「已手工修改」标签用；未改 = false） */
+    private Boolean mutationDescriptionEdited;
+
+    /** 来源文件类型（analysis_file_status.file_type：SNP / Indel / CNV / Fusion / CR_ALL） */
     private String fileType;
 
     /** 核酸类型：DNA / RNA（只有融合行才有值，取自 file_Fusion.fusion_quality） */

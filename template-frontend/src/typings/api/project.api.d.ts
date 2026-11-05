@@ -9,13 +9,38 @@ declare namespace Api {
     /** 列表项（= 后端 Vo） */
     interface ProductConfig {
       id: number;
-      name: string;
-      code: string;
+      /** 产品编码（对外，唯一） */
+      productCode: string;
+      /** 商品名 */
+      tradeName?: string | null;
+      /** 生信编码：= 上传目录第 2 层 product，与 analysis_data.product_bio 逐字相等 */
+      productBio: string;
+      /** 产品名称（系统用） */
+      productName: string;
       /** active 启用 / inactive 停用 */
       status: string;
-      testType?: string | null;
+      /** 适应症 */
       relatedDiseases?: string | null;
+      /** 样本类型（组织 / 血液） */
+      testType?: string | null;
+      /** 对照（血液 / PBMC / 无） */
+      controlType?: string | null;
+      /** 版本（LDT / IVD） */
+      productVersion?: string | null;
+      /** 测序平台 */
+      sequencingPlatform?: string | null;
+      /** 基因数/DNA */
+      geneCount?: number | null;
+      /** 报告周期（天） */
       reportCycleDays?: number | null;
+      /** 维护实验室 */
+      maintainLab?: string | null;
+      /** 关联工序 */
+      relatedProcess?: string | null;
+      /** 探针类型 */
+      probeType?: string | null;
+      /** panel类型（DNA / RNA / DNA_RNA / WES / HRD 等） */
+      panelType?: string | null;
       remark?: string | null;
       createTime?: string | null;
     }
@@ -25,19 +50,125 @@ declare namespace Api {
 
     /** 搜索参数（与项目其它模块同一写法：分页走 Common.CommonSearchParams） */
     type ProductConfigSearchParams = CommonType.RecordNullable<
-      Pick<ProductConfig, 'name' | 'code' | 'testType' | 'status'> & Common.CommonSearchParams
+      Pick<ProductConfig, 'productName' | 'productBio' | 'productCode' | 'testType' | 'panelType' | 'status'> &
+        Common.CommonSearchParams
     >;
 
     /** 新增/编辑表单（= 后端 Bo） */
     interface ProductConfigForm {
       id?: number | null;
-      name: string;
-      code: string;
-      testType?: string | null;
+      productCode: string;
+      tradeName?: string | null;
+      productBio: string;
+      productName: string;
       relatedDiseases?: string | null;
+      testType?: string | null;
+      controlType?: string | null;
+      productVersion?: string | null;
+      sequencingPlatform?: string | null;
+      geneCount?: number | null;
       reportCycleDays?: number | null;
+      maintainLab?: string | null;
+      relatedProcess?: string | null;
+      probeType?: string | null;
+      panelType?: string | null;
       status?: string | null;
       remark?: string | null;
+    }
+
+    // ------------------------------------------------------------------ 项目配置
+
+    /** 项目配置（= 后端 ProjectConfigVo）：parentId=0 是项目行，>0 是研究中心行 */
+    interface ProjectConfig {
+      id: number;
+      /** 父节点 id（0=项目行；>0=研究中心行） */
+      parentId?: number | null;
+      /** 项目编号（同一租户内唯一） */
+      projectNo: string;
+      /** 项目名称 */
+      projectName: string;
+      /** 客户名称 */
+      customer: string;
+      /** 合同名称（项目级展示字段，不参与业务逻辑） */
+      contractName?: string | null;
+      /** 合同编号（项目级展示字段） */
+      contractNo?: string | null;
+      /** 研究方案编号（项目级展示字段） */
+      schemeNo?: string | null;
+      /** 研究中心编号（仅研究中心行有值） */
+      researchCenterNo?: string | null;
+      /** 研究中心名称（仅研究中心行有值） */
+      researchCenterName?: string | null;
+      /** 收件邮箱（多个用分号分隔；报告发送用，页面已隐藏，仅接口保留） */
+      receiveEmail: string;
+      /** 项目通知收件邮箱（多个用分号分隔；页面上的「项目通知（收件）邮箱」） */
+      projectNotifyEmail?: string | null;
+      /** 抄送邮箱（多个用分号分隔） */
+      ccEmail?: string | null;
+      remark?: string | null;
+      /** 创建人 id */
+      createBy?: number | null;
+      /** 创建人姓名（后端 @Translation 换出的昵称） */
+      createByName?: string | null;
+      createTime?: string | null;
+      /** 更新人 id */
+      updateBy?: number | null;
+      /** 更新人姓名 */
+      updateByName?: string | null;
+      updateTime?: string | null;
+    }
+
+    /** 项目配置的搜索参数（搜索栏只有项目编号与客户名称） */
+    type ProjectConfigSearchParams = CommonType.RecordNullable<
+      Pick<ProjectConfig, 'projectNo' | 'customer'> & Common.CommonSearchParams
+    >;
+
+    /** 项目配置新增/编辑表单（= 后端 ProjectConfigBo） */
+    interface ProjectConfigForm {
+      id?: number | null;
+      projectNo: string;
+      projectName: string;
+      customer: string;
+      contractName?: string | null;
+      contractNo?: string | null;
+      schemeNo?: string | null;
+      receiveEmail: string;
+      /** 项目通知收件邮箱（可空） */
+      projectNotifyEmail?: string | null;
+      ccEmail?: string | null;
+      remark?: string | null;
+    }
+
+    /**
+     * 研究中心新增/编辑表单（= 后端 ProjectCenterBo）
+     * <p>
+     * 项目名 / 客户名 / 合同三项不在这里：它们只属于项目行，中心行写空。
+     */
+    interface ProjectCenterForm {
+      id?: number | null;
+      /** 所属项目行 id（新增必填） */
+      parentId: number;
+      researchCenterNo: string;
+      researchCenterName: string;
+      receiveEmail: string;
+      ccEmail?: string | null;
+      remark?: string | null;
+    }
+
+    /** 研究中心导入结果（= 后端 CenterImportResultVo）：先全量校验，任一行不过就整体不导入 */
+    interface CenterImportResult {
+      /** 解析到的数据行数（不含表头与整行空白） */
+      total: number;
+      /** 实际新增（committed=false 时恒为 0） */
+      inserted: number;
+      /** 实际修改（committed=false 时恒为 0） */
+      updated: number;
+      /** 校验失败条数 */
+      failed: number;
+      /** 是否真正写库 */
+      committed: boolean;
+      /** 每条失败原因（含 Excel 行号与编号） */
+      errors: string[];
     }
 
     // ------------------------------------------------------------------ 产品关联基因

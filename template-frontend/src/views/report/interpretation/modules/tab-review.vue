@@ -51,7 +51,7 @@ const context = ref<Api.Report.InterpretationContext | null>(null);
 const preview = ref<Api.Report.InterpretationPreview | null>(null);
 /** 预览来源：artifact = 报告已生成（成品文件在）；realtime = 只组装过、还没生成 */
 const previewSource = ref<'artifact' | 'realtime' | ''>('');
-/** 集群文件个数（与 Tab② 集群对接同源：data_file_status 该批次条数） */
+/** 集群文件个数（与 Tab② 集群对接同源：analysis_file_status 该批次条数） */
 const fileCount = ref<number | null>(null);
 const loading = ref(false);
 const acting = ref(false);
@@ -64,7 +64,7 @@ const reportInfo = computed(() => (preview.value?.reportInfo ?? {}) as Record<st
 const sampleInfo = computed(() => (preview.value?.sampleInfo ?? {}) as Record<string, unknown>);
 
 /** 状态展示：中文标签 + 配色（未知值原样显示，不静默按正常色渲染） */
-const statusTag = computed(() => statusMeta(REPORT_STATUS_META, report.value?.status ?? null));
+const statusTag = computed(() => statusMeta(REPORT_STATUS_META, report.value?.reportStatus ?? null));
 
 const hasReportFile = computed(() => previewSource.value === 'artifact');
 const reportName = computed(() => text(reportInfo.value.reportName));
@@ -76,17 +76,27 @@ const isProducer = computed(() => {
   return producer != null && String(producer) === currentUserId.value;
 });
 
-/** 只有「待审核」且非产出人本人才能审核（服务端也会再校验一次） */
-const canReview = computed(() => report.value?.status === 'PENDING_REVIEW' && !isProducer.value);
+/** 允许审核的状态：40 报告待审核 / 41 报告审核中（与后端 REVIEWABLE_STATUS 一致），且非产出人本人 */
+const REVIEWABLE_STATUS = [40, 41];
+const isAssignedReviewer = computed(() => {
+  const reviewerId = report.value?.reportReviewerId ?? report.value?.reportReviewClaimedBy;
+  return reviewerId === null || reviewerId === undefined || String(reviewerId) === currentUserId.value;
+});
+
+/** 只有「待审核 / 审核中」且非产出人本人才能审核（服务端也会再校验一次） */
+const canReview = computed(
+  () => REVIEWABLE_STATUS.includes(Number(report.value?.reportStatus)) && !isProducer.value
+    && isAssignedReviewer.value
+);
 
 /** 不能审核时的原因提示；为空表示可审核 */
 const reviewHint = computed(() => {
-  const status = report.value?.status;
+  const status = report.value?.reportStatus;
   if (!status) {
     return '';
   }
-  if (status !== 'PENDING_REVIEW') {
-    return `当前状态「${statusTag.value.label}」不可审核：只有「待审核」的报告能通过/驳回（请在「报告预览」先提交审核）。`;
+  if (!REVIEWABLE_STATUS.includes(Number(status))) {
+    return `当前状态「${statusTag.value.label}」不可审核：只有「报告待审核 / 报告审核中」的报告能通过/驳回（请在「报告预览」先提交解读）。`;
   }
   if (isProducer.value) {
     return '产出人不能审核自己的报告。';
@@ -332,19 +342,19 @@ watch(() => [props.analysisId, props.reportId], loadAll, { immediate: true });
 
         <NDescriptions :column="3" label-placement="left" size="small" bordered>
           <NDescriptionsItem label="报告ID">{{ text(report?.reportId) }}</NDescriptionsItem>
-          <NDescriptionsItem label="样本编号">{{ text(report?.subbarcode ?? sampleInfo.sampleCode) }}</NDescriptionsItem>
-          <NDescriptionsItem label="患者编号">{{ text(sampleInfo.participantNumber) }}</NDescriptionsItem>
-          <NDescriptionsItem label="产品">{{ text(report?.product) }}</NDescriptionsItem>
-          <NDescriptionsItem label="解读癌种">{{ text(report?.analysisDisease ?? sampleInfo.disease) }}</NDescriptionsItem>
+          <NDescriptionsItem label="样本编号">{{ text(report?.subbarcode ?? sampleInfo.subbarcode) }}</NDescriptionsItem>
+          <NDescriptionsItem label="患者编号">{{ text(sampleInfo.subjectNo) }}</NDescriptionsItem>
+          <NDescriptionsItem label="产品">{{ text(report?.productBio) }}</NDescriptionsItem>
+          <NDescriptionsItem label="解读癌种">{{ text(report?.analysisDisease ?? sampleInfo.diseaseType) }}</NDescriptionsItem>
           <NDescriptionsItem label="模板">{{ text(report?.template) }}</NDescriptionsItem>
           <NDescriptionsItem label="报告日期">{{ text(reportInfo.reportDate) }}</NDescriptionsItem>
           <NDescriptionsItem label="解读人">{{ text(reportInfo.analyzer) }}</NDescriptionsItem>
-          <NDescriptionsItem label="标本类型">{{ text(reportInfo.specimentType ?? sampleInfo.sampleType) }}</NDescriptionsItem>
-          <NDescriptionsItem label="研究中心">{{ text(sampleInfo.researchCenterName) }}</NDescriptionsItem>
-          <NDescriptionsItem label="性别">{{ text(sampleInfo.gender) }}</NDescriptionsItem>
+          <NDescriptionsItem label="标本类型">{{ text(reportInfo.specimenType ?? sampleInfo.sampleType) }}</NDescriptionsItem>
+          <NDescriptionsItem label="研究中心">{{ text(sampleInfo.researchCenter) }}</NDescriptionsItem>
+          <NDescriptionsItem label="性别">{{ text(sampleInfo.sex) }}</NDescriptionsItem>
           <NDescriptionsItem label="出生年份">{{ text(sampleInfo.birthYear) }}</NDescriptionsItem>
-          <NDescriptionsItem label="收样日期">{{ text(sampleInfo.receivedDate) }}</NDescriptionsItem>
-          <NDescriptionsItem label="采样日期">{{ text(sampleInfo.tissueCollectionDate) }}</NDescriptionsItem>
+          <NDescriptionsItem label="收样确认时间">{{ text(sampleInfo.receiveConfirmTime) }}</NDescriptionsItem>
+          <NDescriptionsItem label="采集日期">{{ text(sampleInfo.collectionDate) }}</NDescriptionsItem>
           <NDescriptionsItem label="集群文件个数">{{ fileCount ?? '/' }}</NDescriptionsItem>
           <NDescriptionsItem label="报告产出人">{{ text(report?.reportGeneratedBy) }}</NDescriptionsItem>
           <NDescriptionsItem label="生成时间">{{ text(report?.reportGeneratedAt) }}</NDescriptionsItem>
@@ -374,24 +384,6 @@ watch(() => [props.analysisId, props.reportId], loadAll, { immediate: true });
           <div v-for="item in preview.warnings" :key="item">{{ item }}</div>
         </NAlert>
 
-        <!-- 体细胞变异解析 -->
-        <div class="mb-8px flex flex-wrap items-center gap-x-12px gap-y-8px">
-          <span class="font-medium">体细胞变异解析</span>
-          <NTag v-for="tag in somaticTags" :key="tag.key" size="small">{{ tag.label }}</NTag>
-          <span class="text-12px op-60">
-            报出 {{ somaticSummary?.reportedCount ?? 0 }} · 已匹配 {{ somaticSummary?.matchedCount ?? 0 }} ·
-            无证据 {{ somaticSummary?.unmatchedCount ?? 0 }}
-          </span>
-        </div>
-        <NDataTable
-          :columns="somaticColumns"
-          :data="somaticRows"
-          :row-key="variantRowKey"
-          :scroll-x="1500"
-          size="small"
-        />
-        <NDivider class="my-16px!" />
-
         <!-- 肿瘤遗传风险（胚系） -->
         <div class="mb-8px flex flex-wrap items-center gap-x-12px gap-y-8px">
           <span class="font-medium">肿瘤遗传风险（胚系）</span>
@@ -406,6 +398,24 @@ watch(() => [props.analysisId, props.reportId], loadAll, { immediate: true });
           :data="germlineRows"
           :row-key="variantRowKey"
           :scroll-x="1350"
+          size="small"
+        />
+        <NDivider class="my-16px!" />
+
+        <!-- 体细胞变异解析 -->
+        <div class="mb-8px flex flex-wrap items-center gap-x-12px gap-y-8px">
+          <span class="font-medium">体细胞变异解析</span>
+          <NTag v-for="tag in somaticTags" :key="tag.key" size="small">{{ tag.label }}</NTag>
+          <span class="text-12px op-60">
+            报出 {{ somaticSummary?.reportedCount ?? 0 }} · 已匹配 {{ somaticSummary?.matchedCount ?? 0 }} ·
+            无证据 {{ somaticSummary?.unmatchedCount ?? 0 }}
+          </span>
+        </div>
+        <NDataTable
+          :columns="somaticColumns"
+          :data="somaticRows"
+          :row-key="variantRowKey"
+          :scroll-x="1500"
           size="small"
         />
       </NCard>

@@ -27,6 +27,13 @@ public class AnalysisReportVo implements Serializable {
     /** 报告ID */
     private Long reportId;
 
+    private Integer reportVersion;
+    private Integer reportGenerationNo;
+    private Long reportReviewerId;
+    private Long sourceReportId;
+    private Long reportReviewClaimedBy;
+    private String reportName;
+
     /** 所属分析批次 */
     private Long analysisId;
 
@@ -36,11 +43,17 @@ public class AnalysisReportVo implements Serializable {
     /** 样本编号 */
     private String subbarcode;
 
-    /** 产品名称 */
-    private String product;
+    /** 生信产品编码（= analysis_data.product_bio） */
+    private String productBio;
 
     /** 产品ID（product_config.id） */
     private Long productId;
+
+    /** 项目编号（= cms_sample.project_no） */
+    private String projectNo;
+
+    /** 上传批次目录名（= analysis_data.analysis_batch_date） */
+    private String analysisBatchDate;
 
     /** 解读癌种 */
     private String analysisDisease;
@@ -52,7 +65,8 @@ public class AnalysisReportVo implements Serializable {
     private String template;
 
     /** 状态 */
-    private String status;
+    /** 报告状态（int 码，与实体 reportStatus / 库 report_status 同名同类型） */
+    private Integer reportStatus;
 
     /** 备注 / 驳回原因 */
     private String comment;

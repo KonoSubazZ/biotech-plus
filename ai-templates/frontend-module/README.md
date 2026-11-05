@@ -45,6 +45,6 @@ src/typings/api/<模块>.api.d.ts                              类型定义     
 ```bash
 cd template-frontend
 pnpm typecheck && pnpm lint
-cd .. && python3 tools/readability_check.py --changed-only origin/main
-python3 tools/structure_check.py --changed-only origin/main   # 页面结构契约（缺组件/hooks/落位）
+cd .. && python3 tools/readability_check.py --changed-only origin/master
+python3 tools/structure_check.py --changed-only origin/master   # 页面结构契约（缺组件/hooks/落位）
 ```

@@ -1,8 +1,7 @@
 package org.dromara.report.service;
 
-import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
-import org.dromara.report.domain.bo.InterpretationTargetBo;
+import org.dromara.report.domain.bo.InterpretationVariantEditBo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.ReportTemplateData;
@@ -35,12 +34,13 @@ public interface IInterpretationPreviewService {
     InterpretationPreviewVo preview(InterpretationPreviewBo bo);
 
     /**
-     * 冻结匹配历史：报告提交审核时调用，把该报告「报出」的位点匹配结果写进 history_*
-     * （预览与生成都是只读，只有提交审核才落库）。
+     * 冻结匹配历史：报告<b>审核通过</b>时调用，<b>只读已生成的报告 JSON</b> 派生 history_* 与历史检出，
+     * 不再现场重算（报告内容 = 历史冻结结果）。读不到制品 → 拒绝审核通过。
      *
-     * @param bo 入参（analysisId / reportId / templateId）
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID
      */
-    void freezeHistory(InterpretationPreviewBo bo);
+    void freezeFromArtifact(Long reportId, Long analysisId);
 
     /**
      * 报告生成参数 · 解读癌种候选（NKB 疾病分类）。
@@ -66,21 +66,14 @@ public interface IInterpretationPreviewService {
     List<Map<String, Object>> templateOptions(Long analysisId, Long reportId);
 
     /**
-     * 人工确认胚系五级临床意义（保存前要求该位点已经建立匹配历史）
-     *
-     * @param bo 入参（analysisId / reportId / sourceId / clinicalSignificance）
-     */
-    void updateGermlineSignificance(InterpretationGermlineSignificanceBo bo);
-
-    /**
-     * 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点，
-     * 写入源位点表 parent_mutation_id（逗号分隔）→ 产生新的匹配键，下次预览走继承逻辑。
+     * 位点人工修改（父靶点 / 胚系临床意义 / 突变说明），报告粒度存储。
      * <p>
-     * 保存前按 en7 口径校验「改靶后必须能出药物证据」，出不来直接拒绝。
+     * 只有未入库位点可改；来源=历史只读。写 {@code analysis_report.report_variant_edits}，
+     * 生成报告时解析进 JSON；不写 history_*、不写源位点表。
      *
-     * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds，空列表 = 取消改靶）
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / 三个可选字段）
      */
-    void updateVariantTarget(InterpretationTargetBo bo);
+    void updateVariantEdits(InterpretationVariantEditBo bo);
 
     /**
      * 改靶候选：按关键词查 NKB 位点节点（Approved），供人工指定父级

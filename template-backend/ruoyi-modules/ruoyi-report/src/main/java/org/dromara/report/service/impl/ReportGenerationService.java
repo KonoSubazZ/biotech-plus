@@ -14,8 +14,8 @@ import org.dromara.report.service.impl.ReportDocxRenderer;
 import org.dromara.report.utils.ArtifactPermissions;
 import org.dromara.report.utils.ReportArtifactPaths;
 import org.dromara.report.utils.ReportNameResolver;
+import org.dromara.report.utils.ReportStatus;
 import org.dromara.report.service.impl.ReportNameVariables;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -23,38 +23,27 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import org.dromara.report.service.template.ReportTemplateDataService;
+import org.dromara.report.domain.dto.ReportArtifactAttempt;
+import org.dromara.report.service.impl.revision.ReportArtifactStore;
+import org.dromara.report.service.impl.revision.ReportOperationLock;
+import org.dromara.report.service.impl.revision.ReportRevisionPolicy;
+import org.dromara.report.service.impl.revision.ReportVersionAllocator;
+import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 报告正式生成（设计书 §9.1）：重新组装 JSON → 解析报告名 → 写 JSON → 调 Python 渲染 DOCX → 登记制品。
- * <p>
- * 几个刻意的口径：
- * <ul>
- *   <li>不信前端回传的预览结果，每次都用 {@code buildPreview} 重新查库组装；</li>
- *   <li>每次生成写新文件（文件名带时间 + 随机串），旧制品不原地覆盖，库里只指向最新一次；</li>
- *   <li>失败时删掉本次刚写的 JSON/DOCX/PDF，不留半成品；</li>
- *   <li>报告名（report_template.report_name 渲染结果）同时进 JSON（reportInfo.reportName）与库
- *       （analysis_report.report_name），DOCX/PDF 文件名与 JSON 同前缀，三处同源；</li>
- *   <li>制品按阶段分目录（{@link ReportArtifactPaths}）：JSON 平铺 json/，DOCX 落 docx/&lt;日期&gt;/，
- *       转出的 PDF 落 pdf/&lt;日期&gt;/，签名后 PDF 预留 signed/&lt;日期&gt;/。</li>
- * </ul>
- *
- * @author <你的名字>
- */
+/** 报告生成：预留版本、临时渲染、整轮发布与事务登记；失败保留原制品并归档。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReportGenerationService {
 
-    /** 文件名里的时间戳格式（与制品命名约定一致） */
-    private static final DateTimeFormatter FILE_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss", Locale.ROOT);
+    private final ReportArtifactStore artifactStore;
+    private final ReportOperationLock operationLock;
+    private final ReportVersionAllocator versionAllocator;
+    private final TransactionTemplate transactions;
+
 
     private final IInterpretationPreviewService previewService;
 
@@ -70,53 +59,109 @@ public class ReportGenerationService {
 
     private final ObjectMapper objectMapper;
 
-    /** 制品根目录（容器里固定挂 /app/reports；可在 application.yml 里用 report.artifact.root 覆盖） */
-    @Value("${report.artifact.root:/app/reports}")
-    private String artifactRoot;
 
     /**
-     * 生成报告：JSON 一份、DOCX 一份，并尽力转出 PDF，登记到 analysis_report。
+     * 生成完整 JSON/DOCX/PDF 后登记；任一生成步骤失败均归档并保留旧制品。
      *
      * @param bo 入参（analysisId / reportId / templateCode）
      * @return 含报告名、JSON/DOCX 路径、渲染结果的结果集
      */
     public Map<String, Object> generate(InterpretationPreviewBo bo) {
-        ReportTemplateData data = previewService.buildPreview(bo);
-        Map<String, Object> reportRow = interpretationMapper.selectReportRow(bo.getReportId());
-        ReportTemplateVo template = resolveTemplate(bo, data, reportRow);
-        String reportName = resolveReportName(template, data, reportRow);
-        applyReportName(data, reportName);
+        return operationLock.call(bo.getReportId(), () -> generateLocked(bo));
+    }
 
-        Path jsonPath = jsonTarget(bo.getReportId(), data.getTemplateCode(), reportName);
-        Path docxPath = docxTarget(jsonPath);
-        Path pdfPath = null;
+    private Map<String, Object> generateLocked(InterpretationPreviewBo bo) {
+        Map<String, Object> report = interpretationMapper.selectReportRow(bo.getReportId());
+        assertGeneratable(bo, report);
+        ReportTemplateVo template = resolveTemplate(bo, report);
+        bo.setTemplateId(template.getTemplateId());
+        versionAllocator.begin(report, template);
+        report = interpretationMapper.selectReportRow(bo.getReportId());
+        ReportArtifactAttempt attempt = null;
+        boolean published = false;
         try {
+            attempt = artifactStore.prepare(report, "report-" + bo.getReportId());
+            ReportTemplateData data = previewService.buildPreview(bo);
+            int version = Integer.parseInt(report.get("reportVersion").toString());
+            String reportName = versionAllocator.name(report, resolveReportName(template, data, report));
+            applyReportName(data, reportName);
+            data.getReportInfo().setReportVersion(version);
+            data.getReportInfo().setGenerationNo(attempt.generationNo());
+            attempt = artifactStore.prepare(report, reportName);
+            Path jsonPath = attempt.staged(ReportArtifactPaths.JSON, ".json");
+            Path docxPath = attempt.staged(ReportArtifactPaths.DOCX, ".docx");
             writeJson(jsonPath, data);
             ArtifactPermissions.relax(jsonPath);
             Path templateFile = reportDocxRenderer.locateTemplate(template);
-            Map<String, Object> rendered = reportDocxRenderer.render(templateFile, jsonPath, docxPath);
+            reportDocxRenderer.render(templateFile, jsonPath, docxPath);
             ArtifactPermissions.relax(docxPath);
-            pdfPath = convertPdfQuietly(docxPath);
-            updateArtifact(bo, data, jsonPath, docxPath, pdfPath, reportName);
-            return buildResult(data, reportName, jsonPath, docxPath, rendered);
+            pdfConverter.convert(docxPath, attempt.work().resolve(ReportArtifactPaths.PDF));
+            artifactStore.publish(attempt);
+            published = true;
+            registerPublished(bo, data, attempt, reportName);
+            artifactStore.finish(attempt);
+            return buildResult(data, reportName, attempt.published(ReportArtifactPaths.JSON, ".json"),
+                attempt.published(ReportArtifactPaths.DOCX, ".docx"), Map.of("reportVersion", version,
+                    "generationNo", attempt.generationNo()));
         } catch (RuntimeException e) {
-            deleteQuietly(jsonPath);
-            deleteQuietly(docxPath);
-            deleteQuietly(pdfPath);
+            if (published) {
+                artifactStore.rollback(attempt);
+            }
+            // 生成失败不归档、不写失败目录：只丢弃临时工作目录，目标日期目录不留半成品
+            if (attempt != null) {
+                artifactStore.discard(attempt);
+            }
+            markGenerateFailed(bo.getReportId(), e.getMessage());
             throw e;
         }
+    }
+
+    private void registerPublished(InterpretationPreviewBo bo, ReportTemplateData data,
+                                   ReportArtifactAttempt attempt, String reportName) {
+        transactions.executeWithoutResult(status -> {
+            updateArtifact(bo, data, attempt.published(ReportArtifactPaths.JSON, ".json"),
+                attempt.published(ReportArtifactPaths.DOCX, ".docx"),
+                attempt.published(ReportArtifactPaths.PDF, ".pdf"), reportName);
+            markGenerated(bo.getReportId());
+        });
+    }
+
+    /** 生成前校验报告归属与状态；签名失败允许重生成，已发送必须走重新解读。 */
+    private void assertGeneratable(InterpretationPreviewBo bo, Map<String, Object> reportRow) {
+        if (reportRow == null) {
+            throw new ServiceException("报告不存在或已删除：reportId=" + bo.getReportId());
+        }
+        if (!String.valueOf(bo.getAnalysisId()).equals(String.valueOf(reportRow.get("analysisId")))) {
+            throw new ServiceException("报告与分析批次不匹配");
+        }
+        int status = Integer.parseInt(String.valueOf(reportRow.get("status")));
+        ReportRevisionPolicy.requireGeneratable(status);
+    }
+
+    /** 生成成功：状态转 32，并清空上一次的失败原因 */
+    private void markGenerated(Long reportId) {
+        interpretationMapper.updateReportGenerated(reportId, ReportStatus.GENERATED, null);
+    }
+
+    /** 生成失败：状态落 33 并记原因（下次生成成功会自动清掉） */
+    private void markGenerateFailed(Long reportId, String reason) {
+        interpretationMapper.updateReportGenerated(reportId, ReportStatus.GENERATE_FAILED, reason);
+        log.warn("报告生成失败：reportId={} 原因={}", reportId, reason);
     }
 
     /**
      * 模板解析：报告产品 → product_template → report_template；
      * 请求里带了 templateId 就用人工选的那条（必须属于该产品），否则用产品默认模板。
      */
-    private ReportTemplateVo resolveTemplate(InterpretationPreviewBo bo, ReportTemplateData data,
-                                             Map<String, Object> reportRow) {
+    private ReportTemplateVo resolveTemplate(InterpretationPreviewBo bo, Map<String, Object> reportRow) {
+        Long templateId = bo.getTemplateId();
+        if (templateId == null) {
+            templateId = toLong(reportRow.get("templateId"));
+        }
         return templateDataService.requireTemplateByProduct(
             toLong(reportRow == null ? null : reportRow.get("productId")),
             reportRow == null ? null : text(reportRow.get("product")),
-            bo.getTemplateId());
+            templateId);
     }
 
     /**
@@ -168,9 +213,9 @@ public class ReportGenerationService {
             bo.getReportId(), data.getTemplateCode(), reportName, effectiveDisease(data), jsonPath, docxPath, pdfPath);
     }
 
-    /** 本次生效的解读癌种（报告 JSON 的 sampleInfo.disease） */
+    /** 本次生效的解读癌种（报告 JSON 的 sampleInfo.diseaseType = cms_sample 临床诊断） */
     private String effectiveDisease(ReportTemplateData data) {
-        return data.getSampleInfo() == null ? null : data.getSampleInfo().getDisease();
+        return data.getSampleInfo() == null ? null : data.getSampleInfo().getDiseaseType();
     }
 
     /** 本次生效的解读癌种ID（报告 JSON 位点分节的 diseaseId，NKB disease_id；无分节时为空） */
@@ -191,77 +236,6 @@ public class ReportGenerationService {
         result.put("docxPath", docxPath.toString());
         result.putAll(rendered);
         return result;
-    }
-
-    /**
-     * 报告 JSON：&lt;root&gt;/report/json/&lt;报告名或默认前缀&gt;-&lt;时间&gt;-&lt;随机串&gt;.json（平铺，不按日期）。
-     * 同一报告多次生成靠文件名里的「报告名 + 时间 + 随机串」区分，不建 reportId 子目录。
-     */
-    private Path jsonTarget(Long reportId, String templateCode, String reportName) {
-        String reportPart = reportId == null ? "unknown" : String.valueOf(reportId);
-        String fileName = fileBase(reportName, reportPart, templateCode) + ".json";
-        return ReportArtifactPaths.jsonDir(artifactRoot, ReportArtifactPaths.REPORT).resolve(fileName);
-    }
-
-    /** 原始 DOCX：&lt;root&gt;/report/docx/&lt;yyyyMMdd&gt;/，与 JSON 同前缀 */
-    private Path docxTarget(Path jsonPath) {
-        return ReportArtifactPaths.docxDir(artifactRoot, ReportArtifactPaths.REPORT, LocalDate.now())
-            .resolve(fileBase(jsonPath) + ".docx");
-    }
-
-    /**
-     * 静默转 PDF：产物落 &lt;root&gt;/report/pdf/&lt;yyyyMMdd&gt;/。失败只记日志
-     * （report_file_path 留空，交付回退 DOCX）；PDF 是签名链路的输入，转换器抖动不该回滚已渲染的 DOCX。
-     */
-    private Path convertPdfQuietly(Path docxPath) {
-        try {
-            Path pdfPath = pdfConverter.convert(docxPath,
-                ReportArtifactPaths.pdfDir(artifactRoot, ReportArtifactPaths.REPORT, LocalDate.now()));
-            ArtifactPermissions.relax(pdfPath);
-            return pdfPath;
-        } catch (RuntimeException e) {
-            log.warn("报告转 PDF 失败（不影响 DOCX；交付回退 DOCX）：{}，{}", docxPath, e.getMessage());
-            return null;
-        }
-    }
-
-    /** 文件名前缀：配了报告名就用安全化后的报告名，否则用默认的 report-&lt;id&gt;-&lt;模板编码&gt; */
-    private String fileBase(String reportName, String reportPart, String templateCode) {
-        if (reportName != null && !reportName.isBlank()) {
-            return ReportNameResolver.toFileName(reportName) + "-" + uniqueSuffix();
-        }
-        return "report-" + reportPart + "-" + safeFilePart(templateCode) + "-" + uniqueSuffix();
-    }
-
-    /** 去掉扩展名取文件前缀（DOCX/PDF 与 JSON 同前缀，设计书 §9.1） */
-    private String fileBase(Path jsonPath) {
-        String fileName = jsonPath.getFileName().toString();
-        return fileName.endsWith(".json") ? fileName.substring(0, fileName.length() - ".json".length()) : fileName;
-    }
-
-    /** 唯一后缀：时间 + 随机串，保证「每次生成写新文件、旧制品不原地覆盖」 */
-    private String uniqueSuffix() {
-        return LocalDateTime.now().format(FILE_TIME) + "-" + UUID.randomUUID().toString().substring(0, 8);
-    }
-
-    /** 文件名里只保留安全字符（模板编码可能为空） */
-    private String safeFilePart(String value) {
-        if (value == null || value.isBlank()) {
-            return "no-template";
-        }
-        return value.trim().replaceAll("[^A-Za-z0-9._-]", "_");
-    }
-
-    /** 失败清理：删不掉只记日志，不掩盖原始异常（pdfPath 可能为 null，直接跳过） */
-    private void deleteQuietly(Path path) {
-        if (path == null) {
-            return;
-        }
-        try {
-            Files.deleteIfExists(path);
-        } catch (IOException e) {
-            log.warn("生成失败后清理制品未成功：{}，{}", path, e.getMessage());
-        }
     }
 
     private static String text(Object value) {

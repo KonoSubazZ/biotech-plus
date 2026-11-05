@@ -80,6 +80,9 @@ public class ReportVariantHistoryExcelRow implements Serializable {
     @ExcelProperty(value = "解读人", index = 19)
     private String analyzer;
 
+    @ExcelProperty(value = "项目编号", index = 21)
+    private String projectNo;
+
     @ExcelProperty(value = "报告时间", index = 20)
     private String reportGeneratedAt;
 }

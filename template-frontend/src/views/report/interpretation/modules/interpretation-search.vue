@@ -20,13 +20,24 @@ const model = defineModel<Api.Report.InterpretationSearchParams>('model', { requ
 
 const defaultModel = jsonClone(toRaw(model.value));
 
-/** 报告状态下拉（与后端 analysis_report.status 状态机一致） */
+/** 报告状态下拉（与后端 analysis_report.report_status 状态机一致） */
 const REPORT_STATUS_OPTIONS = [
-  { label: '解读中', value: 'INTERPRETING' },
-  { label: '待审核', value: 'PENDING_REVIEW' },
-  { label: '已审核', value: 'APPROVED' },
-  { label: '已驳回', value: 'REJECTED' },
-  { label: '已发送', value: 'SENT' }
+  { label: '生信看点', value: 20 },
+  { label: '生信审核', value: 21 },
+  { label: '报告待解读', value: 30 },
+  { label: '报告解读中', value: 31 },
+  { label: '报告生成成功', value: 32 },
+  { label: '报告生成失败', value: 33 },
+  { label: '报告待审核', value: 40 },
+  { label: '报告审核中', value: 41 },
+  { label: '报告审核失败', value: 42 },
+  { label: '报告审核成功', value: 43 },
+  { label: '报告签名中', value: 50 },
+  { label: '报告签名失败', value: 52 },
+  { label: '报告签名成功', value: 53 },
+  { label: '报告待发送', value: 60 },
+  { label: '报告发送失败', value: 61 },
+  { label: '报告发送成功', value: 62 }
 ];
 
 /**

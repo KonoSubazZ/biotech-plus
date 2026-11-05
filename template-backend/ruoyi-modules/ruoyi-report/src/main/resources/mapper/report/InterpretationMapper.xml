@@ -9,19 +9,28 @@
 -->
 <mapper namespace="org.dromara.report.mapper.InterpretationMapper">
 
+    <update id="updateReportSignResultIfCurrent">
+        UPDATE analysis_report SET report_status = #{status}, report_signed_file_path = #{signedFilePath},
+            report_sign_fail_reason = #{failReason},
+            report_sign_time = CASE WHEN #{status} = 60 THEN NOW() ELSE report_sign_time END,
+            update_time = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0' AND report_status = 50
+          AND report_sign_flow_no = #{flowNo}
+    </update>
+
     <select id="selectInterpretationPage" resultType="org.dromara.report.domain.vo.InterpretationRowVo">
         SELECT
             d.analysis_id         AS analysisId,
             d.analysis_date       AS analysisDate,
             d.subbarcode          AS subbarcode,
-            d.barcode             AS barcode,
-            d.product             AS product,
+            d.subbarcode          AS barcode,
+            d.product_bio         AS product,
             d.product_id          AS productId,
-            d.analyzer            AS analyzer,
             d.drive_status        AS driveStatus,
             d.drive_executed_at   AS driveExecutedAt,
             r.report_id           AS reportId,
-            r.status              AS reportStatus,
+            r.report_version      AS reportVersion,
+            r.report_status       AS reportStatus,
             r.analysis_disease    AS analysisDisease,
             r.template_id         AS templateId,
             r.template            AS template,
@@ -40,10 +49,10 @@
             AND d.subbarcode LIKE CONCAT('%', #{query.subbarcode}, '%')
         </if>
         <if test="query != null and query.product != null and query.product != ''">
-            AND d.product LIKE CONCAT('%', #{query.product}, '%')
+            AND d.product_bio LIKE CONCAT('%', #{query.product}, '%')
         </if>
         <if test="query != null and query.reportStatus != null and query.reportStatus != ''">
-            AND r.status = #{query.reportStatus}
+            AND r.report_status = #{query.reportStatus}
         </if>
         <if test="query != null and query.analysisDate != null and query.analysisDate != ''">
             AND d.analysis_date = #{query.analysisDate}
@@ -65,7 +74,7 @@
             f.analysis_date AS analysisDate,
             CHAR_LENGTH(f.file_text) AS textLength,
             f.update_time   AS updateTime
-        FROM data_file_status f
+        FROM analysis_file_status f
         WHERE f.del_flag = '0'
           AND f.analysis_id = #{analysisId}
         <if test="query != null and query.fileName != null and query.fileName != ''">
@@ -80,6 +89,135 @@
         ORDER BY f.file_id ASC
     </select>
 
+    <!-- 送签：43 报告审核成功（审核通过自动送签）/ 52 签名失败（重新送签）→ 50 报告签名中
+         report_sign_started_at = 送签时间（开始）；report_sign_time 只在回调成功时写（完成时间） -->
+    <update id="updateReportSigning">
+        UPDATE analysis_report
+        SET report_status            = 50,
+            report_sign_flow_no      = #{flowNo},
+            report_sign_started_at   = NOW(),
+            report_sign_fail_reason  = NULL,
+            update_time              = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status IN (43, 52)
+    </update>
+
+    <!-- 签名结果：50 → 60 报告待发送（成功）/ 52 签名失败；送签即失败时从 43 落 52。
+         成功时写 report_sign_time（完成时间）；失败不写完成时间（保留开始时间，列表显示「开始 ~ 」）。 -->
+    <update id="updateReportSignResult">
+        UPDATE analysis_report
+        SET report_status            = #{status},
+            report_signed_file_path  = #{signedFilePath},
+            report_sign_fail_reason  = #{failReason},
+            report_sign_time         = CASE WHEN #{status} = 60 THEN NOW() ELSE report_sign_time END,
+            update_time              = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status IN (43, 50)
+    </update>
+
+    <!-- 批量刷新签名状态：所有「签名中」且有合同号的报告 -->
+    <select id="selectReportsInSigning" resultType="java.util.LinkedHashMap">
+        SELECT report_id           AS reportId,
+               report_sign_flow_no AS signFlowNo,
+               report_status       AS status
+        FROM analysis_report
+        WHERE del_flag = '0'
+          AND report_status = 50
+          AND report_sign_flow_no IS NOT NULL
+        ORDER BY report_id
+    </select>
+
+    <!-- 报告当前状态码（刷新后统计） -->
+    <select id="selectReportSignStatus" resultType="java.lang.Integer">
+        SELECT report_status FROM analysis_report
+        WHERE report_id = #{reportId} AND del_flag = '0'
+    </select>
+
+    <!-- 回调按流程号找报告 -->
+    <select id="selectReportBySignFlowNo" resultType="java.util.LinkedHashMap">
+        SELECT report_id        AS reportId,
+               analysis_id      AS analysisId,
+               report_status    AS status,
+               report_file_path AS reportFilePath
+        FROM analysis_report
+        WHERE report_sign_flow_no = #{flowNo} AND del_flag = '0'
+        LIMIT 1
+    </select>
+
+    <!-- 报告生成结果：32 生成成功（清空失败原因）/ 33 生成失败（写失败原因） -->
+    <update id="updateReportGenerated">
+        UPDATE analysis_report
+        SET report_status          = #{status},
+            report_gen_fail_reason = #{failReason},
+            update_time            = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+    </update>
+
+    <!-- 生信看点认领：点「处理」先占人，不改状态；已被他人占住时 0 行 -->
+    <update id="claimBioinfoView">
+        UPDATE analysis_report
+        SET report_bioinfo_viewed_by = #{userId},
+            update_by                = #{userId},
+            update_time              = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 20
+          AND (report_bioinfo_viewed_by IS NULL OR report_bioinfo_viewed_by = #{userId})
+    </update>
+
+    <!-- 生信复核认领：点「处理」先占人，不改状态 -->
+    <update id="claimBioinfoReview">
+        UPDATE analysis_report
+        SET report_bioinfo_reviewed_by = #{userId},
+            update_by                  = #{userId},
+            update_time                = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 21
+          AND (report_bioinfo_reviewed_by IS NULL OR report_bioinfo_reviewed_by = #{userId})
+    </update>
+
+    <!-- 生信看点完成：20 → 21，只有认领人（report_bioinfo_viewed_by）能点完成 -->
+    <update id="updateBioinfoViewed">
+        UPDATE analysis_report
+        SET report_status            = 21,
+            report_bioinfo_viewed_at = NOW(),
+            update_by                = #{userId},
+            update_time              = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 20
+          AND report_bioinfo_viewed_by = #{userId}
+    </update>
+
+    <!-- 生信复核通过：21 → 30，只有认领人（report_bioinfo_reviewed_by）能点通过 -->
+    <update id="updateBioinfoReviewed">
+        UPDATE analysis_report
+        SET report_status              = 30,
+            report_bioinfo_reviewed_at = NOW(),
+            update_by                  = #{userId},
+            update_time                = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
+          AND report_status = 21
+          AND report_bioinfo_reviewed_by = #{userId}
+    </update>
+
+    <!-- 单文件行（重新驱动用）：拿落盘路径与当前状态 -->
+    <select id="selectFileRow" resultType="java.util.LinkedHashMap">
+        SELECT file_id   AS fileId,
+               file_name AS fileName,
+               file_path AS filePath,
+               status    AS status
+        FROM analysis_file_status
+        WHERE file_id = #{fileId}
+          AND analysis_id = #{analysisId}
+          AND del_flag = '0'
+    </select>
+
+    <!-- 批次级驱动状态（重新驱动后读回展示） -->
+    <select id="selectAnalysisDriveStatus" resultType="java.lang.Integer">
+        SELECT drive_status
+        FROM analysis_data
+        WHERE analysis_id = #{analysisId} AND del_flag = '0'
+    </select>
+
     <!-- Tab② 查看文件内容：LEFT() 在库里截断，避免把超大 LONGTEXT 整个拉到应用层 -->
     <select id="selectFileContent" resultType="org.dromara.report.domain.vo.InterpretationFileContentVo">
         SELECT
@@ -88,14 +226,14 @@
             f.file_type AS fileType,
             LEFT(f.file_text, #{maxLength}) AS fileText,
             CHAR_LENGTH(f.file_text)        AS textLength
-        FROM data_file_status f
+        FROM analysis_file_status f
         WHERE f.file_id = #{fileId}
           AND f.analysis_id = #{analysisId}
           AND f.del_flag = '0'
     </select>
 
     <!--
-      Tab③ 筛选位点：四类位点分散在四张表，用 choose 选表；JOIN data_file_status 锁定分析批次。
+      Tab③ 筛选位点：四类位点分散在四张表，用 choose 选表；JOIN analysis_file_status 锁定分析批次。
       按需求把各明细表除公共字段（create_by/create_time/update_by/update_time/del_flag/tenant_id）
       之外的列全部返回；列名保持数据库列名，顺序与标题由前端一份配置维护。
       返回 Map（key = 列名）而不是定长 VO：明细表列多（SNP/Indel、CR_ALL 各 38 列），
@@ -123,7 +261,7 @@
                     v.reviewed_by,
                     v.reviewed_at
                 FROM file_CNV v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
             </when>
             <when test="query.sourceType == 'FUSION'">
                 SELECT
@@ -163,7 +301,7 @@
                     v.reviewed_by,
                     v.reviewed_at
                 FROM file_Fusion v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
             </when>
             <when test="query.sourceType == 'CR_ALL'">
                 SELECT
@@ -207,7 +345,7 @@
                     v.reviewed_by,
                     v.reviewed_at
                 FROM file_CR_ALL v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
             </when>
             <otherwise>
                 SELECT
@@ -251,7 +389,7 @@
                     v.reviewed_by,
                     v.reviewed_at
                 FROM file_Somatic_SNV_Indel v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
             </otherwise>
         </choose>
         WHERE f.analysis_id = #{analysisId}
@@ -274,7 +412,7 @@
         <choose>
             <when test="sourceType == 'CNV'">
                 UPDATE file_CNV v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.is_reported = #{isReported},
                     v.filtered_rationale = #{filteredRationale},
                     v.reviewed_by = #{operatorId},
@@ -285,7 +423,7 @@
             </when>
             <when test="sourceType == 'FUSION'">
                 UPDATE file_Fusion v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.is_reported = #{isReported},
                     v.filtered_rationale = #{filteredRationale},
                     v.reviewed_by = #{operatorId},
@@ -296,7 +434,7 @@
             </when>
             <when test="sourceType == 'CR_ALL'">
                 UPDATE file_CR_ALL v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.is_reported = #{isReported},
                     v.filtered_rationale = #{filteredRationale},
                     v.reviewed_by = #{operatorId},
@@ -307,7 +445,7 @@
             </when>
             <otherwise>
                 UPDATE file_Somatic_SNV_Indel v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 SET v.is_reported = #{isReported},
                     v.filtered_rationale = #{filteredRationale},
                     v.reviewed_by = #{operatorId},
@@ -322,13 +460,28 @@
     <!-- 预览用：报告 + 模板 + 分析行 -->
     <select id="selectReportRow" resultType="java.util.LinkedHashMap">
         SELECT r.report_id        AS reportId,
+               r.tenant_id        AS tenantId,
+               r.report_version   AS reportVersion,
+               r.report_sequence_id AS reportSequenceId,
+               r.report_generation_no AS reportGenerationNo,
+               r.report_reviewer_id AS reportReviewerId,
+               r.report_review_claimed_by AS reportReviewClaimedBy,
+               r.report_checked_by AS reportCheckedBy,
+               r.report_checked_at AS reportCheckedAt,
+               r.report_sign_flow_no AS signFlowNo,
+               r.source_report_id AS sourceReportId,
+               r.report_name      AS reportName,
                r.analysis_id      AS analysisId,
                r.subbarcode       AS subbarcode,
-               r.product          AS product,
+               r.product_bio      AS product,
+               r.project_no       AS projectNo,
+               d.analysis_batch_date AS analysisBatchDate,
+               d.product_bio      AS productBio,
                r.product_id       AS productId,
                r.template         AS template,
                r.template_id      AS templateId,
                r.analysis_disease AS disease,
+               r.analysis_disease_id AS analysisDiseaseId,
                r.cancer_type      AS cancerType,
                r.analysis_date    AS analysisDate,
                r.report_type      AS reportType,
@@ -336,14 +489,18 @@
                r.report_file_raw_path AS reportFileRawPath,
                r.report_file_path  AS reportFilePath,
                r.report_signed_file_path AS reportSignedFilePath,
-               r.sign_status       AS signStatus,
                r.report_generated_by AS reportGeneratedBy,
                r.report_generated_at AS reportGeneratedAt,
-               r.status           AS status,
+               r.report_status    AS status,
+               r.report_variant_edits AS reportVariantEdits,
+               r.report_bioinfo_viewed_by   AS reportBioinfoViewedBy,
+               r.report_bioinfo_reviewed_by AS reportBioinfoReviewedBy,
+               r.report_interpreted_by      AS reportInterpretedBy,
                t.template_code    AS templateCode,
                t.template_version AS templateVersion,
                t.module_code      AS moduleCode
         FROM analysis_report r
+        LEFT JOIN analysis_data d ON d.analysis_id = r.analysis_id AND d.del_flag = '0'
         LEFT JOIN report_template t ON t.template_id = r.template_id AND t.del_flag = '0'
         WHERE r.report_id = #{reportId} AND r.del_flag = '0'
     </select>
@@ -357,7 +514,7 @@
                v.parent_mutation_id AS parentMutationId,
                NULL AS fusionQuality
         FROM file_Somatic_SNV_Indel v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         UNION ALL
         SELECT 'CNV' AS sourceType, v.id AS sourceId, v.gene AS gene, v.variant AS variant,
@@ -367,7 +524,7 @@
                v.parent_mutation_id AS parentMutationId,
                NULL AS fusionQuality
         FROM file_CNV v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         UNION ALL
         SELECT 'FUSION' AS sourceType, v.id AS sourceId,
@@ -378,7 +535,7 @@
                v.parent_mutation_id AS parentMutationId,
                v.tag AS fusionQuality
         FROM file_Fusion v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         ORDER BY sourceId
     </select>
@@ -391,7 +548,7 @@
                v.parent_mutation_id AS parentMutationId,
                f.file_type AS fileType, NULL AS freqRaw, NULL AS cosmic, NULL AS fusionQuality
         FROM file_CR_ALL v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE f.analysis_id = #{analysisId} AND v.is_reported = 1 AND v.del_flag = '0' AND f.del_flag = '0'
         ORDER BY sourceId
     </select>
@@ -409,7 +566,7 @@
     <!-- 审核动作（通过/驳回）：置状态 + 审核人/时间；驳回时同时写 comment（通过不改备注） -->
     <update id="updateReportReview">
         UPDATE analysis_report
-        SET status            = #{status},
+        SET report_status     = #{status},
             report_checked_by = #{checkedBy},
             report_checked_at = NOW(),
             update_by         = #{operatorId},
@@ -417,17 +574,34 @@
         <if test="comment != null">
             , comment = #{comment}
         </if>
+        <if test="revertFrom != null">
+            , report_revert_from = #{revertFrom}
+        </if>
+        <if test="revertReason != null">
+            , report_revert_reason = #{revertReason}
+        </if>
         WHERE report_id = #{reportId} AND del_flag = '0'
-          AND status IN
+          AND report_status IN
         <foreach collection="fromStatuses" item="item" open="(" separator="," close=")">#{item}</foreach>
+    </update>
+
+    <!-- 审核驳回后清空失效路径（文件已移到 report/rejected/，不记录归档位置） -->
+    <update id="clearReportArtifact">
+        UPDATE analysis_report
+        SET report_json_path        = NULL,
+            report_file_raw_path    = NULL,
+            report_file_path        = NULL,
+            report_signed_file_path = NULL,
+            update_time             = NOW()
+        WHERE report_id = #{reportId} AND del_flag = '0'
     </update>
 
     <!-- 报告状态流转：只在允许的来源状态下更新（0 行 = 状态已变，调用方报错让用户刷新） -->
     <update id="updateReportStatusIfIn">
         UPDATE analysis_report
-        SET status = #{status}, update_time = NOW()
+        SET report_status = #{status}, update_time = NOW()
         WHERE report_id = #{reportId} AND del_flag = '0'
-          AND status IN
+          AND report_status IN
         <foreach collection="fromStatuses" item="item" open="(" separator="," close=")">#{item}</foreach>
     </update>
 
@@ -458,18 +632,11 @@
              #{log.reusedBy}, NOW(3), #{log.reusedBy}, NOW(), #{log.reusedBy}, NOW())
     </insert>
 
-    <!-- 临床意义：只更新人工确认列；冻结的 match_result / 用药 / 位点等级一律不动（NKB 更新也不刷新） -->
-    <update id="updateGermlineSignificance">
-        UPDATE history_germline
-        SET clinical_significance = #{clinicalSignificance}, update_time = NOW()
-        WHERE match_key = #{matchKey} AND del_flag = '0'
-    </update>
-
     <select id="selectGermlineVariant" resultType="java.util.LinkedHashMap">
         SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant, v.zygosity AS zygosity,
                v.parent_mutation_id AS parentMutationId
         FROM file_CR_ALL v
-        JOIN data_file_status f ON f.file_id = v.file_id
+        JOIN analysis_file_status f ON f.file_id = v.file_id
         WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
           AND v.del_flag = '0' AND f.del_flag = '0'
     </select>
@@ -480,7 +647,7 @@
             <when test="sourceType == 'CNV'">
                 SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
                 FROM file_CNV v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
                   AND v.del_flag = '0' AND f.del_flag = '0'
             </when>
@@ -488,55 +655,41 @@
                 SELECT IFNULL(CONCAT(v.gene1, '-', v.gene2), v.gene) AS gene,
                        v.variant AS variant, v.ori_variant AS oriVariant
                 FROM file_Fusion v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
                   AND v.del_flag = '0' AND f.del_flag = '0'
             </when>
             <when test="sourceType == 'CR_ALL'">
                 SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
                 FROM file_CR_ALL v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
                   AND v.del_flag = '0' AND f.del_flag = '0'
             </when>
             <otherwise>
                 SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant
                 FROM file_Somatic_SNV_Indel v
-                JOIN data_file_status f ON f.file_id = v.file_id
+                JOIN analysis_file_status f ON f.file_id = v.file_id
                 WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId}
                   AND v.del_flag = '0' AND f.del_flag = '0'
             </otherwise>
         </choose>
     </select>
 
-    <!-- 改靶：把人工父级写回源位点表（逗号分隔的多父级；null 表示取消改靶） -->
-    <update id="updateParentMutation">
-        <choose>
-            <when test="sourceType == 'CNV'">
-                UPDATE file_CNV v
-                JOIN data_file_status f ON f.file_id = v.file_id
-                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
-                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
-            </when>
-            <when test="sourceType == 'FUSION'">
-                UPDATE file_Fusion v
-                JOIN data_file_status f ON f.file_id = v.file_id
-                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
-                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
-            </when>
-            <when test="sourceType == 'CR_ALL'">
-                UPDATE file_CR_ALL v
-                JOIN data_file_status f ON f.file_id = v.file_id
-                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
-                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
-            </when>
-            <otherwise>
-                UPDATE file_Somatic_SNV_Indel v
-                JOIN data_file_status f ON f.file_id = v.file_id
-                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
-                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
-            </otherwise>
-        </choose>
+    <!--
+      位点人工修改（父靶点 / 胚系临床意义 / 突变说明）：报告粒度 JSON。
+      只在「可生成报告」的状态（31/32/33/52）允许写；40+ 已送审/已发送时影响行数为 0，
+      由服务层报「报告状态已变化，请刷新后重试」。
+    -->
+    <update id="updateReportVariantEdits">
+        UPDATE analysis_report
+        SET report_variant_edits = #{edits},
+            update_by = #{operatorId},
+            update_time = NOW()
+        WHERE report_id = #{reportId}
+          AND analysis_id = #{analysisId}
+          AND report_status IN (31, 32, 33, 52)
+          AND del_flag = '0'
     </update>
 
     <select id="selectProductGeneSymbols" resultType="java.lang.String">
@@ -559,26 +712,26 @@
 
     <insert id="insertSomaticHistory">
         INSERT IGNORE INTO history_somatic
-            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
+            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_no, project_code,
              source_type, mutation_type, measurement, parent_mutation_id, match_status, variation_class,
              match_result, source_analysis_id, source_report_id, source_variant_id, knowledge_matched_at,
              create_time, update_time)
         VALUES
             (#{h.matchKey}, #{h.keyVersion}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
-             #{h.customer}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
+             #{h.customer}, #{h.projectNo}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
              #{h.parentMutationId}, #{h.matchStatus}, #{h.variationClass}, #{h.matchResult},
              #{h.sourceAnalysisId}, #{h.sourceReportId}, #{h.sourceVariantId}, NOW(), NOW(), NOW())
     </insert>
 
     <insert id="insertGermlineHistory">
         INSERT IGNORE INTO history_germline
-            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_code,
+            (match_key, key_version, gene, variant, ori_variant, disease_id, disease, gender, customer, project_no, project_code,
              source_type, mutation_type, measurement, parent_mutation_id, match_status, variation_class,
              match_result, clinical_significance, source_analysis_id, source_report_id, source_variant_id,
              knowledge_matched_at, create_time, update_time)
         VALUES
             (#{h.matchKey}, #{h.keyVersion}, #{h.gene}, #{h.variant}, #{h.oriVariant}, #{h.diseaseId}, #{h.disease}, #{h.gender},
-             #{h.customer}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
+             #{h.customer}, #{h.projectNo}, #{h.projectCode}, #{h.sourceType}, #{h.mutationType}, #{h.measurement},
              #{h.parentMutationId}, #{h.matchStatus}, #{h.variationClass}, #{h.matchResult}, #{h.clinicalSignificance},
              #{h.sourceAnalysisId}, #{h.sourceReportId}, #{h.sourceVariantId}, NOW(), NOW(), NOW())
     </insert>
@@ -588,7 +741,7 @@
         SELECT clinical_significance
         FROM history_germline
         WHERE gene = #{q.gene} AND variant = #{q.variant} AND disease = #{q.disease}
-          AND gender = #{q.gender} AND project_code = #{q.projectCode}
+          AND gender = #{q.gender} AND project_no = #{q.projectNo} AND project_code = #{q.projectCode}
           AND del_flag = '0'
         ORDER BY id DESC
         LIMIT 1
@@ -598,12 +751,12 @@
     <select id="selectAnalysisSnapshot" resultType="org.dromara.report.domain.vo.AnalysisSnapshotVo">
         SELECT
             d.analysis_id  AS analysisId,
+            d.analysis_batch_date AS analysisBatchDate,
             d.analysis_date AS analysisDate,
             d.subbarcode   AS subbarcode,
-            d.barcode      AS barcode,
-            d.product      AS product,
-            d.product_id   AS productId,
-            d.analyzer     AS analyzer
+            d.subbarcode   AS barcode,
+            d.product_bio  AS product,
+            d.product_id   AS productId
         FROM analysis_data d
         WHERE d.analysis_id = #{analysisId}
           AND d.del_flag = '0'
@@ -622,7 +775,7 @@
                q.genome_alignment_rate     AS genomeAlignmentRate,
                q.base_quality_q30_rate     AS baseQualityQ30Rate
         FROM file_qc q
-        JOIN data_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
+        JOIN analysis_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
         WHERE f.analysis_id = #{analysisId} AND q.del_flag = '0'
         ORDER BY q.id DESC
         LIMIT 1
@@ -641,7 +794,7 @@
                q.genome_alignment_rate     AS genomeAlignmentRate,
                q.base_quality_q30_rate     AS baseQualityQ30Rate
         FROM file_qc_control q
-        JOIN data_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
+        JOIN analysis_file_status f ON f.file_id = q.file_id AND f.del_flag = '0'
         WHERE f.analysis_id = #{analysisId} AND q.del_flag = '0'
         ORDER BY q.id DESC
         LIMIT 1

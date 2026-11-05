@@ -40,6 +40,9 @@ public class ReportVariantHistory extends TenantEntity {
     /** 客户（LIMS 医院名） */
     private String client;
 
+    /** 项目编号（analysis_report.project_no；替代 client 做归属展示） */
+    private String projectNo;
+
     /** 产品 */
     private String product;
 

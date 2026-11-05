@@ -1,11 +1,12 @@
 package org.dromara.report.service.impl;
 
+import org.dromara.common.core.exception.ServiceException;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
-import org.dromara.report.domain.bo.InterpretationTargetBo;
+import org.dromara.report.domain.bo.InterpretationVariantEditBo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
@@ -39,6 +40,8 @@ import static org.dromara.report.service.impl.PreviewSupport.asString;
 import static org.dromara.report.service.impl.PreviewSupport.nkb;
 import org.dromara.report.service.impl.preview.PreviewContextBuilder;
 import org.dromara.report.service.impl.preview.VariantMatcher;
+import org.dromara.report.service.impl.preview.VariantNotes;
+import org.dromara.report.service.impl.preview.ReportVariantEdits;
 import org.dromara.report.service.impl.preview.VariantEditService;
 import org.dromara.report.service.impl.preview.ReportVariantHistoryWriter;
 import org.dromara.report.domain.dto.PreviewContext;
@@ -139,24 +142,45 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     /**
      * 页面预览：优先读已生成的 JSON 制品，没有才实时组装。
      * <p>
-     * 事务开在这里：实时组装首次匹配会写匹配历史（insert 冻结行 + 复用留痕），
-     * 必须整体提交或整体回滚（注意不能改成内部自调用 buildPreview，否则事务注解不生效）。
+     * 只读：实时组装走 {@link #buildPreview}（persistHistory=false），命中历史照常复用，
+     * 但<b>不冻结新历史、不登记复用次数</b> —— 预览不产生任何 history_* 写入。
+     * 事务保留是为了让本次预览的多次查询取同一快照。
      *
-     * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
+     * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空；realtime：强制实时组装）
      * @return 预览数据 + 来源标记
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public InterpretationPreviewVo preview(InterpretationPreviewBo bo) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
+        int status = Integer.parseInt(String.valueOf(report.get("status")));
+        boolean frozen = status >= 40 && status != 52;
+        Long templateId = bo.getTemplateId();
+        if (templateId == null) {
+            templateId = asLong(report.get("templateId"));
+        }
+        if (frozen || report.get("reportVersion") != null) {
+            templateId = asLong(report.get("templateId"));
+        }
         ReportTemplateVo template = reportTemplateDataService.requireTemplateByProduct(
-            asLong(report.get("productId")), asString(report.get("product")), bo.getTemplateId());
-        Optional<InterpretationPreviewVo> generated = readGeneratedArtifact(report, template);
+            asLong(report.get("productId")), asString(report.get("product")), templateId);
+        boolean editable = status == 31 || status == 32 || status == 33 || status == 52;
+        // 32 状态只要有人工修改，就实时组装（否则读者看到的是旧制品，提交闸门又要求一致）
+        boolean hasEdits = StringUtils.hasText(asString(report.get("reportVariantEdits")));
+        Optional<InterpretationPreviewVo> generated = Optional.empty();
+        if (!(status == 32 && hasEdits)
+            && (!bo.isRealtime() || !editable) && status != 31 && status != 33 && status != 52) {
+            generated = readGeneratedArtifact(report, template);
+        }
         if (generated.isPresent()) {
             return generated.get();
         }
+        if (frozen) {
+            throw new ServiceException("已送审报告的冻结 JSON 不可用，请联系管理员检查制品，不能改用实时预览");
+        }
         InterpretationPreviewVo vo = new InterpretationPreviewVo();
         vo.setSource(SOURCE_REALTIME);
+        bo.setTemplateId(template.getTemplateId());
         vo.setData(buildPreview(bo));
         return vo;
     }
@@ -190,6 +214,8 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         try {
             ReportTemplateData data = objectMapper.readValue(
                 Files.readString(file, StandardCharsets.UTF_8), ReportTemplateData.class);
+            // 制品即最终内容：编辑已在提交前核对过与制品一致（assertVariantEditsMatched），
+            // 这里不再叠加任何内存/覆盖表，避免「页面看到的」与「送审的」不是同一份。
             InterpretationPreviewVo vo = new InterpretationPreviewVo();
             vo.setSource(SOURCE_ARTIFACT);
             vo.setArtifactGeneratedAt(displayTime(report.get("reportGeneratedAt")));
@@ -210,10 +236,10 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     /**
      * 实时组装报告 JSON：上下文 → 匹配体细胞/胚系 → 交给 {@link ReportTemplateDataService} 出最终结构。
      * <p>
-     * <b>只读</b>：命中匹配历史照常复用，但不冻结新历史、不登记复用次数
-     * （落库只在提交审核时发生，见 {@link #freezeHistory}）。
+     * <b>只读</b>：命中匹配历史照常复用，但不冻结新历史、不登记复用次数。
      * 生成（{@code ReportGenerationService}）也走这里 —— 生成时不复用页面预览的结果，
      * 而是重新组装，保证落盘的 JSON 与当时的库数据一致。
+     * 人工修改从 {@code report_variant_edits} 读取，只影响本次生成的 JSON，不写 history_*。
      *
      * @param bo 入参（analysisId / reportId / templateId）
      * @return 报告 JSON（ReportTemplateData）
@@ -221,31 +247,92 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ReportTemplateData buildPreview(InterpretationPreviewBo bo) {
-        return assemble(bo, false);
+        return assemble(bo);
     }
 
     /**
-     * 冻结匹配历史：报告提交审核时调用，把该报告「报出」的位点匹配结果写进 history_*（首次冻结）。
+     * 审核通过冻结：<b>只读已生成的报告 JSON</b>，把匹配结果派生进 history_* 与历史检出。
      * <p>
-     * 与预览共用同一套组装逻辑（上下文口径必须一致，否则会冻出与预览不一致的历史），
-     * 只是打开了落库开关；返回的 JSON 不用，丢弃即可。
+     * 不再 loadContext / 不再查 NKB / 不再用实时样本：报告内容 = 历史冻结结果。
+     * 与 43 状态更新同一事务；读不到制品、或 B1 冲突 → 抛错回滚审核通过。
      *
-     * @param bo 入参（analysisId / reportId / templateId）
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void freezeHistory(InterpretationPreviewBo bo) {
-        assemble(bo, true);
+    public void freezeFromArtifact(Long reportId, Long analysisId) {
+        Map<String, Object> report = contextBuilder.loadReport(reportId, analysisId);
+        ReportTemplateData data = readArtifactData(report);
+        PreviewContext pc = freezeContext(report, data);
+        List<PreviewVariantVo> somatic = data.getSomaticVariants() == null || data.getSomaticVariants().getItems() == null
+            ? List.of() : data.getSomaticVariants().getItems();
+        List<PreviewVariantVo> germline = data.getGermlineVariants() == null || data.getGermlineVariants().getItems() == null
+            ? List.of() : data.getGermlineVariants().getItems();
+        variantMatcher.freezeFromItems(pc, report, somatic, false);
+        variantMatcher.freezeFromItems(pc, report, germline, true);
+        detectionHistoryWriter.write(pc, report, data, somatic, germline);
     }
 
     /**
-     * 组装报告 JSON 的共用实现。
+     * 读已生成的报告 JSON（路径必须落在制品根内）。
      *
-     * @param bo             入参（analysisId / reportId / templateId）
-     * @param persistHistory 是否把匹配结果冻结进 history_*（true = 审核冻结；false = 预览/生成只读）
+     * @param report 报告行（含 reportJsonPath）
      * @return 报告 JSON
      */
-    private ReportTemplateData assemble(InterpretationPreviewBo bo, boolean persistHistory) {
+    private ReportTemplateData readArtifactData(Map<String, Object> report) {
+        String jsonPath = asString(report.get("reportJsonPath"));
+        if (!StringUtils.hasText(jsonPath)) {
+            throw new ServiceException("报告尚未生成 JSON 制品，不能审核通过：reportId=" + report.get("reportId"));
+        }
+        Path file = Paths.get(jsonPath).toAbsolutePath().normalize();
+        Path root = Paths.get(artifactRoot).toAbsolutePath().normalize();
+        if (!file.startsWith(root) || !Files.isRegularFile(file)) {
+            throw new ServiceException("报告 JSON 制品不可用（越界或不存在）：" + jsonPath);
+        }
+        try {
+            return objectMapper.readValue(Files.readString(file, StandardCharsets.UTF_8), ReportTemplateData.class);
+        } catch (Exception e) {
+            throw new ServiceException("报告 JSON 制品读取失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 冻结上下文：全部来自报告快照 + 制品 JSON，不取实时样本/NKB。
+     *
+     * @param report 报告行
+     * @param data   报告 JSON
+     * @return 冻结用上下文（只用到 matchKey 需要的 projectNo/productCode/disease/gender 等）
+     */
+    private PreviewContext freezeContext(Map<String, Object> report, ReportTemplateData data) {
+        PreviewContext pc = new PreviewContext();
+        pc.setAnalysisId(asLong(report.get("analysisId")));
+        pc.setReportId(asLong(report.get("reportId")));
+        pc.setProjectNo(asString(report.get("projectNo")));
+        pc.setProjectCode(asString(report.get("product")));
+        ReportTemplateData.SampleInfo sample = data.getSampleInfo();
+        pc.setDisease(sample == null ? asString(report.get("disease")) : sample.getDiseaseType());
+        // 癌种ID取生成时写进 JSON 分节的那个（与 matchKey 生成口径一致）；没有才退回报告列
+        Long diseaseId = data.getSomaticVariants() == null ? null : data.getSomaticVariants().getDiseaseId();
+        if (diseaseId == null && data.getGermlineVariants() != null) {
+            diseaseId = data.getGermlineVariants().getDiseaseId();
+        }
+        pc.setDiseaseId(diseaseId == null ? asLong(report.get("analysisDiseaseId")) : diseaseId);
+        String gender = sample == null ? null : sample.getSex();
+        pc.setGender(PreviewSupport.normalizeGender(gender));
+        String customer = sample == null ? null : sample.getCustomerName();
+        pc.setCustomer(StringUtils.hasText(customer) ? customer
+            : "UNKNOWN_CUSTOMER@ANALYSIS:" + report.get("analysisId"));
+        return pc;
+    }
+
+    /**
+     * 组装报告 JSON 的共用实现（预览 / 生成）。
+     *
+     * @param bo 入参（analysisId / reportId / templateId）
+     * @return 报告 JSON
+     */
+    private ReportTemplateData assemble(InterpretationPreviewBo bo) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
         InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
         ReportTemplateVo template = reportTemplateDataService.requireTemplateByProduct(
@@ -254,9 +341,15 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         PreviewContext pc = contextBuilder.build(bo.getAnalysisId(), bo.getReportId(), report, context,
             bo.getDisease());
         contextBuilder.applyTemplate(pc, template);
+        // 报告级人工修改（只对未入库位点生效；历史命中时由匹配逻辑忽略）
+        Map<String, ReportVariantEdits.Edit> edits = ReportVariantEdits.parse(asString(report.get("reportVariantEdits")));
+        pc.setVariantEdits(edits);
 
-        List<PreviewVariantVo> somatic = variantMatcher.matchSomatic(pc, persistHistory);
-        List<PreviewVariantVo> germline = variantMatcher.matchGermline(pc, persistHistory);
+        List<PreviewVariantVo> somatic = variantMatcher.matchSomatic(pc, false);
+        List<PreviewVariantVo> germline = variantMatcher.matchGermline(pc, false);
+        // 人工修改的「突变说明」：有覆盖用覆盖，否则用实时算出的默认说明（来源=历史不覆盖）
+        ReportVariantEdits.applyDescription(somatic, edits);
+        ReportVariantEdits.applyDescription(germline, edits);
 
         ReportBuildInput input = new ReportBuildInput();
         input.setContext(pc);
@@ -269,10 +362,6 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         input.setWarnings(collectWarnings(context, pc, somatic, germline));
         ReportTemplateData data = reportTemplateDataService.build(input);
         applyGenerateParams(data, bo);
-        if (persistHistory) {
-            // 提交审核：冻结 history_* 的同时把本次报出的位点写进「历史检出」（同一事务）
-            detectionHistoryWriter.write(pc, report, data, somatic, germline);
-        }
         return data;
     }
 
@@ -310,18 +399,11 @@ public class InterpretationPreviewServiceImpl implements IInterpretationPreviewS
         return warnings;
     }
 
-    /** 人工确认胚系五级临床意义 → {@link VariantEditService} */
+    /** 位点人工修改（父靶点 / 胚系临床意义 / 突变说明）→ {@link VariantEditService} */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateGermlineSignificance(InterpretationGermlineSignificanceBo bo) {
-        variantEditService.updateGermlineSignificance(bo);
-    }
-
-    /** 改靶（体细胞 / 胚系共用）→ {@link VariantEditService} */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void updateVariantTarget(InterpretationTargetBo bo) {
-        variantEditService.updateVariantTarget(bo);
+    public void updateVariantEdits(InterpretationVariantEditBo bo) {
+        variantEditService.updateVariantEdits(bo);
     }
 
     /** 改靶候选（NKB Approved 节点）→ {@link VariantEditService} */

@@ -12,12 +12,12 @@
 <mapper namespace="org.dromara.qc.mapper.BioinfoQcMapper">
 
     <!--
-      样本编号 → 客户名（= 药企名）。数据源 sample_file（web_crm 源表 myapp_webcrmsample 的落库副本）。
+      样本编号 → 客户名（= 药企名）。数据源 cms_sample（web_crm 源表 myapp_webcrmsample 的落库副本）。
       同编号多条时取最新一条；含已软删行不加限制（软删样本仍可定位药企，避免接口推数据被静默丢）。
     -->
     <select id="selectCustomerNameBySubbarcode" resultType="java.lang.String">
         SELECT customer_name
-        FROM sample_file
+        FROM cms_sample
         WHERE subbarcode = #{subbarcode}
         ORDER BY id DESC
         LIMIT 1

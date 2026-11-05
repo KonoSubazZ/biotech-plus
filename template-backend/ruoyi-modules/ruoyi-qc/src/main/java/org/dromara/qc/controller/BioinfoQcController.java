@@ -35,7 +35,7 @@ import java.util.List;
  * 生信质控
  * <p>
  * 页面只读：数据全部由上游通过 {@code POST /qc/bioinfo/receive} 推送，故没有新增 / 修改 / 删除接口。
- * 推送方带固定 token（见 ApiTokenFilter）时无需登录，服务端会按 sample_file.customer_name 解析归属药企。
+ * 推送方带固定 token（见 ApiTokenFilter）时无需登录，服务端会按 cms_sample.customer_name 解析归属药企。
  *
  * @author <你的名字>
  */
@@ -61,7 +61,7 @@ public class BioinfoQcController extends BaseController {
     }
 
     /**
-     * 样本编号 → 药企解析（排查接口拒收用）：静默查 sample_file.customer_name 与 sys_tenant
+     * 样本编号 → 药企解析（排查接口拒收用）：静默查 cms_sample.customer_name 与 sys_tenant
      *
      * @param subbarcode 样本编号
      * @return 解析结果

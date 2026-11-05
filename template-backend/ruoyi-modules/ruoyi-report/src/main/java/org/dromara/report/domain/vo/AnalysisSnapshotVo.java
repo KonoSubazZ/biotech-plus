@@ -22,6 +22,9 @@ public class AnalysisSnapshotVo implements Serializable {
     /** 分析数据ID */
     private Long analysisId;
 
+    /** 上传批次目录名（= analysis_data.analysis_batch_date，报告表要存快照） */
+    private String analysisBatchDate;
+
     /** 分析日期（YYYYMMDD） */
     private String analysisDate;
 

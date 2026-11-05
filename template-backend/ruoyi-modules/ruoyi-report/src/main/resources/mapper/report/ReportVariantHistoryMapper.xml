@@ -8,12 +8,12 @@
     -->
     <insert id="upsertBatch">
         INSERT INTO report_variant_history
-            (report_id, analysis_id, subbarcode, client, product, disease, source_type, source_id,
+            (report_id, analysis_id, subbarcode, client, project_no, product, disease, source_type, source_id,
              gene, variant, abundance, variant_type, ori_variant, level, drug_info, analyzer, report_generated_at,
              create_by, create_time, update_by, update_time, del_flag)
         VALUES
         <foreach collection="rows" item="r" separator=",">
-            (#{r.reportId}, #{r.analysisId}, #{r.subbarcode}, #{r.client}, #{r.product}, #{r.disease},
+            (#{r.reportId}, #{r.analysisId}, #{r.subbarcode}, #{r.client}, #{r.projectNo}, #{r.product}, #{r.disease},
              #{r.sourceType}, #{r.sourceId}, #{r.gene}, #{r.variant}, #{r.abundance}, #{r.variantType},
              #{r.oriVariant}, #{r.level}, #{r.drugInfo}, #{r.analyzer}, #{r.reportGeneratedAt},
              #{r.createBy}, NOW(), #{r.updateBy}, NOW(), '0')
@@ -26,6 +26,7 @@
             analyzer            = VALUES(analyzer),
             disease             = VALUES(disease),
             client              = VALUES(client),
+            project_no          = VALUES(project_no),
             product             = VALUES(product),
             subbarcode          = VALUES(subbarcode),
             report_generated_at = VALUES(report_generated_at),

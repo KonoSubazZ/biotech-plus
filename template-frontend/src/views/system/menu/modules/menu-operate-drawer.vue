@@ -2,10 +2,10 @@
 import { computed, ref, watch } from 'vue';
 import type { SelectOption } from 'naive-ui';
 import { jsonClone } from '@sa/utils';
-import { menuIconTypeOptions, menuIsFrameOptions, menuLayoutOptions, menuTypeOptions } from '@/constants/business';
+import { menuIsFrameOptions, menuLayoutOptions, menuTypeOptions } from '@/constants/business';
 import { fetchCreateMenu, fetchUpdateMenu } from '@/service/api/system';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
-import { getLocalMenuIcons } from '@/utils/icon';
+import { getIconifyMenuIcons, isIconifyIconAvailable } from '@/utils/icon';
 import { isNotNull } from '@/utils/common';
 import { $t } from '@/locales';
 import SvgIcon from '@/components/custom/svg-icon.vue';
@@ -42,7 +42,6 @@ const visible = defineModel<boolean>('visible', {
 const defaultIcon = import.meta.env.VITE_MENU_ICON;
 
 const layoutType = ref<string>('0');
-const iconType = ref<Api.System.IconType>('1');
 const { formRef, validate, restoreValidation } = useNaiveForm();
 const { createRequiredRule, createNumberRequiredRule } = useFormRules();
 const queryList = ref<{ key: string; value: string }[]>([]);
@@ -108,27 +107,40 @@ const isBlankLayout = computed(() => layoutType.value === '1');
 // iframe类型
 const isIframeType = computed(() => model.value.isFrame === '2');
 
-// 本地图标类型
-const isLocalIcon = computed(() => iconType.value === '2');
-
 // 布局类型禁用
 const layoutDisabled = computed(() => !(isMenu.value && model.value.parentId === 0));
 
-// 本地图标
-const localIcons = getLocalMenuIcons();
-const localIconOptions = localIcons.map<SelectOption>(item => ({
+// iconify 图标（ant-design 同族，带视觉尺寸归一化系数）
+const iconifyIcons = getIconifyMenuIcons();
+const iconifyIconOptions = iconifyIcons.map<SelectOption>(item => ({
   label: () => (
     <div class="flex-y-center gap-16px">
-      <SvgIcon localIcon={`menu-${item}`} class="text-icon" />
-      <span>{item}</span>
+      {/* 固定尺寸的槽位 + 按 scale 缩放的图标：让所有图标视觉大小一致，文字也左对齐 */}
+      <span class="inline-flex flex-none items-center justify-center" style={{ width: '1.35em', height: '1.35em' }}>
+        <SvgIcon icon={item.name} style={{ width: `${item.scale}em`, height: `${item.scale}em` }} />
+      </span>
+      <span>{item.name}</span>
     </div>
   ),
-  value: `local-icon-${item}`
+  value: item.name
 }));
+
+// 填了离线包里没有的图标：能保存，但菜单上不会显示
+const iconifyIconUnavailable = computed(() => {
+  const icon = model.value.icon;
+  if (!icon) return false;
+  return !isIconifyIconAvailable(icon);
+});
+
+// 下拉过滤按图标全名匹配（label 是渲染函数，走默认过滤会失效）
+function filterIconifyIcon(pattern: string, option: SelectOption) {
+  return String(option.value ?? '')
+    .toLowerCase()
+    .includes(pattern.toLowerCase());
+}
 
 function handleInitModel() {
   queryList.value = [];
-  iconType.value = '1';
   layoutType.value = '0';
   model.value = createDefaultModel();
 
@@ -141,7 +153,6 @@ function handleInitModel() {
     } else if (isMenu.value && isInternalType.value) {
       model.value.component = component?.slice(0, -6);
     }
-    iconType.value = model.value.icon?.startsWith('local-icon-') ? '2' : '1';
 
     if (model.value.isFrame === '1') {
       const queryObj: { [key: string]: string } = JSON.parse(model.value.queryParam || '{}');
@@ -332,11 +343,6 @@ function onCreate() {
           <NFormItemGi span="24" :label="$t('page.system.menu.menuName')" path="menuName">
             <NInput v-model:value="model.menuName" :placeholder="$t('page.system.menu.form.menuName.required')" />
           </NFormItemGi>
-          <NFormItemGi v-if="!isBtn" span="12" :label="$t('page.system.menu.iconType')">
-            <NRadioGroup v-model:value="iconType">
-              <NRadio v-for="item in menuIconTypeOptions" :key="item.value" :value="item.value" :label="item.label" />
-            </NRadioGroup>
-          </NFormItemGi>
           <NFormItemGi v-if="!isBtn" span="12" path="icon">
             <template #label>
               <div class="flex-center">
@@ -344,25 +350,19 @@ function onCreate() {
                 <span class="pl-3px">{{ $t('page.system.menu.icon') }}</span>
               </div>
             </template>
-            <template v-if="isLocalIcon">
+            <div class="w-full">
               <NSelect
                 v-model:value="model.icon"
-                :placeholder="$t('page.system.menu.placeholder.localIconPlaceholder')"
-                filterable
-                :options="localIconOptions"
-              />
-            </template>
-            <template v-else>
-              <NInput
-                v-model:value="model.icon"
                 :placeholder="$t('page.system.menu.placeholder.iconifyIconPlaceholder')"
-                class="flex-1"
-              >
-                <template #suffix>
-                  <SvgIcon v-if="model.icon" :icon="model.icon" class="text-icon" />
-                </template>
-              </NInput>
-            </template>
+                filterable
+                tag
+                :filter="filterIconifyIcon"
+                :options="iconifyIconOptions"
+              />
+              <NText v-if="iconifyIconUnavailable" type="error" class="mt-1 block text-12px">
+                {{ $t('page.system.menu.iconifyNotAvailable') }}
+              </NText>
+            </div>
           </NFormItemGi>
           <NFormItemGi v-if="!isBtn" :span="12" path="isFrame">
             <template #label>

@@ -41,8 +41,9 @@ const STATUS_META: Record<string, { label: string; type: 'success' | 'warning' |
 const searchParams = ref<Api.Project.ProductConfigSearchParams>({
   pageNum: 1,
   pageSize: 10,
-  name: null,
-  code: null,
+  productName: null,
+  productBio: null,
+  productCode: null,
   status: null,
   params: {}
 });
@@ -58,11 +59,21 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     },
     columns: () => [
       { type: 'selection', align: 'center', width: 48 },
-      { key: 'name', title: '产品名称', align: 'center', minWidth: 160 },
-      { key: 'code', title: '产品编码', align: 'center', minWidth: 140 },
-      { key: 'testType', title: '检测类型', align: 'center', minWidth: 120 },
-      { key: 'relatedDiseases', title: '相关疾病', align: 'center', minWidth: 160 },
+      { key: 'productCode', title: '产品编码', align: 'center', minWidth: 130 },
+      { key: 'tradeName', title: '商品名', align: 'center', minWidth: 110 },
+      { key: 'productName', title: '产品名称', align: 'center', minWidth: 200 },
+      { key: 'productBio', title: '生信编码', align: 'center', minWidth: 200 },
+      { key: 'relatedDiseases', title: '适应症', align: 'center', minWidth: 130 },
+      { key: 'testType', title: '样本类型', align: 'center', minWidth: 100 },
+      { key: 'controlType', title: '对照', align: 'center', minWidth: 100 },
+      { key: 'productVersion', title: '版本', align: 'center', minWidth: 90 },
+      { key: 'sequencingPlatform', title: '测序平台', align: 'center', minWidth: 130 },
+      { key: 'geneCount', title: '基因数/DNA', align: 'center', minWidth: 110 },
       { key: 'reportCycleDays', title: '报告周期(天)', align: 'center', width: 120 },
+      { key: 'maintainLab', title: '维护实验室', align: 'center', minWidth: 120 },
+      { key: 'relatedProcess', title: '关联工序', align: 'center', minWidth: 110 },
+      { key: 'probeType', title: '探针类型', align: 'center', minWidth: 160 },
+      { key: 'panelType', title: 'panel类型', align: 'center', minWidth: 120 },
       {
         key: 'status',
         title: '状态',
@@ -79,6 +90,7 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         title: $t('common.operate'),
         align: 'center',
         width: 180,
+        fixed: 'right',
         render: row => {
           // 基因详情：看/维护这个产品的 gene list（先建产品、后补基因）
           const detailBtn = () => {

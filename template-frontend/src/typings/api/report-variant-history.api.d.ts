@@ -13,6 +13,8 @@ declare namespace Api {
       reportId: number;
       /** 样本编号 */
       subbarcode: string | null;
+      /** 项目编号（替代客户做归属展示） */
+      projectNo: string | null;
       /** 客户（LIMS 医院名） */
       client: string | null;
       /** 产品 */
@@ -74,6 +76,8 @@ declare namespace Api {
       disease: string | null;
       /** 产品 */
       product: string | null;
+      /** 项目编号 */
+      projectNo?: string | null;
       /** 客户 */
       client: string | null;
       /** 报告时间范围 */

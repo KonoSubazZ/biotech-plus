@@ -29,4 +29,4 @@
 8. **索引先行** — 进入决策先读 `.ai_state/_index.md`, 禁止 glob 全目录扫描
 9. **Hook 是进化器** — 在 Stop 时反思并写 `.ai_state/details/proposals.md`
 
-设计原则: SRP · OCP · LSP · ISP · DIP · DRY · KISS · 第一性原理 · 先 WHY 后 HOW
+设计原则: KISS · DRY · 单一职责 · 第一性原理 · 先 WHY 后 HOW（抽象只在出现第二个实现时引入；OCP / DIP / ISP 不作为本仓库目标，口径见 ../ai-rules/01-readability.md §0）

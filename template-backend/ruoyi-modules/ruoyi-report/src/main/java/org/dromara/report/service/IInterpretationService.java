@@ -10,6 +10,7 @@ import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
+import org.dromara.report.domain.vo.FileRedriveVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 
 import java.util.Map;
@@ -20,6 +21,9 @@ import java.util.Map;
  * @author <你的名字>
  */
 public interface IInterpretationService {
+
+    /** 仅供已校验整批重扫结果的重新解读服务调用。 */
+    AnalysisReportVo enterAfterRescan(Long analysisId, Long sourceReportId);
 
     /**
      * 分页查询报告解读列表
@@ -37,6 +41,32 @@ public interface IInterpretationService {
      * @return 报告头信息（含 reportId / status）
      */
     AnalysisReportVo enter(Long analysisId);
+
+    /**
+     * 进入解读（可只读）：只读 = 已完成报告「查看解读记录」，不新建、不补快照、不校验流转状态。
+     *
+     * @param analysisId 分析数据ID
+     * @param readonly   是否只读查看
+     * @return 报告头信息（含 reportId / status）
+     */
+    AnalysisReportVo enter(Long analysisId, boolean readonly);
+
+    /**
+     * 认领生信看点（样本流转「生信看点」页签点「处理」时调用）：先占人，不改状态。
+     * 已被他人占住时抛异常。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     */
+    void claimBioinfoView(Long analysisId, Long reportId);
+
+    /**
+     * 认领生信复核（「生信审核」页签点「处理」时调用）：先占人，不改状态。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     */
+    void claimBioinfoReview(Long analysisId, Long reportId);
 
     /**
      * 加载解读页上下文：报告头 + LIMS 信息 + 生成前校验结论。
@@ -57,6 +87,40 @@ public interface IInterpretationService {
      */
     TableDataInfo<InterpretationFileVo> selectFileList(Long analysisId, InterpretationFileQueryBo bo,
                                                       PageQuery pageQuery);
+
+    /**
+     * 生信看点完成（筛选位点页签的按钮）：20 生信看点 → 21 生信审核，记看点人与时间。
+     * <p>
+     * 口径：看点人写 report_bioinfo_viewed_by，之后该样本从「生信看点」页签消失（页签只显示
+     * 没人看点的或自己看点的），出现在「生信审核」页签；看点人不能审自己看点的报告。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     * @return 流转后的报告状态（21 生信审核）
+     */
+    Integer finishBioinfoView(Long analysisId, Long reportId);
+
+    /**
+     * 生信复核通过（筛选位点页签的按钮）：21 生信审核 → 30 报告待解读。
+     * <p>
+     * 口径：复核人不能是看点人本人（看点人 ≠ 复核人）；流转到 30 后样本出现在「报告待解读」页签，
+     * 该页签全部可见，由解读人认领后转 31「报告解读中」。
+     *
+     * @param analysisId 分析数据ID
+     * @param reportId   报告ID
+     * @return 流转后的报告状态（30 报告待解读）
+     */
+    Integer finishBioinfoReview(Long analysisId, Long reportId);
+
+    /**
+     * 重新驱动一个文件（集群对接页签的文件行按钮）：调外部 scanner.py 驱动单个文件，
+     * 脚本自己写回文件级/样本级状态，本方法再把最新状态读回来给页面。
+     *
+     * @param analysisId 分析数据ID
+     * @param fileId     文件ID
+     * @return 文件最新状态 + 批次级驱动状态 + 脚本说明
+     */
+    FileRedriveVo redriveFile(Long analysisId, Long fileId);
 
     /**
      * 查看单个文件内容（Tab②）

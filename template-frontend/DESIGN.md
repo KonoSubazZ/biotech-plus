@@ -39,3 +39,6 @@ Reuse `TableHeaderOperation`, `useNaivePaginatedTable`, `useTableOperate`, `Butt
 
 ## Do's and Don'ts
 Show business labels, preserve failed form input, confirm deletion, disable duplicate submissions, and use the active locale. Never derive permissions or tenant access from a hidden frontend control.
+
+## Report interpretation workflow
+Report regeneration extends the existing table, detail tabs, NSelect parameter controls, status tags and application messages. Keep the current layout and tokens. Display report business versions separately from template versions; use “重新解读” for the action that rescans a sent report and creates its next record. Busy state disables input without replacing edited values.

@@ -25,6 +25,9 @@ declare module "@elegant-router/types" {
     "404": "/404";
     "500": "/500";
     "about": "/about";
+    "backup": "/backup";
+    "backup_database": "/backup/database";
+    "backup_sample": "/backup/sample";
     "compliance": "/compliance";
     "compliance_dev-log": "/compliance/dev-log";
     "compliance_documents": "/compliance/documents";
@@ -39,16 +42,19 @@ declare module "@elegant-router/types" {
     "monitor_operlog": "/monitor/operlog";
     "project": "/project";
     "project_product-config": "/project/product-config";
+    "project_project-config": "/project/project-config";
     "project_qc-standard": "/project/qc-standard";
-    "qc": "/qc";
-    "qc_bioinfo": "/qc/bioinfo";
-    "qc_wet-lab": "/qc/wet-lab";
+    "project_template-config": "/project/template-config";
     "report": "/report";
     "report_interpretation": "/report/interpretation";
     "report_mail-config": "/report/mail-config";
-    "report_sample-info": "/report/sample-info";
-    "report_template": "/report/template";
+    "report_sample-flow": "/report/sample-flow";
     "report_variant-history": "/report/variant-history";
+    "sample": "/sample";
+    "sample_bioinfo": "/sample/bioinfo";
+    "sample_notify": "/sample/notify";
+    "sample_sample-info": "/sample/sample-info";
+    "sample_wet-lab": "/sample/wet-lab";
     "social-callback": "/social-callback";
     "system": "/system";
     "system_client": "/system/client";
@@ -103,14 +109,15 @@ declare module "@elegant-router/types" {
     | "404"
     | "500"
     | "about"
+    | "backup"
     | "compliance"
     | "home"
     | "iframe-page"
     | "login"
     | "monitor"
     | "project"
-    | "qc"
     | "report"
+    | "sample"
     | "social-callback"
     | "system"
     | "tool"
@@ -140,6 +147,8 @@ declare module "@elegant-router/types" {
     | "social-callback"
     | "user-center"
     | "about"
+    | "backup_database"
+    | "backup_sample"
     | "compliance_dev-log"
     | "compliance_documents"
     | "compliance_validation-records"
@@ -149,14 +158,17 @@ declare module "@elegant-router/types" {
     | "monitor_online"
     | "monitor_operlog"
     | "project_product-config"
+    | "project_project-config"
     | "project_qc-standard"
-    | "qc_bioinfo"
-    | "qc_wet-lab"
+    | "project_template-config"
     | "report_interpretation"
     | "report_mail-config"
-    | "report_sample-info"
-    | "report_template"
+    | "report_sample-flow"
     | "report_variant-history"
+    | "sample_bioinfo"
+    | "sample_notify"
+    | "sample_sample-info"
+    | "sample_wet-lab"
     | "system_client"
     | "system_config"
     | "system_dict"

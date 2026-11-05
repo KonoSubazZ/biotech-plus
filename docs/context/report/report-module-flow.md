@@ -12,7 +12,7 @@ flowchart TD
     B --> C{analysis_data 是否存在}
     C -->|否| D[创建分析批次<br/>样本 + 产品 + 分析日期]
     C -->|是| E[复用 analysis_id 并进入重驱]
-    D --> F[创建或复用 data_file_status]
+    D --> F[创建或复用 analysis_file_status]
     E --> F
     F --> G[按文件类型调用 Processor]
     G --> H[(file_Somatic_SNV_Indel<br/>file_CNV / file_Fusion / file_CR_ALL<br/>以及其他 file_* 明细表)]
@@ -30,7 +30,7 @@ flowchart TD
     Q --> M
 
     M --> R[LIMS 信息<br/>按 subbarcode = BARCODE 动态读取]
-    M --> S[集群对接<br/>读取 data_file_status]
+    M --> S[集群对接<br/>读取 analysis_file_status]
     M --> T[筛选位点<br/>更新共享 file_* .is_reported]
     R --> U[报告预览]
     T --> U
@@ -169,7 +169,7 @@ flowchart LR
     A[Preview/Generate API] --> B[ReportContextLoader]
     B --> B1[analysis_report]
     B --> B2[实时 LIMS]
-    B --> B3[data_file_status]
+    B --> B3[analysis_file_status]
     B --> B4[file_* 中 is_reported = 1 的数据]
     B --> B5[product / gene / template]
 
@@ -217,6 +217,15 @@ stateDiagram-v2
 - `PENDING_REVIEW` 后不得覆盖 `report_detail`、JSON 哈希、模板或报告文件。
 - 驳回后创建新报告，不覆盖旧报告的 JSON、DOCX、PDF 和审核记录。
 - 邮件失败不回退审核状态，发送结果由邮件日志记录。
+
+> **2026-10-27 现行口径**：代码里 `report_status` 是**数字码**，上面这张 stateDiagram 是早期英文枚举草案。
+> 现行主链：
+> `20 生信看点 → 21 生信审核 → 30 报告待解读 → 31 报告解读中 →（32 生成成功 / 33 生成失败）→ 40 报告待审核 →`
+> `41 报告审核中 →（43 审核成功）→ 50 签名中 →（52 签名失败 / 53 签名成功）→ 60 报告待发送 →（61 发送失败 / 62 发送成功）`；
+> 40/41 驳回 → 归档后回退 31。
+>
+> 同批落地、以代码为准的四条（生信看点/生信审核**认领**、62 报告**只读查看**、位点历史**审核通过才冻结**、
+> 驳回**归档**到 `report/rejected/`）见 [报告模块设计书](./report-module-design.md) §0.7。
 
 ## 5. 预览和生成时序
 

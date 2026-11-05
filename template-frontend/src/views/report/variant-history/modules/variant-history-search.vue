@@ -75,6 +75,9 @@ async function search() {
             <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="产品" path="product">
               <NInput v-model:value="model.product" placeholder="请输入产品名称" clearable />
             </NFormItem>
+            <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="项目编号" path="projectNo">
+              <NInput v-model:value="model.projectNo" placeholder="请输入项目编号（如 NG0101）" clearable />
+            </NFormItem>
             <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="客户" path="client">
               <NInput v-model:value="model.client" placeholder="请输入客户名称" clearable />
             </NFormItem>

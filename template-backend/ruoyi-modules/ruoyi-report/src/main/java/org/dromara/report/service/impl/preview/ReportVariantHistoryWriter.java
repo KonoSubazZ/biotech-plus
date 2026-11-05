@@ -1,5 +1,6 @@
 package org.dromara.report.service.impl.preview;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.satoken.utils.LoginHelper;
@@ -53,6 +54,16 @@ public class ReportVariantHistoryWriter {
         List<ReportVariantHistory> rows = new ArrayList<>();
         addAll(rows, pc, report, data, somatic);
         addAll(rows, pc, report, data, germline);
+        Long reportId = PreviewSupport.asLong(report.get("reportId"));
+        // 先清掉这份报告上次提交留下的行（逻辑删）：只 upsert 的话，驳回后重新提交少报位点时旧位点会残留在「历史检出」里。
+        // 同一事务内删除 + 写入：失败一起回滚；upsert 的 ON DUPLICATE KEY 会把 del_flag 重新置 0。
+        if (reportId != null) {
+            int removed = reportVariantHistoryMapper.delete(Wrappers.<ReportVariantHistory>lambdaQuery()
+                .eq(ReportVariantHistory::getReportId, reportId));
+            if (removed > 0) {
+                log.info("提交审核：清掉上次提交的检出历史 {} 行：reportId={}", removed, reportId);
+            }
+        }
         if (rows.isEmpty()) {
             log.info("提交审核：该报告没有报出位点，检出历史不写：reportId={}", report.get("reportId"));
             return;
@@ -80,6 +91,7 @@ public class ReportVariantHistoryWriter {
         row.setAnalysisId(PreviewSupport.asLong(report.get("analysisId")));
         row.setSubbarcode(asString(report.get("subbarcode")));
         row.setClient(cleanCustomer(pc.getCustomer()));
+        row.setProjectNo(asString(report.get("projectNo")));
         row.setProduct(asString(report.get("product")));
         row.setDisease(pc.getDisease());
         row.setSourceType(item.getSourceType());

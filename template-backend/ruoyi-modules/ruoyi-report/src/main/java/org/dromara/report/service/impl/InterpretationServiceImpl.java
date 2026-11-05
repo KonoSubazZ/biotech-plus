@@ -4,12 +4,15 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.utils.StringUtils;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
+import org.dromara.drive.domain.vo.DriveFileVo;
+import org.dromara.drive.service.IDriveService;
 import org.dromara.report.domain.AnalysisReport;
-import org.dromara.report.domain.SampleInfo;
+import org.dromara.report.domain.CmsSample;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
@@ -19,23 +22,27 @@ import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.AnalysisSnapshotVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
+import org.dromara.report.domain.vo.FileRedriveVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationLimsVo;
 import org.dromara.report.domain.vo.InterpretationRowVo;
 import org.dromara.report.mapper.AnalysisReportMapper;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.mapper.ReportTemplateMapper;
-import org.dromara.report.mapper.SampleInfoMapper;
+import org.dromara.report.mapper.CmsSampleMapper;
 import org.dromara.report.service.IInterpretationService;
+import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.dromara.report.service.impl.revision.ReportOperationLock;
 
 /**
  * 报告解读 业务层处理
@@ -43,19 +50,18 @@ import java.util.stream.Stream;
  * 本页承担「列表 + 进入解读 + 解读上下文（LIMS）」：
  * <ul>
  *   <li>列表 = analysis_data ⟕ 该批次最新一份 analysis_report（一个批次可有多份报告，列表只显示最新那份的状态）。</li>
- *   <li>进入解读 = 复用该批次仍在 INTERPRETING 的报告；没有才新建，样本/产品信息从 analysis_data 复制。</li>
- *   <li>上下文 = 报告头 + LIMS 信息（读 sample_file，按 subbarcode = subbarcode）+ 生成前校验结论。</li>
+ *   <li>进入解读 = 复用该批次「未完成」（report_status ≠ 62）的报告；没有才新建（状态 20 生信看点），
+ *       样本/产品信息从 analysis_data 复制。</li>
+ *   <li>上下文 = 报告头 + LIMS 信息（读 cms_sample，按 subbarcode = subbarcode）+ 生成前校验结论。</li>
  * </ul>
  * 位点筛选、预览、审核、发送属于后续页面的能力，不在这里实现。
  *
  * @author <你的名字>
  */
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class InterpretationServiceImpl implements IInterpretationService {
-
-    /** 报告状态：解读中 */
-    private static final String STATUS_INTERPRETING = "INTERPRETING";
 
     /** 单个文件内容最多返回的字符数（超大文件在库里 LEFT() 截断，避免整个 LONGTEXT 进内存/浏览器） */
     private static final int MAX_FILE_TEXT_LENGTH = 200_000;
@@ -65,8 +71,12 @@ public class InterpretationServiceImpl implements IInterpretationService {
 
     private final InterpretationMapper interpretationMapper;
     private final AnalysisReportMapper analysisReportMapper;
-    private final SampleInfoMapper sampleInfoMapper;
+    private final CmsSampleMapper cmsSampleMapper;
     private final ReportTemplateMapper reportTemplateMapper;
+
+    /** 驱动入库服务（重新驱动单个文件；能力在 ruoyi-drive） */
+    private final IDriveService driveService;
+    private final ReportOperationLock operationLock;
 
     @Override
     public TableDataInfo<InterpretationRowVo> selectPageList(InterpretationQueryBo bo, PageQuery pageQuery) {
@@ -77,6 +87,82 @@ public class InterpretationServiceImpl implements IInterpretationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AnalysisReportVo enter(Long analysisId) {
+        return enter(analysisId, false);
+    }
+
+    /**
+     * 进入解读；readonly=true 时只返回该批次已有报告，不新建/不补快照/不校验流转状态
+     * （已完成报告「查看解读记录」用）。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AnalysisReportVo enter(Long analysisId, boolean readonly) {
+        if (analysisId == null) {
+            throw new ServiceException("分析数据ID不能为空");
+        }
+        if (readonly) {
+            AnalysisReport existing = selectReusableReport(analysisId);
+            if (existing == null) {
+                throw new ServiceException("该批次还没有报告记录，无法查看解读：analysisId=" + analysisId);
+            }
+            return analysisReportMapper.selectVoById(existing.getReportId());
+        }
+        return operationLock.call(-analysisId, () -> enterLocked(analysisId, null));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void claimBioinfoView(Long analysisId, Long reportId) {
+        claimBioinfo(analysisId, reportId, true);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void claimBioinfoReview(Long analysisId, Long reportId) {
+        claimBioinfo(analysisId, reportId, false);
+    }
+
+    /**
+     * 生信环节认领：只占人（report_bioinfo_viewed_by / reviewed_by），不改状态、不写时间。
+     * 状态不对、已被他人占住、复核自己看点的报告都直接拒绝。
+     */
+    private void claimBioinfo(Long analysisId, Long reportId, boolean view) {
+        if (analysisId == null || reportId == null) {
+            throw new ServiceException("analysisId 与 reportId 不能为空");
+        }
+        Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
+        if (report == null || !String.valueOf(analysisId).equals(String.valueOf(report.get("analysisId")))) {
+            throw new ServiceException("报告不存在或不属于该分析批次：reportId=" + reportId
+                + "，analysisId=" + analysisId);
+        }
+        int status = Integer.parseInt(String.valueOf(report.get("status")));
+        int expected = view ? ReportStatus.BIOINFO_VIEW : ReportStatus.BIOINFO_REVIEW;
+        if (status != expected) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status) + "）不能认领：reportId=" + reportId);
+        }
+        if (!view) {
+            String viewer = toText(report.get("reportBioinfoViewedBy"));
+            if (viewer != null && viewer.equals(String.valueOf(LoginHelper.getUserId()))) {
+                throw new ServiceException("不能复核自己看点的报告：reportId=" + reportId);
+            }
+        }
+        int claimed = view
+            ? interpretationMapper.claimBioinfoView(reportId, LoginHelper.getUserId())
+            : interpretationMapper.claimBioinfoReview(reportId, LoginHelper.getUserId());
+        if (claimed == 0) {
+            throw new ServiceException("该报告已被他人认领，请刷新列表：reportId=" + reportId);
+        }
+        log.info("生信环节认领：reportId={}，环节={}，认领人={}", reportId, view ? "生信看点" : "生信复核",
+            LoginHelper.getUserId());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AnalysisReportVo enterAfterRescan(Long analysisId, Long sourceReportId) {
+        return operationLock.call(-analysisId, () -> enterLocked(analysisId, sourceReportId));
+    }
+
+    private AnalysisReportVo enterLocked(Long analysisId, Long sourceReportId) {
         if (analysisId == null) {
             throw new ServiceException("分析数据ID不能为空");
         }
@@ -85,24 +171,48 @@ public class InterpretationServiceImpl implements IInterpretationService {
             throw new ServiceException("分析数据不存在或已删除：analysisId=" + analysisId);
         }
 
-        // 同一个批次已有「解读中」的报告就复用它，避免点一次多出一条草稿
-        AnalysisReport existing = selectInterpretingReport(analysisId);
-        if (existing != null) {
+        // 同一个批次只维护一份报告：只要它还「未完成」（report_status ≠ 62）就复用它，
+        // 只有报告已发送成功（完成）后再点「解读」才新建（用户 2026-10-16 口径）
+        AnalysisReport existing = selectReusableReport(analysisId);
+        if (existing != null && !Integer.valueOf(ReportStatus.COMPLETED).equals(existing.getReportStatus())) {
             // 老报告（本功能上线前建的）癌种/产品ID 可能为空：点「解读」时补齐，不覆盖已有值
             ensureReportSnapshot(existing);
             return analysisReportMapper.selectVoById(existing.getReportId());
         }
+        if (existing != null && (sourceReportId == null || !sourceReportId.equals(existing.getReportId()))) {
+            throw new ServiceException("报告已发送，请使用「重新解读」完成整批重扫后创建新报告");
+        }
+        // 重新解读会新建一个分析批次（不同 analysis_id），所以这里不能用「本批次已有报告」判断来源是否存在，
+        // 直接按 reportId 查来源报告（用户 2026-10-21：上传/重新解读新建批次）
+        AnalysisReportVo source = sourceReportId == null ? null : analysisReportMapper.selectVoById(sourceReportId);
+        if (sourceReportId != null && source == null) {
+            throw new ServiceException("重新解读来源报告不存在：reportId=" + sourceReportId);
+        }
 
         AnalysisReport report = new AnalysisReport();
+        report.setSourceReportId(sourceReportId);
+        if (source != null) {
+            // 模板沿用来来源报告（新批次此时还没有报告记录，不能拿 existing）
+            report.setTemplateId(source.getTemplateId());
+            report.setTemplate(source.getTemplate());
+        }
         report.setAnalysisId(snapshot.getAnalysisId());
+        report.setAnalysisBatchDate(snapshot.getAnalysisBatchDate());
         report.setAnalysisDate(snapshot.getAnalysisDate());
         report.setSubbarcode(snapshot.getSubbarcode());
-        report.setProduct(snapshot.getProduct());
+        report.setProductBio(snapshot.getProduct());
         report.setProductId(resolveProductId(snapshot.getProductId(), snapshot.getProduct()));
-        // 录单癌种：进入解读时就带上（LIMS sample_file，按样本编号取），后续生成报告只更新「解读癌种」
-        SampleInfo lims = selectSample(snapshot.getSubbarcode());
-        report.setCancerType(lims == null ? null : lims.getCancerType());
-        report.setStatus(STATUS_INTERPRETING);
+        // 录单癌种 + 项目编号：进入解读时就带上（LIMS cms_sample，按样本编号取）
+        CmsSample lims = selectSample(snapshot.getSubbarcode());
+        report.setCancerType(lims == null ? null : lims.getDiseaseType());
+        // 项目编号是报告必填字段（用户 2026-10-22）：样本没维护项目号就不让建报告，避免出现空项目
+        String projectNo = lims == null ? null : lims.getProjectNo();
+        if (StringUtils.isBlank(projectNo)) {
+            throw new ServiceException("样本缺少项目编号，请先在「样本信息」里补 project_no 再进入解读：subbarcode="
+                + snapshot.getSubbarcode());
+        }
+        report.setProjectNo(projectNo.trim());
+        report.setReportStatus(ReportStatus.BIOINFO_VIEW);
         analysisReportMapper.insert(report);
 
         AnalysisReportVo vo = analysisReportMapper.selectVoById(report.getReportId());
@@ -128,6 +238,14 @@ public class InterpretationServiceImpl implements IInterpretationService {
         InterpretationContextVo context = new InterpretationContextVo();
         context.setReport(report);
         context.setLims(loadLims(report.getSubbarcode(), context.getErrors(), context.getWarnings()));
+        // 报告 JSON 的 sampleInfo 直接按 cms_sample 最新一行输出（与「样本信息 › 详情」同口径）
+        if (Boolean.TRUE.equals(context.getLims().getFound())) {
+            CmsSample sample = selectSample(report.getSubbarcode());
+            context.setSample(sample);
+            // 双样本订单（组织 + 对照血）在 cms_sample 是两行：同一 order_no 的其余样本一并带上，
+            // 供 sampleInfo 的 sampleTypes / subbarcodes 汇总（报告维度，不改变「报告用哪一条」）
+            context.setOrderSamples(selectOrderSamples(sample));
+        }
         context.setCanGenerate(context.getErrors().isEmpty());
         return context;
     }
@@ -154,6 +272,85 @@ public class InterpretationServiceImpl implements IInterpretationService {
         long textLength = content.getTextLength() == null ? 0L : content.getTextLength();
         content.setTruncated(textLength > MAX_FILE_TEXT_LENGTH);
         return content;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Integer finishBioinfoView(Long analysisId, Long reportId) {
+        if (analysisId == null || reportId == null) {
+            throw new ServiceException("analysisId 与 reportId 不能为空");
+        }
+        Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
+        if (report == null || !String.valueOf(analysisId).equals(String.valueOf(report.get("analysisId")))) {
+            throw new ServiceException("报告不存在或不属于该分析批次：reportId=" + reportId
+                + "，analysisId=" + analysisId);
+        }
+        int status = Integer.parseInt(String.valueOf(report.get("status")));
+        if (status != ReportStatus.BIOINFO_VIEW) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status) + "）不允许看点完成：reportId=" + reportId);
+        }
+
+        // 认领口径（2026-10-27 定）：点「处理」先占人；这里兜底再占一次（幂等），被他人占住则拒绝。
+        if (interpretationMapper.claimBioinfoView(reportId, LoginHelper.getUserId()) == 0) {
+            throw new ServiceException("该报告已由他人认领（生信看点），请刷新后查看：reportId=" + reportId);
+        }
+        int affected = interpretationMapper.updateBioinfoViewed(reportId, LoginHelper.getUserId());
+        if (affected == 0) {
+            throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + reportId);
+        }
+        log.info("生信看点完成：reportId={}，analysisId={}，看点人={}", reportId, analysisId, LoginHelper.getUserId());
+        return ReportStatus.BIOINFO_REVIEW;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Integer finishBioinfoReview(Long analysisId, Long reportId) {
+        if (analysisId == null || reportId == null) {
+            throw new ServiceException("analysisId 与 reportId 不能为空");
+        }
+        Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
+        if (report == null || !String.valueOf(analysisId).equals(String.valueOf(report.get("analysisId")))) {
+            throw new ServiceException("报告不存在或不属于该分析批次：reportId=" + reportId
+                + "，analysisId=" + analysisId);
+        }
+        int status = Integer.parseInt(String.valueOf(report.get("status")));
+        if (status != ReportStatus.BIOINFO_REVIEW) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status) + "）不允许生信复核：reportId=" + reportId);
+        }
+        String viewer = toText(report.get("reportBioinfoViewedBy"));
+        if (viewer != null && viewer.equals(String.valueOf(LoginHelper.getUserId()))) {
+            throw new ServiceException("不能复核自己看点的报告：reportId=" + reportId);
+        }
+
+        // 认领口径（2026-10-27 定）：点「处理」先占人；这里兜底再占一次（幂等），被他人占住则拒绝。
+        if (interpretationMapper.claimBioinfoReview(reportId, LoginHelper.getUserId()) == 0) {
+            throw new ServiceException("该报告已由他人认领（生信复核），请刷新后查看：reportId=" + reportId);
+        }
+        int affected = interpretationMapper.updateBioinfoReviewed(reportId, LoginHelper.getUserId());
+        if (affected == 0) {
+            throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + reportId);
+        }
+        log.info("生信复核通过：reportId={}，analysisId={}，复核人={}", reportId, analysisId, LoginHelper.getUserId());
+        return ReportStatus.PENDING_INTERPRET;
+    }
+
+    @Override
+    public FileRedriveVo redriveFile(Long analysisId, Long fileId) {
+        if (analysisId == null || fileId == null) {
+            throw new ServiceException("analysisId 与 fileId 不能为空");
+        }
+        // 驱动口径全部在 ruoyi-drive：同批次重跑 → 老行 del_flag=1 + 新行新 file_id，解析与落库都由它负责
+        DriveFileVo drive = driveService.driveFile(analysisId, fileId);
+        log.info("重新驱动完成：旧fileId={}，新fileId={}，status={}，driveStatus={}",
+            fileId, drive.getFileId(), drive.getStatus(), drive.getDriveStatus());
+
+        FileRedriveVo vo = new FileRedriveVo();
+        vo.setFileId(drive.getFileId());
+        vo.setFileName(drive.getFileName());
+        vo.setFileStatus(drive.getStatus());
+        vo.setDriveStatus(drive.getDriveStatus());
+        vo.setMessage(drive.getMessage());
+        return vo;
     }
 
     @Override
@@ -201,7 +398,7 @@ public class InterpretationServiceImpl implements IInterpretationService {
     }
 
     /**
-     * LIMS 信息：按 subbarcode = analysis_data.subbarcode 读 sample_file（本仓已把生产库录单样本表
+     * LIMS 信息：按 subbarcode = analysis_data.subbarcode 读 cms_sample（本仓已把生产库录单样本表
      * myapp_webcrmsample 的 122 列全量落成这张表），再按设计书 5.2 的字段映射挑出报告需要的列。
      * <p>
      * 校验口径（设计书 5.2「关键校验」）：
@@ -220,10 +417,10 @@ public class InterpretationServiceImpl implements IInterpretationService {
             return lims;
         }
 
-        SampleInfo sample = selectSample(subbarcode);
+        CmsSample sample = selectSample(subbarcode);
         lims.setFound(sample != null);
         if (sample == null) {
-            errors.add("未找到该样本编号的样本信息（sample_file.subbarcode）：" + subbarcode);
+            errors.add("未找到该样本编号的样本信息（cms_sample.subbarcode）：" + subbarcode);
             return lims;
         }
 
@@ -232,62 +429,93 @@ public class InterpretationServiceImpl implements IInterpretationService {
         return lims;
     }
 
-    /** sample_file → LIMS 字段映射（设计书 5.2 的字段对照表） */
-    private void fillLims(InterpretationLimsVo lims, SampleInfo sample) {
-        lims.setPatientId(sample.getPcode());
-        lims.setPatientName(sample.getPatientName());
+    /** cms_sample → LIMS 字段映射（设计书 5.2 的字段对照表） */
+    private void fillLims(InterpretationLimsVo lims, CmsSample sample) {
+        // 新 cms_sample 是药企 CMS 接口模型：没有患者姓名/医生/病理分期字段。
+        // 报告侧的口径（2026-10-31 用户确认）：patientName 取样本名称 sample_name；
+        // 患者编号取试验参与者编号 subject_no；癌种取临床诊断 disease_type；产品取 product_name。
+        lims.setPatientId(sample.getSubjectNo());
+        lims.setPatientName(sample.getSampleName());
         lims.setGender(sample.getSex());
-        lims.setBirthday(sample.getBirthDay());
-        lims.setAge(sample.getAge());
-        lims.setCancerType(sample.getCancerType());
-        lims.setPathologicalType(sample.getPathologicalType());
-        lims.setClinicalStage(sample.getClinicalStages());
-        lims.setClinicalRemark(sample.getClinicalRemark());
-        // 医院：源表里公司名一半在 customer_name、一半在 custom_desc（还有 corp_desc）
-        lims.setHospitalName(firstNonBlank(sample.getCustomerName(), sample.getCustomDesc(), sample.getCorpDesc()));
-        lims.setDoctorName(sample.getDoctorName());
+        lims.setBirthday(sample.getBirthYear());
+        lims.setAge(null);
+        lims.setCancerType(sample.getDiseaseType());
+        lims.setPathologicalType(null);
+        lims.setClinicalStage(null);
+        lims.setClinicalRemark(sample.getAbnormalRemark());
+        lims.setHospitalName(sample.getCustomerName());
+        lims.setDoctorName(null);
         lims.setSpecimenType(sample.getSampleType());
-        lims.setSpecimenQuantity(joinNonBlank(sample.getSpecimenNum(), sample.getUnit()));
-        lims.setSampleSource(sample.getSampleSource());
-        lims.setFromOrgan(sample.getFromOrgan());
-        lims.setSampleCollectedAt(firstNonBlank(sample.getSampleTime(), sample.getCollectDate()));
-        lims.setSampleReceivedAt(sample.getGetSpecDate());
-        lims.setCommissionedAt(sample.getEnterDate());
-        lims.setTestingProgram(sample.getErpTestName());
-        lims.setSampleRemark(sample.getSampleRemark());
-        lims.setLaboratoryName(sample.getLaboratoryName());
+        lims.setSpecimenQuantity(joinNonBlank(sample.getSampleQuantity(), sample.getQuantityUnit()));
+        lims.setSampleSource(null);
+        lims.setFromOrgan(sample.getCollectionSite());
+        lims.setSampleCollectedAt(sample.getCollectionDate());
+        // 到达时间：接口只给 arrival_time（yyyy-MM-dd HH:mm:ss），报告要日期，取前 10 位
+        String arrival = sample.getArrivalTime();
+        lims.setSampleReceivedAt(arrival == null || arrival.length() < 10 ? arrival : arrival.substring(0, 10));
+        lims.setCommissionedAt(sample.getOrderSubmitTime());
+        lims.setTestingProgram(sample.getProductName());
+        lims.setSampleRemark(sample.getRemark());
+        // 收样实验室字段已删除（设计清单没有、接口也不再返回），该栏留空
+        lims.setLaboratoryName(null);
         lims.setReportReceiver(sample.getReportReceiver());
-        lims.setEmailAddress(sample.getEmailAddress());
-        lims.setPatientInfoEmail(sample.getPatientInfoEmail());
-        lims.setDoctorEmail(sample.getAdmissionDoctorEmail());
+        lims.setEmailAddress(sample.getReportEmail());
+        lims.setPatientInfoEmail(null);
+        lims.setDoctorEmail(null);
     }
 
     /** 校验：必填缺失进 errors（阻止生成），非关键缺失进 warnings */
     private void validateLims(InterpretationLimsVo lims, List<String> errors, List<String> warnings) {
-        require(lims.getPatientName(), "患者姓名", errors);
-        require(lims.getCancerType(), "录单癌种", errors);
+        require(lims.getPatientName(), "样本名称", errors);
+        require(lims.getCancerType(), "临床诊断/疾病类型", errors);
         require(lims.getSpecimenType(), "样本类型", errors);
-        require(lims.getTestingProgram(), "录单产品", errors);
+        require(lims.getTestingProgram(), "产品名称", errors);
 
         warnOnMissing(lims::getGender, "性别", warnings);
-        warnOnMissing(lims::getBirthday, "出生日期", warnings);
-        warnOnMissing(lims::getAge, "年龄", warnings);
-        warnOnMissing(lims::getHospitalName, "医院/送检单位", warnings);
-        warnOnMissing(lims::getDoctorName, "送检医生", warnings);
+        warnOnMissing(lims::getBirthday, "出生年份", warnings);
+        warnOnMissing(lims::getHospitalName, "客户名称", warnings);
         warnOnMissing(lims::getSpecimenQuantity, "样本量", warnings);
-        warnOnMissing(lims::getSampleCollectedAt, "采样日期", warnings);
-        warnOnMissing(lims::getSampleReceivedAt, "收样日期", warnings);
-        warnOnMissing(lims::getCommissionedAt, "委托日期", warnings);
+        warnOnMissing(lims::getSampleCollectedAt, "采集日期", warnings);
+        warnOnMissing(lims::getSampleReceivedAt, "到达日期", warnings);
+        warnOnMissing(lims::getCommissionedAt, "订单提交时间", warnings);
         warnOnMissing(lims::getReportReceiver, "报告接收人", warnings);
     }
 
     /** 按样本编号取一条样本信息；同编号多条时取最新一条（编号在租户内唯一，这里只是防御） */
-    private SampleInfo selectSample(String subbarcode) {
-        LambdaQueryWrapper<SampleInfo> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SampleInfo::getSubbarcode, subbarcode);
-        wrapper.orderByDesc(SampleInfo::getId);
+    private CmsSample selectSample(String subbarcode) {
+        LambdaQueryWrapper<CmsSample> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(CmsSample::getSubbarcode, subbarcode);
+        wrapper.orderByDesc(CmsSample::getId);
         wrapper.last("LIMIT 1");
-        return sampleInfoMapper.selectOne(wrapper);
+        return cmsSampleMapper.selectOne(wrapper);
+    }
+
+    /**
+     * 取同一订单下的全部样本（双样本：组织 + 对照血是两行，order_no 相同、subbarcode 不同）。
+     * <p>
+     * 报告仍然只用当前 subbarcode 那条（主样本），这里只给 sampleInfo 的「样本类型 / 样本编号」汇总用。
+     * 同一 subbarcode 有多条（编辑历史）时只留最新一条；按 subbarcode 升序，保证输出稳定
+     * （-1A 组织在 -2A 对照之前）。
+     *
+     * @param sample 当前报告样本（可为空）
+     * @return 订单样本列表；order_no 为空时退化为只含当前样本
+     */
+    private List<CmsSample> selectOrderSamples(CmsSample sample) {
+        if (sample == null) {
+            return List.of();
+        }
+        if (!StringUtils.isNotBlank(sample.getOrderNo())) {
+            return List.of(sample);
+        }
+        LambdaQueryWrapper<CmsSample> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(CmsSample::getOrderNo, sample.getOrderNo());
+        wrapper.orderByAsc(CmsSample::getSubbarcode);
+        wrapper.orderByDesc(CmsSample::getId);
+        Map<String, CmsSample> latestByBarcode = new LinkedHashMap<>();
+        for (CmsSample row : cmsSampleMapper.selectList(wrapper)) {
+            latestByBarcode.putIfAbsent(row.getSubbarcode(), row);
+        }
+        return latestByBarcode.isEmpty() ? List.of(sample) : List.copyOf(latestByBarcode.values());
     }
 
     /** 报告产品ID：批次快照里为空时按产品名/编码解析 product_config（scanner 只写产品名，product_id 常为空） */
@@ -307,21 +535,35 @@ public class InterpretationServiceImpl implements IInterpretationService {
     private void ensureReportSnapshot(AnalysisReport existing) {
         boolean cancerBlank = StringUtils.isBlank(existing.getCancerType());
         boolean productBlank = existing.getProductId() == null;
-        if (!cancerBlank && !productBlank) {
+        boolean projectBlank = StringUtils.isBlank(existing.getProjectNo());
+        boolean batchBlank = StringUtils.isBlank(existing.getAnalysisBatchDate());
+        if (!cancerBlank && !productBlank && !projectBlank && !batchBlank) {
             return;
         }
         AnalysisReport patch = new AnalysisReport();
         patch.setReportId(existing.getReportId());
-        if (cancerBlank) {
-            SampleInfo lims = selectSample(existing.getSubbarcode());
+        if (cancerBlank || projectBlank) {
+            CmsSample lims = selectSample(existing.getSubbarcode());
             if (lims != null) {
-                patch.setCancerType(lims.getCancerType());
+                if (cancerBlank) {
+                    patch.setCancerType(lims.getDiseaseType());
+                }
+                if (projectBlank && StringUtils.isNotBlank(lims.getProjectNo())) {
+                    patch.setProjectNo(lims.getProjectNo());
+                }
             }
         }
         if (productBlank) {
-            patch.setProductId(reportTemplateMapper.selectProductIdByName(existing.getProduct()));
+            patch.setProductId(reportTemplateMapper.selectProductIdByName(existing.getProductBio()));
         }
-        if (patch.getCancerType() != null || patch.getProductId() != null) {
+        if (batchBlank) {
+            AnalysisSnapshotVo snapshot = interpretationMapper.selectAnalysisSnapshot(existing.getAnalysisId());
+            if (snapshot != null && StringUtils.isNotBlank(snapshot.getAnalysisBatchDate())) {
+                patch.setAnalysisBatchDate(snapshot.getAnalysisBatchDate());
+            }
+        }
+        if (patch.getCancerType() != null || patch.getProductId() != null
+            || patch.getProjectNo() != null || patch.getAnalysisBatchDate() != null) {
             analysisReportMapper.updateById(patch);
         }
     }
@@ -343,6 +585,11 @@ public class InterpretationServiceImpl implements IInterpretationService {
         return Stream.of(values).filter(StringUtils::isNotBlank).findFirst().orElse(null);
     }
 
+    /** 对象转文本（查库回来的列可能是各种类型，null 保持 null） */
+    private String toText(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
     /** 拼接非空片段（样本量 = 数量 + 单位） */
     private String joinNonBlank(String... values) {
         String joined = Stream.of(values).filter(StringUtils::isNotBlank).collect(Collectors.joining());
@@ -350,15 +597,15 @@ public class InterpretationServiceImpl implements IInterpretationService {
     }
 
     /**
-     * 取该批次最近一条「解读中」的报告。
+     * 取该批次最近一条「未完成」的报告（一个批次一份报告，覆盖式重出）。
      * <p>
-     * 只认 INTERPRETING：已提交审核 / 已驳回 / 已发送的报告不允许被「进入解读」复用，
-     * 否则会绕过状态机把已流转的报告退回草稿态。
+     * 只排除终态（62 报告发送成功）：已完成之后再点「解读」才允许新建第二条；其余状态
+     * （生信看点/审核、待解读、解读中、生成失败、待审核、审核中、签名、待发送、发送失败）
+     * 一律复用同一条记录。
      */
-    private AnalysisReport selectInterpretingReport(Long analysisId) {
+    private AnalysisReport selectReusableReport(Long analysisId) {
         LambdaQueryWrapper<AnalysisReport> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(AnalysisReport::getAnalysisId, analysisId);
-        wrapper.eq(AnalysisReport::getStatus, STATUS_INTERPRETING);
         wrapper.orderByDesc(AnalysisReport::getReportId);
         wrapper.last("LIMIT 1");
         return analysisReportMapper.selectOne(wrapper);

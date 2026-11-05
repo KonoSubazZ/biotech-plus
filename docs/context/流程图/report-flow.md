@@ -2,6 +2,11 @@
 
 > 生成时间：2026-09-08
 > 分析范围：`server/modules/report/` + `client/src/pages/ReportManagement/` + `client/src/pages/ReportInterpretation/`
+>
+> **⚠ 本文是需求侧草案（2026-09-08 从参考工程逆向整理），状态枚举 `PENDING_REVIEW` / `APPROVED` / `REJECTED`
+> 与现行实现不符**：当前实现是数字码 20~62（`utils/ReportStatus.java`），驳回不落独立状态而是回退 31，
+> 位点历史改为「审核通过才冻结」。改报告域代码时以实现口径为准：根 `AGENTS.md` §3.3 +
+> `docs/context/report/report-module-design.md` §0.7。
 
 ## 流程概述
 

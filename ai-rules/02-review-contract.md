@@ -32,8 +32,8 @@
 
 ```bash
 # ① 作者侧：产出三样东西
-git diff origin/main...HEAD > /tmp/change.diff                      # 改动全貌
-python3 tools/readability_check.py --changed-only origin/main \
+git diff origin/master...HEAD > /tmp/change.diff                      # 改动全貌
+python3 tools/readability_check.py --changed-only origin/master \
         > /tmp/readability-report.txt                               # 机械结论（真实输出）
 # ② 计划/意图：写在 PR 描述里（见 ai-templates/ 的 PR 模板），或 .ai_state/details/design.md 对应段
 ```
@@ -113,8 +113,8 @@ codex exec "同上，独立审一遍" > /tmp/review-B.txt 2>&1 &
 
 ```bash
 # 在仓库根目录执行
-git diff origin/main...HEAD > /tmp/change.diff
-python3 tools/readability_check.py --changed-only origin/main | tee /tmp/readability-report.txt
+git diff origin/master...HEAD > /tmp/change.diff
+python3 tools/readability_check.py --changed-only origin/master | tee /tmp/readability-report.txt
 codex exec "按 ai-rules/02-review-contract.md 审查 /tmp/change.diff；\
 机械结论见 /tmp/readability-report.txt；判据只用 ai-rules/01-readability.md 与 \
 template-backend/docs/backend-code-standard.md；只输出意见，不要改代码。"

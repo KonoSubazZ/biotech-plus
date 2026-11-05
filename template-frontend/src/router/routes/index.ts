@@ -38,7 +38,7 @@ const dynamicConstantRoutes: ElegantRoute[] = [
     meta: {
       title: 'home',
       i18nKey: 'route.home',
-      icon: 'mdi:monitor-dashboard',
+      icon: 'ant-design:dashboard-outlined',
       order: -1
     }
   },

@@ -278,10 +278,31 @@ onlyoffice:
   # 源文件临时凭证有效期（秒）
   source-ttl-seconds: 600
 
+--- # 报告签名通道：stub = 假实现（只落状态链，不连通道，离线联调用）；ssq = 真实上上签（报告交付场景）
+# 默认 stub：本地/测试环境不依赖上上签网关也能跑通「签名中 → 已签名 → 发送」；
+# 生产用 ssq（见 application-prod.yml），任何环境都可用环境变量 REPORT_SIGN_PROVIDER 覆盖。
+# 三个个人签署人固定「刘尚智 / 18034334041」（见 SsqSignServiceImpl.PERSON_SIGNERS）。
+report:
+  sign:
+    provider: ${REPORT_SIGN_PROVIDER:stub}
+
+--- # 数据驱动入库（ruoyi-drive）：生信流程上传完成后主动调用，同步返回最终状态与文件数
+# 这里只放与环境无关的共用默认值；**上传根目录按环境放在 application-dev.yml / application-prod.yml**
+# （驱动路径是本机 /tmp/rp-upload、生产外部大盘，天然按环境分叉，不要塞回共用文件）。
+# 外部调用走固定 token（见下方 api.token.paths）。
+drive:
+  # 审计字段 create_by（sys_user.user_id）与执行人姓名（写 analysis_data.drive_executed_by）
+  create-by: 1
+  operator-name: tumor
+  # 明细批量插入每批行数 / analysis_file_status.file_text 最多保留字符数
+  batch-insert-size: 500
+  file-text-max-length: 1048576
+
 --- # 固定 token 的接口调用：外部系统（生信流程 / 脚本）推数据时不用登录换 access_token
-# 调用方在请求头带 X-Api-Token: <value>，且路径命中 paths 时，服务端按 account 的身份执行本次请求：
-# @SaCheckPermission 走该账号的角色、create_by 记该账号、租户由业务代码按数据归属解析。
-# 不命中就原样放行，由 Sa-Token 按未登录处理（不会因为配了这个机制而放开别的接口）。
+# 调用方在请求头带 X-Api-Token: *** paths 时，服务端按 account 的身份执行本次请求：
+# @SaCheckPermission 走该账号的角色、create_by 记该账号。
+# 数据归属租户 = account 这个用户的 tenant_id（一个药企一个用户一个 token）；
+# account 是平台账号（tenant_id=000000，如历史的 tumor）时，qc 接口回退到按样本解析租户。
 api:
   token:
     enabled: true
@@ -293,6 +314,25 @@ api:
     paths:
       - /qc/bioinfo/receive
       - /qc/wetLabQc/receive
+      - /report/drive/**
     # 调用方没带 clientid 请求头时使用的客户端编号（sys_client.client_key）
     clientId: e5cd7e4891bf95d1d19206ce24a7b32e
+    # 多账号（2026-10-29）：一条 = 一个固定 token 对应用一个账号 + 它自己的生效路径。
+    # 数据库备份脚本（宿主 backupctl）用 sys_backup，角色只授 backup:db:report，
+    # 不继承上面 tumor 的权限；换密钥用环境变量 API_TOKEN_BACKUP 覆盖。
+    tokens:
+      - value: ${API_TOKEN_BACKUP:9f3c7a1e5b2d4806af17c9e3b6d05a74}
+        account: sys_backup
+        paths:
+          - /backup/**
+        clientId: e5cd7e4891bf95d1d19206ce24a7b32e
+      # 药企专属 token（推荐口径）：account 是「某个药企下的用户」，该用户的 tenant_id
+      # 就是数据归属——推送的数据直接落到这个药企，不再按样本反查租户。
+      # 一个药企配一条；换密钥用环境变量 API_TOKEN_SHENGYU 覆盖。
+      - value: ${API_TOKEN_SHENGYU:7a1c9d2e4b8f4a13b6c5d0e7f9a2b4c6}
+        account: shengyutest2
+        paths:
+          - /qc/bioinfo/receive
+          - /qc/wetLabQc/receive
+        clientId: e5cd7e4891bf95d1d19206ce24a7b32e
 
