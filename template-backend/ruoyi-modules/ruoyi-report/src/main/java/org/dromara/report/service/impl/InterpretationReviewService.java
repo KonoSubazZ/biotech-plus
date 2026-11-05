@@ -12,7 +12,7 @@ import org.dromara.report.domain.vo.PreviewVariantVo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IReportSignService;
-import org.dromara.report.service.impl.preview.VariantNotes;
+import org.dromara.report.service.impl.preview.ReportVariantEdits;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.dromara.report.utils.ReportStatus;
@@ -110,8 +110,8 @@ public class InterpretationReviewService {
         }
 
         reportFileService.loadReportFile(bo.getReportId(), bo.getAnalysisId());
-        // 位点说明是报告正文的一部分：生成后又改过、却没重新生成时，送审的 DOCX 还是旧文字 —— 拦住
-        assertVariantNotesMatched(report);
+        // 位点人工修改是报告正文的一部分：生成后又改过、却没重新生成时，送审的 DOCX 还是旧内容 —— 拦住
+        assertVariantEditsMatched(report);
         Long reviewerId = optionalLong(report.get("reportReviewerId"));
         if (reviewerId != null) {
             requireAvailableReviewer(report, reviewerId);
@@ -130,19 +130,17 @@ public class InterpretationReviewService {
     }
 
     /**
-     * 提交审核前核对：制品 JSON 里的位点说明必须与库里覆盖表一致。
+     * 提交审核前核对：制品 JSON 必须已经体现 {@code report_variant_edits} 里的全部人工修改。
      * <p>
-     * 场景：报告生成后又人工改了「突变说明」却没重新生成 → 送审的 DOCX 里还是旧文字。
-     * 这里读制品里的位点（`mutationDescription` / `mutationDescriptionEdited`）与
-     * `analysis_report.report_variant_notes` 比对，不一致直接拒绝提交，让解读先重新生成。
-     * <p>
-     * 制品路径缺失/越界/读不出来时<b>不阻断</b>（文件可读性前面已校验，这里只做内容兜底）。
+     * 场景：生成后又改了父靶点/临床意义/突变说明却没重新生成 → 送审的 DOCX 还是旧内容。
+     * 不一致直接拒绝提交，让解读先重新生成。
      *
-     * @param report 报告行（含 reportJsonPath / reportVariantNotes）
+     * @param report 报告行（含 reportJsonPath / reportVariantEdits）
      */
-    private void assertVariantNotesMatched(Map<String, Object> report) {
+    private void assertVariantEditsMatched(Map<String, Object> report) {
         String jsonPath = asString(report.get("reportJsonPath"));
-        if (!StringUtils.hasText(jsonPath)) {
+        Map<String, ReportVariantEdits.Edit> edits = ReportVariantEdits.parse(asString(report.get("reportVariantEdits")));
+        if (edits.isEmpty() || !StringUtils.hasText(jsonPath)) {
             return;
         }
         Path file = Paths.get(jsonPath).toAbsolutePath().normalize();
@@ -153,28 +151,54 @@ public class InterpretationReviewService {
         try {
             ReportTemplateData data = objectMapper.readValue(
                 Files.readString(file, StandardCharsets.UTF_8), ReportTemplateData.class);
-            List<PreviewVariantVo> items = new ArrayList<>();
+            Map<String, PreviewVariantVo> items = new java.util.LinkedHashMap<>();
             if (data.getSomaticVariants() != null && data.getSomaticVariants().getItems() != null) {
-                items.addAll(data.getSomaticVariants().getItems());
+                data.getSomaticVariants().getItems().forEach(item -> items.put(ReportVariantEdits.key(item), item));
             }
             if (data.getGermlineVariants() != null && data.getGermlineVariants().getItems() != null) {
-                items.addAll(data.getGermlineVariants().getItems());
+                data.getGermlineVariants().getItems().forEach(item -> items.put(ReportVariantEdits.key(item), item));
             }
-            if (!VariantNotes.matchesArtifact(items, VariantNotes.parse(asString(report.get("reportVariantNotes"))))) {
-                throw new ServiceException("位点「突变说明」在生成报告后被修改，请重新生成报告再提交审核");
+            for (Map.Entry<String, ReportVariantEdits.Edit> entry : edits.entrySet()) {
+                PreviewVariantVo item = items.get(entry.getKey());
+                if (item == null || !sameEdit(entry.getValue(), item)) {
+                    throw new ServiceException("位点「" + entry.getKey()
+                        + "」的人工修改未写入已生成报告，请重新生成后再提交审核");
+                }
             }
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("提交审核前核对位点说明失败（跳过校验）：reportId={}，{}", report.get("reportId"), e.getMessage());
+            log.warn("提交审核前核对位点修改失败（跳过校验）：reportId={}，{}", report.get("reportId"), e.getMessage());
         }
+    }
+
+    /** 制品 item 是否体现了这条人工修改 */
+    private boolean sameEdit(ReportVariantEdits.Edit edit, PreviewVariantVo item) {
+        if (edit.getParentMutationIds() != null) {
+            List<Long> expected = edit.getParentMutationIds();
+            List<Long> actual = item.getParentMutationIds() == null ? List.of() : item.getParentMutationIds();
+            if (!expected.equals(actual)) {
+                return false;
+            }
+        }
+        if (edit.getClinicalSignificance() != null
+            && !edit.getClinicalSignificance().equals(item.getClinicalSignificance())) {
+            return false;
+        }
+        if (edit.getMutationDescription() != null) {
+            String actual = item.getMutationDescription() == null ? "" : item.getMutationDescription().trim();
+            if (!edit.getMutationDescription().trim().equals(actual)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
      * 审核通过：先冻结匹配历史，再把状态流转（40/41 → 43 报告审核成功，随后自动送签转 50）。
      * <p>
-     * 冻结与状态更新在**同一事务**：freezeHistory 抛错则审核通过整体回滚，不会出现「已通过但历史没冻结」。
-     * 冻结用的是报告已生成 JSON 里的参数（{@link #generatedParameters}：癌种/报告日期/分析人 + 报告模板），
+     * 冻结与状态更新在**同一事务**：freezeFromArtifact 抛错则审核通过整体回滚，不会出现「已通过但历史没冻结」。
+     * 冻结只读报告 JSON 制品，不再现场重算（报告内容 = 历史冻结结果）。
      * 与生成时同一套，不信前端传参 —— 否则审核时参数一变就会冻出与报告不一致的历史。
      * 状态更新带来源状态条件，重复点击/并发时后到的那次影响行数为 0，直接报错让用户刷新。
      *
@@ -199,7 +223,7 @@ public class InterpretationReviewService {
 
         // 历史冻结（2026-10-27 用户口径）：提交审核不再写历史，改到「审核通过」时冻结
         // （历史检出与解读历史都不因提交/驳回产生，避免驳回报告污染历史）
-        previewService.freezeHistory(generatedParameters(bo, report));
+        previewService.freezeFromArtifact(bo.getReportId(), bo.getAnalysisId());
 
         int affected = interpretationMapper.updateReportReview(bo.getReportId(), STATUS_APPROVED, null,
             LoginHelper.getUserId(), LoginHelper.getUserId(), REVIEWABLE_STATUS, null, null);
@@ -318,20 +342,6 @@ public class InterpretationReviewService {
             return null; // 原始公共待审核报告尚无指定审核人。
         }
         return Long.valueOf(value.toString());
-    }
-
-    private InterpretationPreviewBo generatedParameters(InterpretationPreviewBo requested, Map<String, Object> report) {
-        ReportTemplateData frozen = artifactStore.generated(report);
-        InterpretationPreviewBo parameters = new InterpretationPreviewBo();
-        parameters.setAnalysisId(requested.getAnalysisId());
-        parameters.setReportId(requested.getReportId());
-        parameters.setTemplateId(optionalLong(report.get("templateId")));
-        parameters.setDisease(frozen.getSampleInfo() == null ? null : frozen.getSampleInfo().getDiseaseType());
-        if (frozen.getReportInfo() != null) {
-            parameters.setReportDate(frozen.getReportInfo().getReportDate());
-            parameters.setAnalyzer(frozen.getReportInfo().getAnalyzer());
-        }
-        return parameters;
     }
 
     /** 当前登录用户ID（字符串口径，与 report_generated_by / report_checked_by 一致） */

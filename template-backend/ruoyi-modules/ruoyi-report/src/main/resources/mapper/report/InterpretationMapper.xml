@@ -481,6 +481,7 @@
                r.template         AS template,
                r.template_id      AS templateId,
                r.analysis_disease AS disease,
+               r.analysis_disease_id AS analysisDiseaseId,
                r.cancer_type      AS cancerType,
                r.analysis_date    AS analysisDate,
                r.report_type      AS reportType,
@@ -491,7 +492,7 @@
                r.report_generated_by AS reportGeneratedBy,
                r.report_generated_at AS reportGeneratedAt,
                r.report_status    AS status,
-               r.report_variant_notes AS reportVariantNotes,
+               r.report_variant_edits AS reportVariantEdits,
                r.report_bioinfo_viewed_by   AS reportBioinfoViewedBy,
                r.report_bioinfo_reviewed_by AS reportBioinfoReviewedBy,
                r.report_interpreted_by      AS reportInterpretedBy,
@@ -631,13 +632,6 @@
              #{log.reusedBy}, NOW(3), #{log.reusedBy}, NOW(), #{log.reusedBy}, NOW())
     </insert>
 
-    <!-- 临床意义：只更新人工确认列；冻结的 match_result / 用药 / 位点等级一律不动（NKB 更新也不刷新） -->
-    <update id="updateGermlineSignificance">
-        UPDATE history_germline
-        SET clinical_significance = #{clinicalSignificance}, update_time = NOW()
-        WHERE match_key = #{matchKey} AND del_flag = '0'
-    </update>
-
     <select id="selectGermlineVariant" resultType="java.util.LinkedHashMap">
         SELECT v.gene AS gene, v.variant AS variant, v.ori_variant AS oriVariant, v.zygosity AS zygosity,
                v.parent_mutation_id AS parentMutationId
@@ -682,44 +676,14 @@
         </choose>
     </select>
 
-    <!-- 改靶：把人工父级写回源位点表（逗号分隔的多父级；null 表示取消改靶） -->
-    <update id="updateParentMutation">
-        <choose>
-            <when test="sourceType == 'CNV'">
-                UPDATE file_CNV v
-                JOIN analysis_file_status f ON f.file_id = v.file_id
-                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
-                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
-            </when>
-            <when test="sourceType == 'FUSION'">
-                UPDATE file_Fusion v
-                JOIN analysis_file_status f ON f.file_id = v.file_id
-                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
-                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
-            </when>
-            <when test="sourceType == 'CR_ALL'">
-                UPDATE file_CR_ALL v
-                JOIN analysis_file_status f ON f.file_id = v.file_id
-                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
-                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
-            </when>
-            <otherwise>
-                UPDATE file_Somatic_SNV_Indel v
-                JOIN analysis_file_status f ON f.file_id = v.file_id
-                SET v.parent_mutation_id = #{parentMutationIds}, v.update_time = NOW()
-                WHERE v.id = #{sourceId} AND f.analysis_id = #{analysisId} AND v.del_flag = '0'
-            </otherwise>
-        </choose>
-    </update>
-
     <!--
-      人工修改的位点说明（报告预览 › 肿瘤遗传风险）：报告粒度 JSON 覆盖表。
+      位点人工修改（父靶点 / 胚系临床意义 / 突变说明）：报告粒度 JSON。
       只在「可生成报告」的状态（31/32/33/52）允许写；40+ 已送审/已发送时影响行数为 0，
       由服务层报「报告状态已变化，请刷新后重试」。
     -->
-    <update id="updateReportVariantNotes">
+    <update id="updateReportVariantEdits">
         UPDATE analysis_report
-        SET report_variant_notes = #{notes},
+        SET report_variant_edits = #{edits},
             update_by = #{operatorId},
             update_time = NOW()
         WHERE report_id = #{reportId}

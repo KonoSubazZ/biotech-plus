@@ -52,20 +52,14 @@ class InterpretationRevisionReviewTest {
     }
 
     @Test
-    void resubmitTargetsPreviousReviewerAndUsesGeneratedParameters() {
+    void resubmitTargetsPreviousReviewerAndDoesNotFreezeHistory() {
         InterpretationPreviewBo bo = request(32);
         Mockito.when(revisions.countReviewer(2L, "tenant-a")).thenReturn(1);
         Mockito.when(revisions.submitReview(7L, 2L)).thenReturn(1);
-        ReportTemplateData data = new ReportTemplateData();
-        ReportTemplateData.SampleInfo sample = new ReportTemplateData.SampleInfo();
-        sample.setDiseaseType("frozen disease");
-        data.setSampleInfo(sample);
-        Mockito.when(store.generated(Mockito.anyMap())).thenReturn(data);
         service.submit(bo);
         Mockito.verify(revisions).submitReview(7L, 2L);
-        ArgumentCaptor<InterpretationPreviewBo> frozen = ArgumentCaptor.forClass(InterpretationPreviewBo.class);
-        Mockito.verify(preview).freezeHistory(frozen.capture());
-        Assertions.assertEquals("frozen disease", frozen.getValue().getDisease());
+        // 提交不再冻结历史：历史只在审核通过时从报告 JSON 派生
+        Mockito.verifyNoInteractions(preview);
     }
 
     @Test

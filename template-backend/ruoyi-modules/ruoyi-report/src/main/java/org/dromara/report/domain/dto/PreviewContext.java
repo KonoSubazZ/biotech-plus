@@ -3,6 +3,7 @@ package org.dromara.report.domain.dto;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 import org.dromara.report.service.impl.NkbDiseaseScopeResolver;
 
 /**
@@ -49,5 +50,11 @@ public class PreviewContext {
 
     /** cms_sample 最新一行（报告 JSON 的 sampleInfo 按它输出 45 个字段） */
     private org.dromara.report.domain.CmsSample sample;
+
+    /** 同一订单下的全部样本（双样本组织 + 对照血；sampleInfo 的 sampleTypes / subbarcodes 汇总用） */
+    private List<org.dromara.report.domain.CmsSample> orderSamples;
+
+    /** 报告级人工修改（键 gene_variant_sourceType:sourceId；只对未入库位点生效） */
+    private Map<String, org.dromara.report.service.impl.preview.ReportVariantEdits.Edit> variantEdits;
 
 }

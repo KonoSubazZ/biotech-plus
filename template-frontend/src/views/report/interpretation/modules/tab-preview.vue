@@ -7,9 +7,7 @@ import {
   fetchGetReportFileUrl,
   fetchParentCandidates,
   fetchSubmitReview,
-  fetchUpdateGermlineSignificance,
-  fetchUpdateVariantNote,
-  fetchUpdateVariantTarget
+  fetchUpdateVariantEdits,
 } from '@/service/api/report/interpretation';
 import ButtonIcon from '@/components/custom/button-icon.vue';
 import ReportGenerateParams from './report-generate-params.vue';
@@ -219,9 +217,10 @@ async function handleSubmitReview() {
 async function saveSignificance(row: Api.Report.PreviewVariant, value: number) {
   savingId.value = row.sourceId;
   try {
-    const { error } = await fetchUpdateGermlineSignificance({
+    const { error } = await fetchUpdateVariantEdits({
       analysisId: props.analysisId,
       reportId: props.reportId,
+      sourceType: row.sourceType ?? 'CR_ALL',
       sourceId: row.sourceId,
       clinicalSignificance: value
     });
@@ -237,7 +236,7 @@ async function saveSignificance(row: Api.Report.PreviewVariant, value: number) {
 async function saveTarget(row: Api.Report.PreviewVariant, parentMutationIds: number[]): Promise<boolean> {
   savingId.value = row.sourceId;
   try {
-    const { error } = await fetchUpdateVariantTarget({
+    const { error } = await fetchUpdateVariantEdits({
       analysisId: props.analysisId,
       reportId: props.reportId,
       sourceType: row.sourceType ?? 'SNP_INDEL',
@@ -263,10 +262,13 @@ const noteDraft = ref('');
 /** 与「生成报告」同一批状态（31/32/33/52）：40+ 已送审/已发送，说明只读 */
 const NOTE_EDITABLE_STATUS = [31, 32, 33, 52];
 
-/** 只有胚系位点开说明编辑，且报告状态允许 */
+/** 只有胚系位点开说明编辑，且报告状态允许（来源=历史时按钮置灰，仍展示） */
 const canEditNote = computed(
   () => detailRow.value?.sourceType === 'CR_ALL' && NOTE_EDITABLE_STATUS.includes(Number(props.reportStatus))
 );
+
+/** 来源=历史（已入库）→ 说明编辑只读 */
+const noteReadonly = computed(() => detailRow.value?.fromHistory === true);
 
 /** 进入编辑：预填当前整段（人工文本或默认两段），保存后按 sourceType:sourceId 回填 */
 function startEditNote() {
@@ -293,7 +295,7 @@ async function persistNote(text: string): Promise<boolean> {
   const key = `${row.sourceType}:${row.sourceId}`;
   noteSaving.value = true;
   try {
-    const { error } = await fetchUpdateVariantNote({
+    const { error } = await fetchUpdateVariantEdits({
       analysisId: props.analysisId,
       reportId: props.reportId,
       sourceType: row.sourceType,
@@ -412,6 +414,7 @@ function significanceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
         value={row.clinicalSignificance}
         options={SIGNIFICANCE_OPTIONS}
         size="small"
+        disabled={row.fromHistory === true}
         loading={savingId.value === row.sourceId}
         onUpdateValue={(value: number) => saveSignificance(row, value)}
       />
@@ -466,9 +469,15 @@ function operateColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
         <NButton text type="primary" size="small" onClick={() => showTodo('匹配')}>
           匹配
         </NButton>
-        <NButton text type="primary" size="small" onClick={() => openTarget(row)}>
-          改靶
-        </NButton>
+        {row.fromHistory === true ? (
+          <NButton text size="small" disabled>
+            改靶
+          </NButton>
+        ) : (
+          <NButton text type="primary" size="small" onClick={() => openTarget(row)}>
+            改靶
+          </NButton>
+        )}
       </div>
     )
   };
@@ -902,7 +911,8 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
                   text
                   type="primary"
                   icon="material-symbols:drive-file-rename-outline-outline"
-                  tooltip-content="编辑突变说明"
+                  :tooltip-content="noteReadonly ? '已入库（来源=历史），只读' : '编辑突变说明'"
+                  :disabled="noteReadonly"
                   @click="startEditNote"
                 />
                 <template v-else>
@@ -915,7 +925,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
                     text
                     icon="material-symbols:backup-outline"
                     tooltip-content="恢复默认说明"
-                    :disabled="noteSaving"
+                    :disabled="noteSaving || noteReadonly"
                     @click="resetNote"
                   />
                 </template>

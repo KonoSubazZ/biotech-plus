@@ -134,7 +134,36 @@ public class CommonReportModuleAssembler {
         info.setReceiveConfirmTime(sample.getReceiveConfirmTime());
         info.setOrderSubmitTime(sample.getOrderSubmitTime());
         info.setArrivalTime(sample.getArrivalTime());
+        // 订单维度汇总：双样本（组织 + 对照血）是同一 order_no 的两行，报告只印组织那条，
+        // 这两个字段把同订单其余样本一并带上（单样本时与本条同值）
+        applyOrderSampleSummary(info, context, sample);
         return info;
+    }
+
+    /**
+     * sampleInfo 的「订单下全部样本类型 / 样本编号」：按 subbarcode 升序（服务层已排序去重）、
+     * 类型再去重，以「、」连接；没有订单样本时退化为当前样本。
+     *
+     * @param info    sampleInfo
+     * @param context 模块上下文（orderSamples 由 InterpretationServiceImpl 按 order_no 查好）
+     * @param sample  当前报告样本
+     */
+    private void applyOrderSampleSummary(ReportTemplateData.SampleInfo info, ReportModuleContext context,
+                                         CmsSample sample) {
+        List<CmsSample> rows = context.getOrderSamples() == null || context.getOrderSamples().isEmpty()
+            ? List.of(sample) : context.getOrderSamples();
+        LinkedHashSet<String> types = new LinkedHashSet<>();
+        LinkedHashSet<String> barcodes = new LinkedHashSet<>();
+        for (CmsSample row : rows) {
+            if (StringUtils.hasText(row.getSampleType())) {
+                types.add(row.getSampleType().trim());
+            }
+            if (StringUtils.hasText(row.getSubbarcode())) {
+                barcodes.add(row.getSubbarcode().trim());
+            }
+        }
+        info.setSampleTypes(String.join("、", types));
+        info.setSubbarcodes(String.join("、", barcodes));
     }
 
     /** 位点分节：summary 统计 + 明细 + 癌种上下文 */

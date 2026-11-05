@@ -35,6 +35,7 @@ import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -239,7 +240,11 @@ public class InterpretationServiceImpl implements IInterpretationService {
         context.setLims(loadLims(report.getSubbarcode(), context.getErrors(), context.getWarnings()));
         // 报告 JSON 的 sampleInfo 直接按 cms_sample 最新一行输出（与「样本信息 › 详情」同口径）
         if (Boolean.TRUE.equals(context.getLims().getFound())) {
-            context.setSample(selectSample(report.getSubbarcode()));
+            CmsSample sample = selectSample(report.getSubbarcode());
+            context.setSample(sample);
+            // 双样本订单（组织 + 对照血）在 cms_sample 是两行：同一 order_no 的其余样本一并带上，
+            // 供 sampleInfo 的 sampleTypes / subbarcodes 汇总（报告维度，不改变「报告用哪一条」）
+            context.setOrderSamples(selectOrderSamples(sample));
         }
         context.setCanGenerate(context.getErrors().isEmpty());
         return context;
@@ -483,6 +488,34 @@ public class InterpretationServiceImpl implements IInterpretationService {
         wrapper.orderByDesc(CmsSample::getId);
         wrapper.last("LIMIT 1");
         return cmsSampleMapper.selectOne(wrapper);
+    }
+
+    /**
+     * 取同一订单下的全部样本（双样本：组织 + 对照血是两行，order_no 相同、subbarcode 不同）。
+     * <p>
+     * 报告仍然只用当前 subbarcode 那条（主样本），这里只给 sampleInfo 的「样本类型 / 样本编号」汇总用。
+     * 同一 subbarcode 有多条（编辑历史）时只留最新一条；按 subbarcode 升序，保证输出稳定
+     * （-1A 组织在 -2A 对照之前）。
+     *
+     * @param sample 当前报告样本（可为空）
+     * @return 订单样本列表；order_no 为空时退化为只含当前样本
+     */
+    private List<CmsSample> selectOrderSamples(CmsSample sample) {
+        if (sample == null) {
+            return List.of();
+        }
+        if (!StringUtils.isNotBlank(sample.getOrderNo())) {
+            return List.of(sample);
+        }
+        LambdaQueryWrapper<CmsSample> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(CmsSample::getOrderNo, sample.getOrderNo());
+        wrapper.orderByAsc(CmsSample::getSubbarcode);
+        wrapper.orderByDesc(CmsSample::getId);
+        Map<String, CmsSample> latestByBarcode = new LinkedHashMap<>();
+        for (CmsSample row : cmsSampleMapper.selectList(wrapper)) {
+            latestByBarcode.putIfAbsent(row.getSubbarcode(), row);
+        }
+        return latestByBarcode.isEmpty() ? List.of(sample) : List.copyOf(latestByBarcode.values());
     }
 
     /** 报告产品ID：批次快照里为空时按产品名/编码解析 product_config（scanner 只写产品名，product_id 常为空） */

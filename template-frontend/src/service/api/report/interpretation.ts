@@ -150,50 +150,23 @@ export function fetchBuildInterpretationPreview(data: {
   });
 }
 
-/** 人工确认胚系五级临床意义 */
-export function fetchUpdateGermlineSignificance(data: {
-  analysisId: number;
-  reportId: number;
-  sourceId: number;
-  clinicalSignificance: number;
-}) {
-  return request<null>({
-    url: '/report/interpretation/germline-clinical-significance',
-    method: 'post',
-    data
-  });
-}
-
-/** 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点；空数组 = 取消改靶 */
-export function fetchUpdateVariantTarget(data: {
-  analysisId: number;
-  reportId: number;
-  sourceType: string;
-  sourceId: number;
-  parentMutationIds: number[];
-}) {
-  return request<null>({
-    url: '/report/interpretation/variant-target',
-    method: 'post',
-    data
-  });
-}
-
 /**
- * 人工修改位点「突变说明」（报告预览 › 肿瘤遗传风险；报告粒度存储，空串 = 恢复默认）
+ * 位点人工修改（父靶点 / 胚系临床意义 / 突变说明）
  * <p>
- * 保存后需重新拉预览：生成的报告 JSON 里 germlineVariants.items[].mutationDescription 会用这份文本。
+ * 报告粒度存储（report_variant_edits），只影响本报告生成的 JSON；来源=历史（已入库）只读。
+ * 三个字段都可选：不传 = 不改；parentMutationIds 空数组 = 取消改靶；mutationDescription 空串 = 恢复默认。
  */
-export function fetchUpdateVariantNote(data: {
+export function fetchUpdateVariantEdits(data: {
   analysisId: number;
   reportId: number;
   sourceType: string;
   sourceId: number;
-  /** 人工说明整段文本；空串 = 恢复默认 */
-  mutationDescription: string;
+  parentMutationIds?: number[] | null;
+  clinicalSignificance?: number | null;
+  mutationDescription?: string | null;
 }) {
   return request<null>({
-    url: '/report/interpretation/variant-note',
+    url: '/report/interpretation/variant-edits',
     method: 'post',
     data
   });

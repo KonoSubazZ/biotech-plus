@@ -37,20 +37,23 @@ SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1
 - 胚系来源是 `file_CR_ALL` 中 `is_reported = 1` 的记录；所有报出胚系位点都进入 `history_germline`/NKB 的 `G` 类匹配，不再依赖 `omics.rp_cr.has_drug` 或 `rp_cr.Clinical_significance`。
 - 药物匹配历史键包含：基因、规范位点、原始位点、NKB 癌种 ID/名称、性别、客户、产品、来源类型、突变类型、合子状态和人工父级 `parent_mutation_id`。
 - 客户和产品相同并不代表无条件复用；癌种、性别和位点等全部维度也必须一致。`source_analysis_id`、`source_report_id`、`source_variant_id` 只用于审计，不进入跨报告复用键。
-- `history_germline.clinical_significance` 保存人工确认的五级临床意义：`1=致病`、`2=可能致病`、`3=未知临床意义`、`4=可能良性`、`5=良性`，默认值为 3。
-- 页面允许对每个胚系位点执行“修改临床意义”和“改靶/调整改靶”。保存临床意义要求该位点已经通过预览建立历史记录。
-- 改靶会更新 `file_CR_ALL.parent_mutation_id`，因此药物匹配生成新的技术历史键；新历史记录必须继承同一客户、产品、癌种、性别、位点和合子状态下最近一条临床意义，不能恢复为默认值 3。
+- `history_germline.clinical_significance` 保存人工确认的五级临床意义：`1=致病`、`2=可能致病`、`3=未知临床意义`、`4=可能良性`、`5=良性`，默认值为 3。**该值只在审核通过冻结时写入**（未命中首条 `INSERT IGNORE`），已入库后不可再改。
+- 页面允许对每个胚系位点执行“修改临床意义”和“改靶”，但**只有未入库的位点（`history_germline` 没有该 match_key，页面来源=知识库）允许改临床意义**；已入库（来源=历史）整行只读：临床意义下拉、改靶、突变说明编辑都禁用，后端同样拒绝。对 `history_*` 的更新只允许命中历史时的 `reuse_count+1` / `last_reused_at`（冻结结果与 `match_result` 不被覆盖）。
+  未入库时改的值存报告级 `analysis_report.report_variant_edits`（键 `<gene>_<variant>_<sourceType>:<sourceId>`）；预览/生成套用它，审核通过从生成 JSON 冻结时写进 `history_germline.clinical_significance`。
+- 改靶（父靶点）**不再写源位点表** `file_*.parent_mutation_id`：写入 `report_variant_edits.parentMutationIds`，只影响本报告匹配；空数组 = 取消改靶。
 - 临床意义继承明确忽略 `parent_mutation_id`，但不忽略癌种和性别；药物证据复用仍包含 `parent_mutation_id`，两种语义不可合并成一个宽松键。
-- **突变说明**（2026-11-04 新增）：默认 = HGVS 中文译文 + NKB 位点说明，**直接拼接成一段**（en7 `ReportCrServiceImpl` 的 `mutDesc + variantDescription` 口径，NKB 无位点说明时用四段兜底 `description`），每次预览/生成实时算、不进 `match_result` 冻结。
-  解读人员可人工改写：存 `analysis_report.report_variant_notes`（`json`，键形如 `CR_ALL:44`（来源类型:位点ID），**报告粒度**，同批次多份报告互不覆盖），空文本 = 恢复默认（删键）。
-  只有 `ReportRevisionPolicy.GENERATABLE`（31/32/33/52）允许改，40+ 已送审/已发送只读（`updateReportVariantNotes` 的 WHERE 条件兜底）。
-  预览与生成共用的 `assemble()` 在匹配后调 `VariantNotes.apply`：有覆盖用覆盖（`mutationDescriptionEdited=true`），否则填默认；JSON 字段为 `somaticVariants/germlineVariants.items[].mutationDescription`。
-  **历史 DOCX 模板没有这个占位符**（已知现状，本次不改模板）；新模板要印这段字用 `{{it.mutationDescription or ''}}`。
+- **位点人工修改**（2026-11-05 统一口径）：三类修改 —— 父靶点（体细胞/胚系）、胚系临床意义、突变说明 —— 统一存
+  `analysis_report.report_variant_edits`（`json`，键 `<gene>_<variant>_<sourceType>:<sourceId>`，**报告粒度**，只存改过的位点）。
+  - 只有未入库位点可改（`history_*` 无该 match_key）；来源=历史（已入库）整行只读（前端置灰、后端拒绝）。
+  - 只有 `ReportRevisionPolicy.GENERATABLE`（31/32/33/52）允许写，40+ 已送审/已发送只读（UPDATE 的 WHERE 兜底）。
+  - 不写 history_*、不写 `file_*.parent_mutation_id`；预览/生成共用的 `assemble()` 读取并套用，**只影响本报告生成的 JSON**。
+  - 突变说明默认 = HGVS 中文译文 + NKB 位点说明直接拼接（en7 口径，NKB 无位点说明用 `description` 兜底），每次实时算、不进冻结。
+  - JSON 字段：`items[].mutationDescription`；历史 DOCX 模板没有该占位符，新模板用 `{{it.mutationDescription or ''}}`。
 
 ### 0.4 报告 JSON 生命周期与存储位置
 
 - 预览 JSON 只存在于 Java 对象和 HTTP 响应，不写数据库，也不创建预览文件。
-- 例外只有「人工改写的位点说明」：它不是预览 JSON 的快照，而是**输入侧**的一列 `analysis_report.report_variant_notes`（json，报告粒度，键 `来源类型:位点ID`）。预览与生成都读它，生成后随 JSON 一起冻结；空文本/无键 = 用实时算出的默认说明。见 §0.3。
+- 例外只有「人工修改」：它不是预览 JSON 的快照，而是**输入侧**的一列 `analysis_report.report_variant_edits`（json，报告粒度）。预览与生成都读它；生成后写进 JSON，审核通过从 JSON 冻结 history_*。见 §0.3。
 - 正式生成时服务端重新查询最新 LIMS、报出位点、改靶、临床意义、产品基因和模板配置，不接受前端回传的预览 JSON。
 - 当前实现把最终 JSON 写入 `<artifact-root>/report/json/<analysis_date>/`、原始 DOCX 写入 `<artifact-root>/report/docx/<analysis_date>/`、转化 PDF 写 `<artifact-root>/report/pdf/<analysis_date>/`、签名后 PDF 写 `<artifact-root>/report/signed/<analysis_date>/`（同样取 analysis_date，不取签名当天）（均不再建 reportId/版本子目录，日期取 `analysis_report.analysis_date`；见 report-docx-renderer.md 的「制品目录」）。
 - DOCX 与 JSON 使用相同文件名前缀；`analysis_report.report_json_path` 保存 JSON 路径，`report_file_raw_path` 保存 DOCX 路径，`template_id/template/report_generated_by/report_generated_at` 同时更新。
@@ -741,6 +744,7 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
     "transportCondition": "常温",
     "hasTemperatureLogger": "否",
     "subbarcode": "SAMPLE-001",
+    "subbarcodes": "SAMPLE-001、SAMPLE-002",
     "customerSamplingCode": "CUST-001",
     "sampleName": "示例样本",
     "subjectNo": "SUBJECT-001",
@@ -749,6 +753,7 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
     "diseaseType": "乳腺癌",
     "visitCycle": "C1D1",
     "sampleType": "组织+全血",
+    "sampleTypes": "石蜡切片、全血(白细胞)",
     "sampleQuantity": "15",
     "quantityUnit": "张",
     "sampleAttribute": "石蜡切片",
@@ -831,6 +836,12 @@ Spring 自动发现实现类。新增 Handler 时不修改注册器、Controller
   "warnings": []
 }
 ```
+
+- sampleInfo 自 2026-11-04 起多两个订单维度汇总字段（冗余、含当前样本）：
+  `sampleTypes`（订单下全部样本类型，按编号升序去重、“、”连接，如 `石蜡切片、全血(白细胞)`）、
+  `subbarcodes`（订单下全部诺禾编号，按编号升序、“、”连接）。双样本（组织 + 对照血）在 cms_sample 是同一
+  `order_no` 的两行，报告仍只用组织那条（`sampleType`/`subbarcode` 不变），这两个字段只是把订单其余样本带出来；
+  单样本时与本条同值。数据源 `cms_sample.order_no`，由 `InterpretationServiceImpl#selectOrderSamples` 查询。
 
 - 位点 item（`somaticVariants/germlineVariants.items[]`）自 2026-11-04 起多两个字段：
   `mutationDescription`（报告用整段说明：人工改写优先，否则 HGVS 中文译文 + 位点说明，直接拼接）、

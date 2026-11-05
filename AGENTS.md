@@ -182,10 +182,14 @@ report/rejected/<yyyyMMdd>/<subbarcode>_V<n>/{json,docx,pdf,signed}/ + manifest.
 - **位点历史只在「审核通过」时冻结**：提交审核（32→40/41）不写 `history_somatic/history_germline`、
   不写 `report_variant_history`、不登记 `history_reuse_log`；驳回也不写。详细口径与代码落点见
   `docs/context/report/report-module-design.md` §0.7。
-- **位点「突变说明」可人工改写**（2026-11-04）：默认由 HGVS 译文 + NKB 位点说明实时拼（不进冻结）；
-  人工文本存 `analysis_report.report_variant_notes`（json，**报告粒度**，键 `来源类型:位点ID`），
-  空文本 = 恢复默认；只有 31/32/33/52 能改（40+ 只读）。预览/生成共用 `assemble()` 应用覆盖，
-  JSON 字段 `...items[].mutationDescription`。**历史 DOCX 模板不含该占位符**，要印用 `{{it.mutationDescription or ''}}`。
+- **已入库 = 只读**（2026-11-05）：页面「来源」列 = 历史的行（history_* 已有该 match_key），临床意义、改靶、
+  突变说明全部置灰/只读；对 `history_*` 的更新只剩命中历史时 `reuse_count+1` / `last_reused_at`。
+  未入库位点的三类修改统一存 `analysis_report.report_variant_edits`（json，键 `gene_variant_sourceType:sourceId`），
+  生成报告时写进 JSON；审核通过时**只读该 JSON** 冻结 `history_*`（不再现场重算），与制品不一致的历史值直接阻止审核（B1）。
+- **突变说明**：默认由 HGVS 译文 + NKB 位点说明实时拼（不进冻结）；人工文本与父靶点/临床意义一起存
+  `analysis_report.report_variant_edits`（键 `gene_variant_sourceType:sourceId`），空串 = 恢复默认；
+  只有 31/32/33/52 能改（40+ 只读）。预览/生成共用 `assemble()` 应用，JSON 字段 `...items[].mutationDescription`。
+  **历史 DOCX 模板不含该占位符**，要印用 `{{it.mutationDescription or ''}}`。
 
 ### 3.4 前端 `template-frontend/`
 

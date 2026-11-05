@@ -11,7 +11,7 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.InterpretationEnterBo;
-import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
+import org.dromara.report.domain.bo.InterpretationVariantEditBo;
 import org.dromara.report.domain.bo.InterpretationBioinfoBo;
 import org.dromara.report.domain.bo.InterpretationSignCallbackBo;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
@@ -20,9 +20,7 @@ import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationReviewBo;
 import org.dromara.report.domain.bo.InterpretationSendBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
-import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
-import org.dromara.report.domain.bo.InterpretationVariantNoteBo;
 import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
@@ -465,27 +463,6 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * 人工确认胚系五级临床意义（保存后重新预览即可看到按 Class 匹配的证据）
-     *
-     * @param bo 入参（analysisId / reportId / sourceId / clinicalSignificance 1~5）
-     * @return 操作结果
-     */
-    /**
-     * 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点
-     *
-     * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds，空列表 = 取消改靶）
-     * @return 操作结果
-     */
-    @SaCheckPermission("report:interpretation:preview")
-    @RepeatSubmit()
-    @Log(title = "报告解读-改靶", businessType = BusinessType.UPDATE)
-    @PostMapping("/variant-target")
-    public R<Void> variantTarget(@RequestBody @Validated InterpretationTargetBo bo) {
-        previewService.updateVariantTarget(bo);
-        return R.ok();
-    }
-
-    /**
      * 改靶候选：按关键词查 NKB 位点节点（父级由知识库查询到）
      *
      * @param keyword 关键词（基因符号 / 节点名片段）
@@ -497,30 +474,21 @@ public class InterpretationController extends BaseController {
         return R.ok(previewService.searchParentNodes(keyword));
     }
 
-    @SaCheckPermission("report:interpretation:preview")
-    @RepeatSubmit()
-    @Log(title = "报告解读-胚系临床意义", businessType = BusinessType.UPDATE)
-    @PostMapping("/germline-clinical-significance")
-    public R<Void> germlineSignificance(@RequestBody @Validated InterpretationGermlineSignificanceBo bo) {
-        previewService.updateGermlineSignificance(bo);
-        return R.ok();
-    }
-
     /**
-     * 人工修改位点「突变说明」（报告预览 › 肿瘤遗传风险 › 位点详情）
+     * 位点人工修改（父靶点 / 胚系临床意义 / 突变说明）
      * <p>
-     * 报告粒度存储，生成报告时覆盖默认说明；空文本 = 恢复默认。
-     * 只有可生成报告的状态（31/32/33/52）允许写，40+ 已送审/已发送只读。
+     * 报告粒度存储，生成报告时写进 JSON；来源=历史（已入库）的位点只读。
+     * 只有可生成报告的状态（31/32/33/52）允许写。
      *
-     * @param bo 入参（analysisId / reportId / sourceType / sourceId / mutationDescription）
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / 三个可选修改字段）
      * @return 操作结果
      */
     @SaCheckPermission("report:interpretation:preview")
     @RepeatSubmit()
-    @Log(title = "报告解读-突变说明", businessType = BusinessType.UPDATE)
-    @PostMapping("/variant-note")
-    public R<Void> variantNote(@RequestBody @Validated InterpretationVariantNoteBo bo) {
-        previewService.updateVariantNote(bo);
+    @Log(title = "报告解读-位点修改", businessType = BusinessType.UPDATE)
+    @PostMapping("/variant-edits")
+    public R<Void> variantEdits(@RequestBody @Validated InterpretationVariantEditBo bo) {
+        previewService.updateVariantEdits(bo);
         return R.ok();
     }
 }

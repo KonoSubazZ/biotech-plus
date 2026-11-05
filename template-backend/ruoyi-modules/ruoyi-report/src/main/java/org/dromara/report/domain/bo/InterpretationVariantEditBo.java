@@ -6,20 +6,19 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.List;
 
 /**
- * 人工修改位点「突变说明」（报告预览 › 肿瘤遗传风险 › 位点详情）。
+ * 位点人工修改（父靶点 / 胚系临床意义 / 突变说明），报告预览页统一入参。
  * <p>
- * 按**报告粒度**存进 {@code analysis_report.report_variant_notes}（JSON，键 = 来源类型:位点ID），
- * 生成报告时由 {@code InterpretationPreviewServiceImpl#assemble} 覆盖默认说明，
- * 所以预览里改完、再点「生成报告」，落盘的 JSON 里带的就是改后的文本。
- * <p>
- * 传空串 = 恢复默认说明（删键）。只有可生成报告的状态（31/32/33/52）允许写。
+ * 存 {@code analysis_report.report_variant_edits}（json，键 = gene_variant_sourceType:sourceId）；
+ * 只影响本报告生成的 JSON，不写 history_*、不写源位点表。
+ * 只有可生成报告的状态（31/32/33/52）允许写；来源=历史的位点只读。
  *
  * @author <你的名字>
  */
 @Data
-public class InterpretationVariantNoteBo implements Serializable {
+public class InterpretationVariantEditBo implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -40,6 +39,12 @@ public class InterpretationVariantNoteBo implements Serializable {
     @NotNull(message = "位点ID不能为空")
     private Long sourceId;
 
-    /** 人工说明整段文本；空 = 恢复默认 */
+    /** 父靶点节点ID；null = 不改，空列表 = 取消改靶 */
+    private List<Long> parentMutationIds;
+
+    /** 胚系临床意义 1~5；null = 不改（仅 CR_ALL 可传） */
+    private Integer clinicalSignificance;
+
+    /** 突变说明整段文本；null = 不改，空串 = 恢复默认 */
     private String mutationDescription;
 }

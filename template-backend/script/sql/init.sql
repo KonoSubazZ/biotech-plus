@@ -166,7 +166,7 @@ CREATE TABLE `analysis_report` (
   `report_generation_no` int(11) NOT NULL DEFAULT '0' COMMENT '内部生成轮次',
   `report_reviewer_id` bigint(20) DEFAULT NULL COMMENT '重生成后的定向复审人',
   `source_report_id` bigint(20) DEFAULT NULL COMMENT '重新解读来源报告ID',
-  `report_variant_notes` json DEFAULT NULL COMMENT '预览阶段人工修改的位点说明：{"CR_ALL:44":"文本"}，键=来源类型:位点ID；NULL=全部用默认',
+  `report_variant_edits` json DEFAULT NULL COMMENT '本次报告的人工修改：{"BRCA1_A2825E_CR_ALL:24":{"parentMutationIds":[1,2],"clinicalSignificance":1,"mutationDescription":"..."}}；键=gene_variant_sourceType:sourceId；NULL=无修改',
   PRIMARY KEY (`report_id`),
   KEY `idx_report_analysis` (`analysis_id`,`del_flag`),
   KEY `idx_report_status` (`report_status`),

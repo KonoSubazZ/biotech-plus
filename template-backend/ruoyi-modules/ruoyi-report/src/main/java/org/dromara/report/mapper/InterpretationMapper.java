@@ -299,16 +299,21 @@ public interface InterpretationMapper {
     Integer selectInheritedGermlineSignificance(@Param("q") Map<String, Object> q);
 
     /**
-     * 保存人工确认的胚系临床意义（要求该位点已通过预览建立历史记录）。
+     * 保存人工确认的胚系临床意义（报告级覆盖表，不写 history_*）。
      * <p>
-     * 只改 `clinical_significance`：**不**重跑匹配、**不**覆盖已冻结的 `match_result` / 用药 / 位点等级。
+     * 只有未入库位点允许写；已入库（来源=历史）由服务层拒绝。覆盖表在预览/生成时套用，
+     * 审核通过冻结时写进 history_germline.clinical_significance。
      *
-     * @param matchKey             规范化匹配键
-     * @param clinicalSignificance 1~5
-     * @return 影响行数（0 = 还没建立历史）
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID（归属校验）
+     * @param overrides  覆盖表 JSON；null = 清空
+     * @param operatorId 操作人（sys_user.user_id）
+     * @return 影响行数（0 = 报告不存在 / 不属于该批次 / 状态已变）
      */
-    int updateGermlineSignificance(@Param("matchKey") String matchKey,
-                                  @Param("clinicalSignificance") Integer clinicalSignificance);
+    int updateReportGermlineSignificance(@Param("reportId") Long reportId,
+                                         @Param("analysisId") Long analysisId,
+                                         @Param("overrides") String overrides,
+                                         @Param("operatorId") Long operatorId);
 
     /**
      * 取单个 CR_ALL 位点（保存临床意义前要重算 match_key）
@@ -333,33 +338,19 @@ public interface InterpretationMapper {
                                               @Param("analysisId") Long analysisId);
 
     /**
-     * 改靶：把人工父级写回源位点表（逗号分隔的多父级）
-     *
-     * @param sourceType       源位点表（SNP_INDEL / CNV / FUSION / CR_ALL）
-     * @param sourceId         位点ID
-     * @param analysisId       分析数据ID
-     * @param parentMutationIds 人工父级节点ID（逗号分隔）；null 表示取消改靶
-     * @return 影响行数
-     */
-    int updateParentMutation(@Param("sourceType") String sourceType,
-                             @Param("sourceId") Long sourceId,
-                             @Param("analysisId") Long analysisId,
-                             @Param("parentMutationIds") String parentMutationIds);
-
-    /**
-     * 写报告级「位点说明」人工覆盖表（JSON，键 = 来源类型:位点ID）。
+     * 写报告级「位点人工修改」表（JSON，键 = gene_variant_sourceType:sourceId）。
      * <p>
      * 只在可生成报告的状态（31/32/33/52）生效；40+ 已送审/已发送不允许改（影响行数 0）。
      *
      * @param reportId   报告ID
      * @param analysisId 分析数据ID（归属校验）
-     * @param notes      覆盖表 JSON；null = 清空（全部用默认说明）
+     * @param edits      修改表 JSON；null = 清空
      * @param operatorId 操作人（sys_user.user_id）
      * @return 影响行数（0 = 报告不存在 / 不属于该批次 / 状态已变）
      */
-    int updateReportVariantNotes(@Param("reportId") Long reportId,
+    int updateReportVariantEdits(@Param("reportId") Long reportId,
                                  @Param("analysisId") Long analysisId,
-                                 @Param("notes") String notes,
+                                 @Param("edits") String edits,
                                  @Param("operatorId") Long operatorId);
 
     int updateVariantReportStatus(@Param("sourceId") Long sourceId,

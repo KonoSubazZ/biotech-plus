@@ -207,6 +207,14 @@ public class ReportTemplateData implements Serializable {
         /** 诺禾编号 */
         private String subbarcode;
 
+        /**
+         * 订单下全部诺禾编号（含当前样本；按编号升序、去重、以「、」连接）。
+         * <p>
+         * 双样本（组织 + 对照血）在 cms_sample 是同一 order_no 的两行，报告只用组织那条，
+         * 但报告是订单维度 —— 这个字段把同订单的其余样本编号一并带上。
+         */
+        private String subbarcodes;
+
         /** 客户采样识别码 */
         private String customerSamplingCode;
 
@@ -230,6 +238,13 @@ public class ReportTemplateData implements Serializable {
 
         /** 样本类型 */
         private String sampleType;
+
+        /**
+         * 订单下全部样本类型（含当前样本；按样本编号升序、去重、以「、」连接）。
+         * <p>
+         * 双样本时形如「石蜡切片、全血(白细胞)」；单样本时与 {@link #sampleType} 同值。
+         */
+        private String sampleTypes;
 
         /** 样本数量 */
         private String sampleQuantity;

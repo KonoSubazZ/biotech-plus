@@ -1,7 +1,9 @@
 package org.dromara.report.service.impl.preview;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.satoken.utils.LoginHelper;
 import org.dromara.report.domain.vo.PreviewDrugVo;
 import org.dromara.report.domain.vo.PreviewVariantVo;
@@ -10,9 +12,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.dromara.report.service.impl.PreviewSupport.asInt;
 import static org.dromara.report.service.impl.PreviewSupport.asLong;
@@ -56,6 +61,16 @@ public class VariantMatcher {
     private static final Map<Integer, String> SIGNIFICANCE_LABEL = Map.of(
         1, "致病", 2, "可能致病", 3, "未知临床意义", 4, "可能良性", 5, "良性");
 
+    /**
+     * 五级临床意义的中文标签（供报告级覆盖表复用，避免两处各存一份）。
+     *
+     * @param value 1~5
+     * @return 中文标签；未知返回 null
+     */
+    public static String significanceLabel(Integer value) {
+        return value == null ? null : SIGNIFICANCE_LABEL.get(value);
+    }
+
     /** 复用键版本：v2 = 按「产品项目 + 位点 + 癌种 + 性别 + 人工改靶父级」冻结 */
     private static final String MATCH_KEY_VERSION = "v4";
 
@@ -83,6 +98,7 @@ public class VariantMatcher {
             item.setFrequency(asString(row.get("frequency")));
             item.setDepth(asString(row.get("depth")));
             item.setParentMutationIds(ParentMutationIds.parse(row.get("parentMutationId")));
+            applyEditTarget(pc, item);
             matchWithHistory(pc, item, null, persistHistory);
             PreviewSupport.decorate(row, item, false);
             descriptionEnricher.enrich(item, row.get("freqRaw"));
@@ -107,10 +123,16 @@ public class VariantMatcher {
             item.setDepth(asString(row.get("depth")));
             item.setSourceClnsig(asString(row.get("clnsig")));
             item.setParentMutationIds(ParentMutationIds.parse(row.get("parentMutationId")));
+            applyEditTarget(pc, item);
             item.setClassificationLovd(null);
             Integer significance = resolveSignificance(pc, item);
+            // 报告级人工修改（未入库位点才允许）：优先于继承/默认值；审核通过冻结时按这个值写 history_germline
+            ReportVariantEdits.Edit edit = ReportVariantEdits.find(pc.getVariantEdits(), item);
+            if (edit != null && edit.getClinicalSignificance() != null) {
+                significance = edit.getClinicalSignificance();
+            }
             item.setClinicalSignificance(significance);
-            item.setClinicalSignificanceLabel(SIGNIFICANCE_LABEL.get(significance));
+            item.setClinicalSignificanceLabel(significanceLabel(significance));
             matchWithHistory(pc, item, significance, persistHistory);
             PreviewSupport.decorate(row, item, true);
             descriptionEnricher.enrich(item, row.get("freqRaw"));
@@ -119,8 +141,122 @@ public class VariantMatcher {
         return PreviewSupport.sortByOrderNum(items);
     }
 
+    /** 只用于 B1 比对（把 frozenResult 与历史 JSON 归一成 Map） */
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     /**
-     * 历史复用 or 首次知识库匹配。
+     * 把报告级人工修改里的父靶点套到位点（只影响本次匹配；不写源位点表）。
+     */
+    private void applyEditTarget(PreviewContext pc, PreviewVariantVo item) {
+        ReportVariantEdits.Edit edit = ReportVariantEdits.find(pc.getVariantEdits(), item);
+        if (edit != null && edit.getParentMutationIds() != null) {
+            item.setParentMutationIds(edit.getParentMutationIds());
+        }
+    }
+
+    /**
+     * 从「已生成的报告 JSON」冻结历史：审核通过时唯一入口。
+     * <p>
+     * 不再查 NKB / 不再用实时样本；match_key 的上下文由调用方用报告快照构建。
+     * <ul>
+     *   <li>history 未命中 → INSERT IGNORE 首条（match_result 从 JSON item 还原）</li>
+     *   <li>history 命中 → B1 比对：结果一致才登记复用；不一致直接拒绝审核通过</li>
+     *   <li>同一份报告内相同 match_key 只处理一次（避免自己复用自己）</li>
+     * </ul>
+     *
+     * @param pc       冻结上下文（报告快照构建）
+     * @param report   报告行（sourceReportId/analysisId 等审计字段）
+     * @param items    制品 JSON 里的位点
+     * @param germline 是否胚系
+     */
+    public void freezeFromItems(PreviewContext pc, Map<String, Object> report,
+                                List<PreviewVariantVo> items, boolean germline) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        Set<String> seen = new HashSet<>();
+        for (PreviewVariantVo item : items) {
+            String matchKey = matchKey(pc, item);
+            if (!seen.add(matchKey)) {
+                log.warn("同一报告内重复 match_key，跳过后续冻结：reportId={}，key={}，gene={}，variant={}",
+                    pc.getReportId(), matchKey, item.getGene(), item.getVariant());
+                continue;
+            }
+            Map<String, Object> history = germline
+                ? interpretationMapper.selectGermlineHistory(matchKey)
+                : interpretationMapper.selectSomaticHistory(matchKey);
+            if (history == null) {
+                insertHistory(pc, item, matchKey, germline ? item.getClinicalSignificance() : null);
+                continue;
+            }
+            requireSameFrozen(history, item, germline, matchKey);
+            registerHistoryReuse(history, pc, item, germline, matchKey);
+        }
+    }
+
+    /**
+     * B1：历史已存在时，制品里的匹配结果必须与历史一致，否则阻止审核通过。
+     */
+    private void requireSameFrozen(Map<String, Object> history, PreviewVariantVo item,
+                                   boolean germline, String matchKey) {
+        Map<?, ?> expected = JSON.convertValue(frozenResult(item), Map.class);
+        Map<?, ?> actual = parseMap(asString(history.get("match_result")));
+        StoredFrozen stored = new StoredFrozen(history);
+        if (!Objects.equals(expected, actual)
+            || !Objects.equals(nz(item.getMatchStatus()), nz(stored.matchStatus))
+            || !Objects.equals(nz(item.getVariationClass()), nz(stored.variationClass))
+            || (germline && !Objects.equals(clinicalValue(item.getClinicalSignificance()),
+                clinicalValue(asInt(stored.clinicalSignificance))))) {
+            throw new ServiceException("位点「" + item.getGene() + "_" + item.getVariant()
+                + "」已被其他报告冻结且结果不一致（历史=" + stored.summary() + "，本报告="
+                + summary(item) + "），请驳回后重新生成再审核");
+        }
+        log.info("B1 校验通过：match_key={}，reportId={}", matchKey, item.getSourceId());
+    }
+
+    private Map<?, ?> parseMap(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        try {
+            return JSON.readValue(json, Map.class);
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    private static Integer clinicalValue(Integer value) {
+        return value == null ? 3 : value;
+    }
+
+    private static String summary(PreviewVariantVo item) {
+        return nz(item.getMatchStatus()) + "/" + nz(item.getVariationClass())
+            + "/sig=" + clinicalValue(item.getClinicalSignificance());
+    }
+
+    /** 历史行里 B1 需要比对的列 */
+    private static final class StoredFrozen {
+
+        private final String matchStatus;
+
+        private final String variationClass;
+
+        private final Object clinicalSignificance;
+
+        private StoredFrozen(Map<String, Object> history) {
+            this.matchStatus = asString(history.get("match_status"));
+            this.variationClass = asString(history.get("variation_class"));
+            this.clinicalSignificance = history.get("clinical_significance");
+        }
+
+        private String summary() {
+            return nz(matchStatus) + "/" + nz(variationClass) + "/sig=" + clinicalValue(asInt(clinicalSignificance));
+        }
+    }
+
+
+    /**
+     * 历史复用 or 首次知识库匹配（预览/生成用；审核通过不再走这里，见 {@link #freezeFromItems}）。
      * <p>
      * 命中历史 → <b>严格只读复用</b>（知识库更新不刷新），并登记一次复用（时间 + 计数 + 留痕）。
      * 未命中 → 按 en7 口径查最新知识库，{@code INSERT IGNORE} 冻结首条；此后不再被任何路径覆盖。

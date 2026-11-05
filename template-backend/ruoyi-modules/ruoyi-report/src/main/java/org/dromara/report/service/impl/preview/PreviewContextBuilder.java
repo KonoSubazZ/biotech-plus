@@ -128,6 +128,7 @@ public class PreviewContextBuilder {
             ? List.of() : interpretationMapper.selectProductGeneSymbols(resolvedProductId));
         pc.setSpecimenType(lims.getSpecimenType());
         pc.setSample(context.getSample());
+        pc.setOrderSamples(context.getOrderSamples());
         return pc;
     }
 

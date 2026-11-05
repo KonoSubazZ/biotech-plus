@@ -33,6 +33,13 @@ public class InterpretationContextVo implements Serializable {
     @JsonIgnore
     private CmsSample sample;
 
+    /**
+     * 同一订单下的全部样本（双样本 = 组织 + 对照血两行；按 subbarcode 升序，同编号只留最新一条）。
+     * 只用于 sampleInfo 的 sampleTypes / subbarcodes 汇总，不改变报告主样本。
+     */
+    @JsonIgnore
+    private List<CmsSample> orderSamples = new ArrayList<>();
+
     /** 是否满足继续解读/生成的最低数据要求 */
     private Boolean canGenerate;
 
