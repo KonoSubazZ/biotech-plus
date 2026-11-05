@@ -1,6 +1,6 @@
 # 04 · 数据库表规范（建表 / 公共字段 / 索引 / 租户字段）
 
-> 适用：`template-backend` 的 MySQL 8 库（本地库名 `ry-vue`）。
+> 适用：`template-backend` 的 MySQL 8 库（本地库名 `biotech`）。
 > 读者：建表的人、写迁移脚本的人、让 AI 生成 CRUD 的人、Review 的人。
 > 机械闸门：`python3 tools/check_db_schema.py`（一条命令出报告，不通过退出码 1）。
 > 可复制模板：`ai-templates/db/table-template.sql`。
@@ -173,6 +173,7 @@ KEY idx_<业务列> (<业务列>),                            -- 按查询需要
 | 首次部署初始化 | `~/docker/biotech-plus/mysql/init/0N-*.sql`（仓库外） | 由 `deploy.sh up` 从上面两处 cp 刷新 |
 
 - 迁移脚本**只增不改**：已发布过的脚本不要再改内容（别人可能已经跑过），要改就新加一个文件。
+- 审核目标环境和迁移文件后，按部署环境的凭据配置将 SQL 文件导入目标库。开发环境默认库名为 `biotech`；通过文件传入 SQL，避免命令行转义或编码破坏脚本。
 - 每个脚本开头 `SET NAMES utf8mb4;`（否则 docker 里 mysql 客户端按 latin1 解析中文，导入中断）。
 - 参考已落地的两份：`update_5.6.2-menu-icons.sql`（菜单图标前缀）、
   `update_5.6.2-tenant-version.sql`（租户表 + 给所有业务表补 tenant_id 的存储过程）。
@@ -208,7 +209,7 @@ KEY idx_<业务列> (<业务列>),                            -- 按查询需要
 python3 tools/check_db_schema.py
 
 # 指定库/连接
-python3 tools/check_db_schema.py --database ry-vue
+python3 tools/check_db_schema.py --database biotech
 python3 tools/check_db_schema.py --rules          # 打印规则清单
 python3 tools/check_db_schema.py --json out.json  # 机器可读
 ```

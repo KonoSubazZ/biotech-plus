@@ -15,7 +15,7 @@
 
 **不要并行实现同一个接口。** 所有跨人/跨 agent 的接口改动，分两步：
 
-1. **第一步只提交骨架**（一个独立 PR，先合进 main）：
+1. **第一步只提交骨架**（一个独立 PR，先合进 dev）：
    - Java：Controller 方法签名 + `IXxxService` 接口 + `XxxBo` / `XxxVo` 字段 + Mapper 方法声明（空实现或 `throw new UnsupportedOperationException()`）
    - 前端：`src/service/api/xxx.ts` 的类型与函数签名 + `src/typings/` 类型定义
    - 如果有 DB 变更：先提交建表/迁移脚本
@@ -60,48 +60,37 @@ ai-templates/frontend-module/   index.vue / api.ts / types.ts
 ## 6. 分支与合并纪律
 
 ```bash
-git checkout main && git pull
-git checkout -b feat/<模块>-<简述>
+git switch dev
+git pull --ff-only origin dev
+git switch -c feat/project-product-config
 
 # 每天开工先 rebase，别攒三天
-git fetch origin && git rebase origin/master
+git fetch origin
+git rebase origin/dev
 
 # 提 PR 前：机械闸门 + 自测
 python3 tools/readability_check.py --changed-only origin/master
 
-git push -u origin feat/<模块>-<简述>
+git push -u origin HEAD
 ```
 
 - **PR 要小**：目标 < 400 行改动。大 PR 没人真审，也最容易冲突。
-- **每天同步 main**，不要攒。
-- **合并方式统一 squash**（一个 PR 一个 commit），main 历史线性、好回溯。
+- **每天同步 dev**，不要攒。
+- **合并方式统一 squash**（一个 PR 一个 commit），开发分支历史线性、好回溯。
 - 一个 PR 只做一件事，不混入"顺手重构"。
 
 ## 7. 把闸门装进自动化
 
 ### 7.1 本地 pre-commit（改动文件即查）
 
-```bash
-cat > .git/hooks/pre-commit <<'EOF'
-#!/bin/sh
-python3 tools/readability_check.py --changed-only HEAD --fail-on error || {
-  echo "提交被拦截：请修复上面报告里的 error（紧急绕过：git commit --no-verify）"
-  exit 1
-}
-python3 tools/structure_check.py --changed-only HEAD || {
-  echo "提交被拦截：页面结构契约不通过（缺 modules 组件 / 未用统一 hooks / 类型写错位置 等）"
-  exit 1
-}
-EOF
-chmod +x .git/hooks/pre-commit
-```
+在仓库根目录运行 `bash tools/install-git-hooks.sh`，安装范围及提交信息检查见[提交规范](05-git-commit.md)。
 
 两个闸门分工不同，都要跑：`readability_check.py` 管「代码写得好不好读」（行长/嵌套/any/console），
 `structure_check.py` 管「页面结构对不对」（文件落位、import 目标存在、统一 hooks、类型位置、跨端权限点位）。
 
 ### 7.2 CI（合并阻断条件）
 
-GitLab CI（仓库根 `.gitlab-ci.yml`）：
+以下为接入示例。GitLab CI（仓库根 `.gitlab-ci.yml`）：
 
 ```yaml
 readability-gate:
@@ -126,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - run: python3 tools/readability_check.py --changed-only origin/${{ github.base_ref }} --json readability.json
+      - run: python3 tools/readability_check.py --changed-only origin/master --json readability.json
       - if: always()
         uses: actions/upload-artifact@v4
         with: { name: readability, path: readability.json }
@@ -140,8 +129,8 @@ jobs:
 - 需要多 agent 同时写 → 用 git worktree 隔离，各自分支，最后走 PR：
 
 ```bash
-git worktree add -b feat/module-a /tmp/wt-a main
-git worktree add -b feat/module-b /tmp/wt-b main
+git worktree add -b feat/module-a /tmp/wt-a origin/dev
+git worktree add -b feat/module-b /tmp/wt-b origin/dev
 ```
 
 - 用 `.ai_state/`（前端 Athena 机制）时，**每个 worktree 一份状态**，不要共享 —— 状态文件本身也会冲突。

@@ -1,52 +1,28 @@
-# ai-rules — AI 协作规则（本仓库唯一事实源）
+# 开发、评审与提交规则
 
-> 这套规则解决三件事：
-> **① 控制 AI 写出的代码可维护** · **② Hermes 写 / Codex 审 怎么分工** · **③ 多人并行怎么保持一致**
->
-> 规则只写在这里。项目里已有两套子规范（后端 `template-backend/docs/backend-code-standard.md`、
-> 前端 `template-frontend/DESIGN.md` + `UX-CONTRACT.md`）**继续有效**，本目录是它们的跨栈补充与
-> 三者之间的粘合层，不重复、不覆盖。
+从仓库根目录执行检查。日常开发从 `dev` 建分支，提 PR 前两道检查都以 `origin/master` 为基线。
 
-## 文件
-
-| 文件 | 解决 | 谁执行 |
+| 工作 | 规则 | 工具或模板 |
 |---|---|---|
-| `01-readability.md` | 需求①：可读性优先、禁语法糖、禁过度设计 | ai / 人 / 评审 |
-| `02-review-contract.md` | 需求②：写与审分离，跨工具交接契约 | Hermes + Codex |
-| `03-collaboration.md` | 需求③：多人并行的接口先行与一致性 | 团队 |
-| `../tools/readability_check.py` | ①的**机械闸门**：一条命令 + 一份报告 | CI / pre-commit / 人 |
-| `../ai-templates/` | ③的**代码模板**：新模块照抄 | 人 / ai |
+| 写 Java、Vue 或 TypeScript | [可读性](01-readability.md) | [可读性检查](../tools/readability_check.py) |
+| 交接变更给另一位评审者 | [评审契约](02-review-contract.md) | 提供变更意图、差异与实际验证结果 |
+| 多人改同一模块、新增页面或模块 | [接口与协作](03-collaboration.md) | [代码模板](../ai-templates/) · [脚手架](../tools/new_crud.py) · [页面结构检查](../tools/structure_check.py) |
+| 建表、加列或调整索引 | [数据库规范](04-db-schema.md) | [DDL 模板](../ai-templates/db/table-template.sql) · [表结构检查](../tools/check_db_schema.py) |
+| 分组暂存并提交 | [提交规范](05-git-commit.md) | [钩子安装脚本](../tools/install-git-hooks.sh) · [提交信息校验](../tools/check_commit.py) |
 
-## 三条命令（记住这三条就够用）
+## 提交前检查
 
-```bash
-# 1. 我这次改的代码合不合规（提 PR 前必跑）
-python3 tools/readability_check.py --changed-only origin/master
+以下命令在仓库根目录运行。PowerShell 中使用 `python` 调用 Python 3；使用 Git Bash 或 Linux 时可将解释器换成 `python3`。
 
-# 2. 看有哪些规则
-python3 tools/readability_check.py --rules
-
-# 3. 交给人/另一个 agent 评审时，产出 diff
-git diff origin/master...HEAD > /tmp/change.diff
+```powershell
+python tools/readability_check.py --changed-only origin/master
+python tools/structure_check.py --changed-only origin/master
 ```
 
-## 与已有的 VibeCoding Athena 什么关系
+改表时另运行 `python tools/check_db_schema.py`；该检查需要已配置的数据库。每个 clone 按[提交规范](05-git-commit.md)安装 Git 钩子。交接评审前用 `git diff origin/master...HEAD` 查看已提交的差异，并单独核对待提交文件。
 
-`template-frontend/.claude/`、`.codex/` 里已经有一套 Athena v9.6（PACE 路由 + 9 铁律 +
-generator/evaluator/reviewer 子代理 + delivery-gate hook）。本目录**不替换它**，而是补上它没覆盖的三块：
+## 规则维护
 
-| 缺口 | Athena 现状 | 本目录补什么 |
-|---|---|---|
-| 可读性的**判据** | 只有一句「SRP·OCP·LSP·ISP·DIP·DRY·KISS」（且鼓励抽象，与"不过度设计"相冲） | `01-readability.md` 给出三级判据 + 反例；并把口径改准 |
-| 可读性的**机械闸门** | 无（Checkstyle 只查 SQL 注解等 8 条） | `tools/readability_check.py` |
-| 跨工具**交接契约** | reviewer 子代理是 Codex 内部角色，没说 Hermes 产出的 diff 怎么交、审据哪份规则、几轮上限 | `02-review-contract.md` |
-| **多人**并行 | `.ai_state/` 是单会话状态机，无 owner / 接口先行 / 分支纪律 | `03-collaboration.md` + `ai-templates/` |
-| **后端** | Athena 只在 `template-frontend/` 下，后端什么都没有 | 本目录与工具对 Java / Vue 都生效 |
+跨端规则在本目录维护，语言和页面约束分别见[后端代码规范](../template-backend/docs/backend-code-standard.md)、[前端设计](../template-frontend/DESIGN.md)与[交互契约](../template-frontend/UX-CONTRACT.md)。规则可机械检查时一并维护对应工具。前端 Athena 的评审衔接见[评审契约 §7](02-review-contract.md)。
 
-## 五条不可协商的原则
-
-1. **规则只写一处。** 发现争议 → 补进本目录（能机械判定的一并加进闸门），下次自动生效。不许留成口头约定。
-2. **写的人不审自己的代码。** 人和 agent 都适用。
-3. **未运行 = 未完成。** 报告"完成"必须附真实终端输出，禁止编造。
-4. **不编造事实。** 路径、字段、接口、配置必须来自实际读过的文件；本仓库设计文档与代码栈不一致（见根 `AGENTS.md` 第 1.2 节），尤其不能照抄。
-5. **不为将来预留抽象。** 没有第二个实现就不要接口/工厂/策略。
+同一分支同一时刻只由一人写入，评审交给另一位执行者。事实和验证结论须来自实际代码及命令输出，只为已有需求引入抽象。

@@ -46,11 +46,7 @@ effort: high
    不要造 `biz_` / `tmp_` 这类没有模块归属的前缀。
 2. **复制模板** → `template-backend/script/sql/business/<模块>.sql`，替换 `<模块>/<实体>/<中文名>`；
    业务字段按 §7 的映射表补（设计文档是 PG/Prisma 写法，`uuid`/`timestamp`/`jsonb` 不能照抄）。
-3. **执行**（走文件；不要在 shell 双引号里拼反引号 —— bash 会当命令替换，SQL 静默失败）：
-   ```bash
-   docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
-     mysql -uroot --default-character-set=utf8mb4 biotech < <模块>.sql
-   ```
+3. **执行**：核对目标库和脚本后，按 [数据库规范 §6](../../../ai-rules/04-db-schema.md) 的现行库名与文件导入约定执行。
 4. **过闸门**：`python3 tools/check_db_schema.py` → error 必须为 0。
 5. **建实体**：`python3 tools/new_crud.py --module <模块> --entity <实体> --table <表> ...`（见 `crud-module` skill）。
 6. **菜单与权限点位**：`sys_menu` 加菜单，`perms` 与后端 `@SaCheckPermission` 逐字一致（见 `crud-module` skill）。
