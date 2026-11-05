@@ -22,7 +22,7 @@ const defaultModel = jsonClone(toRaw(model.value));
 
 /** 备份范围就在配置里（backup.yml 的 mysql.databases）；单选用 NSelect（UX-CONTRACT.md） */
 const dbOptions = [
-  { label: 'ry-vue', value: 'ry-vue' },
+  { label: 'biotech', value: 'biotech' },
   { label: 'nkb', value: 'nkb' }
 ];
 

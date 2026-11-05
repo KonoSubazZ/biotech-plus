@@ -6,7 +6,7 @@
 -- analysis_data 的两个派生/来源列也缺说明，容易让后来人按旧列名写 SQL。
 -- =====================================================================================
 
-USE `ry-vue`;
+USE `biotech`;
 
 ALTER TABLE `product_config`
     MODIFY COLUMN `product_bio` VARCHAR(120) NOT NULL
@@ -26,7 +26,7 @@ ALTER TABLE `analysis_file_status`
 
 SELECT COLUMN_NAME, COLUMN_COMMENT
 FROM information_schema.COLUMNS
-WHERE TABLE_SCHEMA = 'ry-vue'
+WHERE TABLE_SCHEMA = 'biotech'
   AND ((TABLE_NAME = 'product_config' AND COLUMN_NAME = 'product_bio')
     OR (TABLE_NAME = 'analysis_data' AND COLUMN_NAME IN ('analysis_date', 'subbarcode'))
     OR (TABLE_NAME = 'analysis_file_status' AND COLUMN_NAME IN ('analysis_date', 'subbarcode')));

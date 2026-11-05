@@ -14,7 +14,7 @@
 用法（仓库根目录执行）：
 
   python3 tools/check_db_schema.py                       # 本机默认（docker 里的 biotech-plus-mysql）
-  python3 tools/check_db_schema.py --database ry-vue
+  python3 tools/check_db_schema.py --database biotech
   python3 tools/check_db_schema.py --mysql-cmd "mysql -h127.0.0.1 -P3306 -uroot"   # 直连（密码从 MYSQL_PWD 环境变量读）
   python3 tools/check_db_schema.py --rules               # 打印规则清单
   python3 tools/check_db_schema.py --json db.json        # 机器可读
@@ -110,7 +110,7 @@ class Finding:
 def main() -> int:
     ap = argparse.ArgumentParser(description="数据库表规范体检")
     ap.add_argument("--root", default=None, help="仓库根目录")
-    ap.add_argument("--database", default="ry-vue")
+    ap.add_argument("--database", default="biotech")
     ap.add_argument("--container", default="biotech-plus-mysql")
     ap.add_argument("--user", default="root")
     ap.add_argument("--password", default="root")

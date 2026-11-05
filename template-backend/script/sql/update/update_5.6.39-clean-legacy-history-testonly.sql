@@ -8,7 +8,7 @@
 -- 生产不要执行本脚本：生产先按 5.6.37 / 5.6.38 的口径评估历史复用影响再决定是否清理。
 -- =====================================================================================
 
-USE `ry-vue`;
+USE `biotech`;
 
 DELETE FROM `history_somatic`  WHERE `key_version` <> 3 OR `match_key` LIKE 'legacy:%';
 DELETE FROM `history_germline` WHERE `key_version` <> 3 OR `match_key` LIKE 'legacy:%';

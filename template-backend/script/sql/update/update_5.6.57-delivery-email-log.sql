@@ -8,7 +8,7 @@
 --
 -- 幂等：CREATE TABLE IF NOT EXISTS，可反复跑。
 -- 执行：docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
---         mysql -uroot --default-character-set=utf8mb4 ry-vue < update_5.6.57-delivery-email-log.sql
+--         mysql -uroot --default-character-set=utf8mb4 biotech < update_5.6.57-delivery-email-log.sql
 -- ============================================================================
 
 SET NAMES utf8mb4;

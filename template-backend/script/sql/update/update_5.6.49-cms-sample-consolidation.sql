@@ -1,7 +1,7 @@
 -- 5.6.49：样本表收敛为唯一 cms_sample
 -- 背景：旧 cms_sample（122 列录单样本表）整体下线；sample_biotech（药企 CMS 接口字段）改名为 cms_sample。
 -- 业务键从 (cms_order_id, cms_sample_id) 改为 (tenant_id, subbarcode)——CMS 内部主键调用方拿不到。
--- 执行前请先备份：mysqldump ry-vue cms_sample sample_biotech backup_sample_file qc_failed_notify
+-- 执行前请先备份：mysqldump biotech cms_sample sample_biotech backup_sample_file qc_failed_notify
 -- 说明：旧表 35 行与 backup_sample_file 均为测试数据，本脚本不迁移数据（迁移需按业务口径单独做）。
 
 SET NAMES utf8mb4;

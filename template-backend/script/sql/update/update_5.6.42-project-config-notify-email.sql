@@ -9,7 +9,7 @@
 -- 幂等：先查 information_schema 再动作，可重复执行。
 -- =====================================================================================
 
-USE `ry-vue`;
+USE `biotech`;
 SET NAMES utf8mb4;
 
 SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS

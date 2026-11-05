@@ -13,7 +13,7 @@
 --
 -- 幂等：每步先查 information_schema，可反复跑。
 -- 执行：docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
---         mysql -uroot --default-character-set=utf8mb4 ry-vue < update_5.6.56-sample-notify-slim.sql
+--         mysql -uroot --default-character-set=utf8mb4 biotech < update_5.6.56-sample-notify-slim.sql
 -- ============================================================================
 
 SET NAMES utf8mb4;

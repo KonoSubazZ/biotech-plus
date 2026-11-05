@@ -8,7 +8,7 @@
 -- 幂等：先查 sys_menu 再插，可重复执行。
 -- =====================================================================================
 
-USE `ry-vue`;
+USE `biotech`;
 SET NAMES utf8mb4;
 
 SET @menu_id = (SELECT menu_id FROM sys_menu WHERE path = 'project-config' LIMIT 1);

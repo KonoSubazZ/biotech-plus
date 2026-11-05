@@ -161,12 +161,12 @@ def main():
     logfile = None
     try:
         mysql('CREATE DATABASE `' + DB + '` CHARACTER SET utf8mb4;')
-        tables = mysql("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ry-vue' AND TABLE_TYPE='BASE TABLE';").splitlines()
+        tables = mysql("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='biotech' AND TABLE_TYPE='BASE TABLE';").splitlines()
         for table in tables:
             assert table.replace('_', '').isalnum()
-            mysql(f'CREATE TABLE `{table}` LIKE `ry-vue`.`{table}`;', DB)
+            mysql(f'CREATE TABLE `{table}` LIKE `biotech`.`{table}`;', DB)
             if not table.startswith('sj_') and table not in ('sys_oper_log', 'sys_logininfor', 'sys_oss', 'sys_social'):
-                mysql(f'INSERT INTO `{table}` SELECT * FROM `ry-vue`.`{table}`;', DB)
+                mysql(f'INSERT INTO `{table}` SELECT * FROM `biotech`.`{table}`;', DB)
         migration = (ROOT / 'script/sql/update/update_5.6.2-tenant-version.sql').read_text(encoding='utf-8')
         mysql(migration, DB)
         mysql(migration, DB)

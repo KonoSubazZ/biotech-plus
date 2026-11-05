@@ -57,7 +57,7 @@ DATA_ROOT = os.environ.get("SIM_DATA_ROOT", "/home/liushangzhi/project/data")
 LIMS = dict(host="192.168.20.131", port=8806, user="novo", password="GodIsLove",
             database="omics", charset="utf8mb4")
 LOCAL = dict(host="127.0.0.1", port=3306, user="root", password="root",
-             database="ry-vue", charset="utf8mb4", ssl_disabled=True)
+             database="biotech", charset="utf8mb4", ssl_disabled=True)
 DEFAULT_TENANT = "0000001"                        # 圣域药企-测试
 DEFAULT_CUSTOMER_NAME = "圣域药企-测试"            # 生信接收按 customer_name → sys_tenant 解析租户
 API_BASE = os.environ.get("BP_BASE", "http://127.0.0.1:8080")

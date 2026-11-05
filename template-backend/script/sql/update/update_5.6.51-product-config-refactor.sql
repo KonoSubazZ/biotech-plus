@@ -26,7 +26,7 @@
 -- 幂等：每条先查 information_schema 再决定执行什么，可反复跑。
 --       不用 ADD COLUMN IF NOT EXISTS（MariaDB 语法，MySQL 5.7 不认）。
 -- 执行：docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
---         mysql -uroot --default-character-set=utf8mb4 ry-vue < update_5.6.51-product-config-refactor.sql
+--         mysql -uroot --default-character-set=utf8mb4 biotech < update_5.6.51-product-config-refactor.sql
 -- ============================================================================
 
 SET NAMES utf8mb4;

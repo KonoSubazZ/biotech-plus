@@ -10,7 +10,7 @@
 --   4) 只有可生成报告的状态（31/32/33/52）允许写；40+ 已送审/已发送只读
 -- 幂等：先查 information_schema，列已存在则跳过；可重复执行。
 -- 执行：docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
---         mysql -uroot --default-character-set=utf8mb4 ry-vue < update_5.6.58-report-variant-notes.sql
+--         mysql -uroot --default-character-set=utf8mb4 biotech < update_5.6.58-report-variant-notes.sql
 SET NAMES utf8mb4;
 
 SET @add_report_variant_notes := (

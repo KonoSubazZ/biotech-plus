@@ -11,7 +11,7 @@
 --       （Excel 导入按列序读，业务列顺序不能变）。
 -- 幂等：先查 information_schema 再决定执行什么，可反复跑。
 -- 执行：docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
---         mysql -uroot --default-character-set=utf8mb4 ry-vue < update_5.6.54-cms-sample-sync-log.sql
+--         mysql -uroot --default-character-set=utf8mb4 biotech < update_5.6.54-cms-sample-sync-log.sql
 -- ============================================================================
 
 SET NAMES utf8mb4;

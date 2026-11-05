@@ -16,7 +16,7 @@
 --
 -- 幂等：逐列查 information_schema，存在才执行；可重复执行。
 -- 执行：docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
---         mysql -uroot --default-character-set=utf8mb4 ry-vue < update_5.6.60-report-variant-edits.sql
+--         mysql -uroot --default-character-set=utf8mb4 biotech < update_5.6.60-report-variant-edits.sql
 SET NAMES utf8mb4;
 
 SET @add_report_variant_edits := (

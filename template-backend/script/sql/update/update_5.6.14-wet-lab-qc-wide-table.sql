@@ -4,7 +4,7 @@
 -- 列名 = qc_standard.qc_param（质控参数/英文原始字段名），中文名在 qc_standard.qc_item 里
 -- 因为表刚建、里面只有自测灌的演示数据，这里直接 DROP 重建（不写字段搬运）：
 --   ⚠️ 执行前旧表的行会丢；若不是演示数据，先
---      docker exec biotech-plus-mysql mysqldump -uroot -p*** ry-vue wet_lab_qc > wet_lab_qc_bak.sql
+--      docker exec biotech-plus-mysql mysqldump -uroot -p*** biotech wet_lab_qc > wet_lab_qc_bak.sql
 -- 幂等：DROP TABLE IF EXISTS + CREATE TABLE IF NOT EXISTS，可重复执行（第二次不再动数据）。
 -- 配套：business/wet-lab-qc.sql 是同一份定义（新装库用）。
 -- ============================================================================

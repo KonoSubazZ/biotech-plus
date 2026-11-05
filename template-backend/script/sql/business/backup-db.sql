@@ -5,7 +5,7 @@
 -- 统一前缀 backup_；备份相关的新表一律沿用该前缀。
 -- =====================================================================================
 
-USE `ry-vue`;
+USE `biotech`;
 SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `backup_db_full` (
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS `backup_db_binlog` (
   `id`              bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
   `instance`        varchar(64)   NOT NULL DEFAULT 'biotech-plus-mysql' COMMENT '实例标识',
   `backup_date`     date          NOT NULL COMMENT '归档日期',
-  `db_scope`        varchar(200)  NOT NULL DEFAULT 'ry-vue,nkb' COMMENT '本包覆盖的库（恢复时 --database 过滤回放）',
+  `db_scope`        varchar(200)  NOT NULL DEFAULT 'biotech,nkb' COMMENT '本包覆盖的库（恢复时 --database 过滤回放）',
   `start_file`      varchar(64)   NOT NULL COMMENT '起点 binlog 文件名（= 上一条 end 或全量基线）',
   `start_pos`       bigint(20)    NOT NULL COMMENT '起点位点',
   `end_file`        varchar(64)   NOT NULL COMMENT '终点 binlog 文件名（备份瞬间 SHOW MASTER STATUS）',

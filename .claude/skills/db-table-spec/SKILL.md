@@ -49,7 +49,7 @@ effort: high
 3. **执行**（走文件；不要在 shell 双引号里拼反引号 —— bash 会当命令替换，SQL 静默失败）：
    ```bash
    docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
-     mysql -uroot --default-character-set=utf8mb4 ry-vue < <模块>.sql
+     mysql -uroot --default-character-set=utf8mb4 biotech < <模块>.sql
    ```
 4. **过闸门**：`python3 tools/check_db_schema.py` → error 必须为 0。
 5. **建实体**：`python3 tools/new_crud.py --module <模块> --entity <实体> --table <表> ...`（见 `crud-module` skill）。

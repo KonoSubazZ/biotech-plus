@@ -9,7 +9,7 @@
 --
 -- 幂等：MODIFY COLUMN 本身幂等，可反复跑。
 -- 执行：docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
---         mysql -uroot --default-character-set=utf8mb4 ry-vue < update_5.6.52-report-template-path-comment.sql
+--         mysql -uroot --default-character-set=utf8mb4 biotech < update_5.6.52-report-template-path-comment.sql
 -- ============================================================================
 SET NAMES utf8mb4;
 

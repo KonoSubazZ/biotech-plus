@@ -4,7 +4,7 @@
 --   /home/liushangzhi/project/mysql-backup/cms_sample-20261103.sql）
 -- 幂等：DROP + CREATE，可反复执行（每次都会清空表）。
 -- 执行：docker exec -i -e MYSQL_PWD=root biotech-plus-mysql \
---         mysql -uroot --default-character-set=utf8mb4 ry-vue < update_5.6.53-cms-sample-rebuild.sql
+--         mysql -uroot --default-character-set=utf8mb4 biotech < update_5.6.53-cms-sample-rebuild.sql
 -- ============================================================================
 
 DROP TABLE IF EXISTS `cms_sample`;

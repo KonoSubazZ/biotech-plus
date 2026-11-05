@@ -24,10 +24,10 @@ NEW_PREFIX = "/app/reports/"
 
 # 查询用（带 -N -B，便于按行解析）
 MYSQL_QUERY = ["docker", "exec", "-i", "biotech-plus-mysql", "mysql",
-               "-uroot", "-proot", "--default-character-set=utf8mb4", "-N", "-B", "ry-vue"]
+               "-uroot", "-proot", "--default-character-set=utf8mb4", "-N", "-B", "biotech"]
 # 执行 SQL 走 stdin（不加 -e），库名是最后一个参数
 MYSQL_STDIN = ["docker", "exec", "-i", "biotech-plus-mysql", "mysql",
-               "-uroot", "-proot", "--default-character-set=utf8mb4", "ry-vue"]
+               "-uroot", "-proot", "--default-character-set=utf8mb4", "biotech"]
 
 # 库里登记制品路径的列
 COLUMNS = {

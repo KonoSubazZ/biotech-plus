@@ -30,7 +30,7 @@ public class BackupDbFullBo extends BaseEntity {
     @Size(max = 64, message = "实例标识长度不能超过 64")
     private String instance;
 
-    /** 本包覆盖的库（逗号分隔，如 ry-vue,nkb） */
+    /** 本包覆盖的库（逗号分隔，如 biotech,nkb） */
     @NotBlank(message = "覆盖库不能为空")
     @Size(max = 200, message = "覆盖库长度不能超过 200")
     private String dbScope;
