@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.dromara.drive.mapper.DriveProductMapper">
+
+    <!-- 产品编码必须逐字等于 product_config.product_bio（= 上传目录第 2 层） -->
+    <select id="selectProductIdByBio" resultType="java.lang.Long">
+        SELECT id
+        FROM product_config
+        WHERE del_flag = '0'
+          AND product_bio = #{productBio}
+        LIMIT 1
+    </select>
+
+</mapper>

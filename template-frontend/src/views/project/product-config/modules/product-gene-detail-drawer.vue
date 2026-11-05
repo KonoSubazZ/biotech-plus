@@ -30,7 +30,7 @@ const { hasAuth } = useAuth();
 const productId = computed(() => props.product?.id ?? null);
 const productLabel = computed(() => {
   if (!props.product) return '';
-  return `${props.product.name}（${props.product.code}）`;
+  return `${props.product.productName}（${props.product.productCode}）`;
 });
 
 /** 已关联的基因数（头部展示） */
@@ -155,9 +155,9 @@ watch(visible, value => {
       <!-- 头部：产品信息 + 基因数 -->
       <div class="mb-16px flex flex-wrap items-center gap-12px rounded-8px bg-#f5f7fa px-16px py-12px">
         <NTag type="info" :bordered="false">已关联基因 {{ geneCount }} 个</NTag>
-        <span v-if="props.product?.testType" class="text-14px text-#666">检测类型：{{ props.product.testType }}</span>
+        <span v-if="props.product?.testType" class="text-14px text-#666">样本类型：{{ props.product.testType }}</span>
         <span v-if="props.product?.relatedDiseases" class="text-14px text-#666">
-          相关疾病：{{ props.product.relatedDiseases }}
+          适应症：{{ props.product.relatedDiseases }}
         </span>
       </div>
 

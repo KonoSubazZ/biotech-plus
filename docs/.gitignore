@@ -1,0 +1,4 @@
+# 交付物目录：按甲方模板（software-engineering-document）生成的功能设计说明书 / 数据库设计说明书 /
+# 测试用例报告（含实测截图），由 QA 流水线产出，体积大且含客户拟真数据，不进版本库。
+# 流水线见 skill: module-design-and-test-doc-delivery
+/deliverables/

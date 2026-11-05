@@ -4,6 +4,7 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.report.domain.bo.ReportTemplateBo;
 import org.dromara.report.domain.vo.ReportTemplateVo;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -69,4 +70,23 @@ public interface IReportTemplateService {
      * @return 每行含 id / name / code / status
      */
     List<Map<String, Object>> selectProductOptions();
+
+    /**
+     * 项目下拉选项（模板表单与列表搜索共用；数据来自 project_config，跨模块只读）。
+     *
+     * @return 每行含 id / projectNo / projectName / customer
+     */
+    List<Map<String, Object>> selectProjectOptions();
+
+    /**
+     * 上传模板文件到 {@code templates-root + templatePath}。
+     * <p>
+     * 只收 .docx、≤20MB；templatePath 为空时用原始文件名落模板根目录；
+     * 同名文件先备份为 {@code <文件名>.orig-yyyyMMddHHmmss} 再覆盖。
+     *
+     * @param file         上传文件
+     * @param templatePath 目标相对路径（可带子目录，如 {@code notify/xxx.docx}）；空 = 原始文件名
+     * @return templatePath / sha256 / sizeBytes / backupPath
+     */
+    Map<String, Object> uploadTemplate(MultipartFile file, String templatePath);
 }

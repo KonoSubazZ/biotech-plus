@@ -79,6 +79,7 @@ public class ReportVariantHistoryServiceImpl implements IReportVariantHistorySer
         ReportVariantHistoryExcelRow row = new ReportVariantHistoryExcelRow();
         row.setSubbarcode(vo.getSubbarcode());
         row.setClient(vo.getClient());
+        row.setProjectNo(vo.getProjectNo());
         row.setGene(vo.getGene());
         row.setVariant(vo.getVariant());
         row.setAbundance(vo.getAbundance());
@@ -173,6 +174,8 @@ public class ReportVariantHistoryServiceImpl implements IReportVariantHistorySer
         wrapper.like(StringUtils.isNotBlank(bo.getDisease()), ReportVariantHistory::getDisease, bo.getDisease());
         wrapper.like(StringUtils.isNotBlank(bo.getProduct()), ReportVariantHistory::getProduct, bo.getProduct());
         wrapper.like(StringUtils.isNotBlank(bo.getClient()), ReportVariantHistory::getClient, bo.getClient());
+        wrapper.like(StringUtils.isNotBlank(bo.getProjectNo()),
+            ReportVariantHistory::getProjectNo, bo.getProjectNo());
 
         Map<String, Object> params = bo.getParams();
         Object beginTime = params == null ? null : params.get("beginTime");

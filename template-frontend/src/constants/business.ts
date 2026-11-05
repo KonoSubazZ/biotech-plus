@@ -34,14 +34,6 @@ export const menuIsFrameRecord: Record<Api.System.IsMenuFrame, string> = {
 
 export const menuIsFrameOptions = transformRecordToOption(menuIsFrameRecord);
 
-/** menu icon type */
-export const menuIconTypeRecord: Record<Api.System.IconType, string> = {
-  '1': 'iconify',
-  '2': '本地图标'
-};
-
-export const menuIconTypeOptions = transformRecordToOption(menuIconTypeRecord);
-
 /** menu layout */
 export const menuLayoutRecord: Record<Api.System.MenuLayout, string> = {
   '0': '默认布局',

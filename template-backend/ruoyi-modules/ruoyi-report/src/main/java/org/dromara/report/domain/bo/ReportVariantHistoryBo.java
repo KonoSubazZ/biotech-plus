@@ -27,4 +27,7 @@ public class ReportVariantHistoryBo extends BaseEntity {
 
     /** 客户（模糊） */
     private String client;
+
+    /** 项目编号（模糊查询） */
+    private String projectNo;
 }

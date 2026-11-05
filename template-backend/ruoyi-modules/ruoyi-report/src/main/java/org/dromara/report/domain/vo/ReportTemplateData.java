@@ -11,7 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.dromara.report.service.template.CommonReportModuleAssembler;
-import org.dromara.report.domain.SampleInfo;
 
 /**
  * 报告 JSON 总实体类（对齐设计书 §7.6 契约与参考工程 ReportTemplateData）。
@@ -36,8 +35,8 @@ public class ReportTemplateData implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** JSON 协议版本（DOCX 渲染器按它识别结构；纯新增字段不升版本） */
-    private String schemaVersion = "1.2";
+    /** JSON 协议版本（DOCX 渲染器按它识别结构；sampleInfo 改为 cms_sample 45 字段这一版升到 1.3） */
+    private String schemaVersion = "1.3";
 
     /** 模板编码 */
     private String templateCode;
@@ -50,6 +49,9 @@ public class ReportTemplateData implements Serializable {
 
     /** 报告ID */
     private Long reportId;
+
+    /** 项目编号（公共字段：来自 analysis_report.project_no） */
+    private String projectNo;
 
     /** 模板主键（登记 analysis_report.template_id 用；不进 JSON） */
     @JsonIgnore
@@ -115,14 +117,18 @@ public class ReportTemplateData implements Serializable {
     @Data
     public static class ReportInfo implements Serializable {
 
+        /** 报告业务版本，与模板版本独立。 */
+        private Integer reportVersion;
+        private Integer generationNo;
+
         @Serial
         private static final long serialVersionUID = 1L;
 
         /** 报告日期（yyyy-MM-dd，取分析日期，不取当前时间） */
         private String reportDate;
 
-        /** 标本类型（tissue / blood；沿用参考工程的拼写 specimentType） */
-        private String specimentType;
+        /** 标本类型（tissue / blood；统一拼写 specimenType） */
+        private String specimenType;
 
         /** 报告名（report_template.report_name 渲染结果；供 DOCX 封面/页眉引用，与落盘文件名同源） */
         private String reportName;
@@ -131,48 +137,173 @@ public class ReportTemplateData implements Serializable {
         private String analyzer;
     }
 
-    /** 样本信息（公共字段；字段名与设计书 §7.6 / 参考工程逐字一致） */
+    /**
+     * 样本信息（公共字段）。
+     * <p>
+     * 键名与 cms_sample 的 45 个业务字段逐字一致（前端口径见 {@code cms-sample-fields.ts}，
+     * 中文名见 {@code CmsFieldMapping.PROP_LABEL}），因此不再保留旧的 LIMS 别名
+     * （researchCenterName / participantNumber / gender / disease / sampleCode / receivedDate 等已删除）。
+     */
     @Data
     public static class SampleInfo implements Serializable {
 
         @Serial
         private static final long serialVersionUID = 1L;
 
-        /** 研究中心（送检单位） */
-        private String researchCenterName;
+        // —— 订单合同 ——
+        /** 订单编号 */
+        private String orderNo;
 
-        /** 受试者编号 */
-        private String participantNumber;
+        /** 订单批次编号 */
+        private String batchNo;
 
-        /** 性别（女 / 男） */
-        private String gender;
+        /** 客户名称 */
+        private String customerName;
 
-        /** 出生年份（4 位） */
+        /** 合同名称 */
+        private String contractName;
+
+        /** 合同编号 */
+        private String contractNo;
+
+        /** 研究方案编号 */
+        private String schemeNo;
+
+        /** 项目编号 */
+        private String projectNo;
+
+        /** 研究中心名称 */
+        private String researchCenter;
+
+        /** 运营经理 */
+        private String operatorName;
+
+        /** 联系人邮箱 */
+        private String contractContactEmail;
+
+        // —— 送检运输 ——
+        /** 送检人 */
+        private String senderName;
+
+        /** 联系电话 */
+        private String senderPhone;
+
+        /** 送检日期 */
+        private String sendDate;
+
+        /** 快递公司 */
+        private String expressCompany;
+
+        /** 快递单号 */
+        private String expressNo;
+
+        /** 快递条件 */
+        private String transportCondition;
+
+        /** 是否带温控计 */
+        private String hasTemperatureLogger;
+
+        // —— 样本受试者 ——
+        /** 诺禾编号 */
+        private String subbarcode;
+
+        /**
+         * 订单下全部诺禾编号（含当前样本；按编号升序、去重、以「、」连接）。
+         * <p>
+         * 双样本（组织 + 对照血）在 cms_sample 是同一 order_no 的两行，报告只用组织那条，
+         * 但报告是订单维度 —— 这个字段把同订单的其余样本编号一并带上。
+         */
+        private String subbarcodes;
+
+        /** 客户采样识别码 */
+        private String customerSamplingCode;
+
+        /** 样本名称 */
+        private String sampleName;
+
+        /** 试验参与者编号 */
+        private String subjectNo;
+
+        /** 性别 */
+        private String sex;
+
+        /** 出生年份 */
         private String birthYear;
 
-        /** 疾病（解读癌种） */
-        private String disease;
+        /** 临床诊断 */
+        private String diseaseType;
 
-        /** 访视周期（本仓 LIMS 无此字段，固定 null） */
+        /** 访视周期 */
         private String visitCycle;
 
-        /** 样本编号 */
-        private String sampleCode;
-
-        /** 样本类型（组织+全血 / 组织 / 全血） */
+        /** 样本类型 */
         private String sampleType;
 
-        /** 组织采样日期 */
-        private String tissueCollectionDate;
+        /**
+         * 订单下全部样本类型（含当前样本；按样本编号升序、去重、以「、」连接）。
+         * <p>
+         * 双样本时形如「石蜡切片、全血(白细胞)」；单样本时与 {@link #sampleType} 同值。
+         */
+        private String sampleTypes;
 
-        /** 切片日期（本仓 LIMS 无此字段，固定 null） */
-        private String sectionDate;
+        /** 样本数量 */
+        private String sampleQuantity;
 
-        /** 血液采样日期（本仓 LIMS 无此字段，固定 null） */
-        private String bloodCollectionDate;
+        /** 数量单位 */
+        private String quantityUnit;
 
-        /** 收样日期 */
-        private String receivedDate;
+        /** 样本属性 */
+        private String sampleAttribute;
+
+        /** 取材部位 */
+        private String collectionSite;
+
+        /** 组织类型 */
+        private String tissueType;
+
+        /** 肿瘤类型 */
+        private String tumorType;
+
+        /** 原发部位 */
+        private String primaryTumorSite;
+
+        /** 采集日期 */
+        private String collectionDate;
+
+        /** 检测方式 */
+        private String assayMethod;
+
+        // —— 产品与备注 ——
+        /** 产品编码 */
+        private String productCode;
+
+        /** 产品名称 */
+        private String productName;
+
+        /** 管控类型 */
+        private String controlType;
+
+        /** 备注 */
+        private String remark;
+
+        /** 异常备注 */
+        private String abnormalRemark;
+
+        // —— 报告与时间 ——
+        /** 报告接收人 */
+        private String reportReceiver;
+
+        /** 报告接收邮箱 */
+        private String reportEmail;
+
+        /** 收样确认时间 */
+        private String receiveConfirmTime;
+
+        /** 提交时间 */
+        private String orderSubmitTime;
+
+        /** 到达时间 */
+        private String arrivalTime;
     }
 
     /** 圣域个性化：体细胞一行 */

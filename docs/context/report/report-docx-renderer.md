@@ -58,16 +58,38 @@ Java 调用方：`org.dromara.report.service.ReportDocxRenderer`（ProcessBuilde
 ## 制品目录（生成产物放哪）
 
 根目录由 `report.artifact.root` 给定；本机容器固定挂 `/app/reports`（宿主
-`/home/liushangzhi/project/reports`），deploy.sh 里由 `REPORTS_DIR` 指定。报告与通知**完全同构**，一条规则：
+`/home/liushangzhi/project/reports`），deploy.sh 里由 `REPORTS_DIR` 指定。
+
+报告**按 `analysis_report.analysis_date` 分目录**（2026-10-26 起，不再是生成当天）：
 
 ```text
-<root>/<report|notify>/docx/<yyyyMMdd>/     ① 原始 DOCX（docxtpl 渲染）
-<root>/<report|notify>/pdf/<yyyyMMdd>/      ② 转化 PDF（OnlyOffice）
-<root>/<report|notify>/signed/<yyyyMMdd>/   ③ 签名后 PDF（上上签回传，最终交付；预留）
-<root>/<report|notify>/json/                报告/通知 JSON（平铺）
+<root>/report/json/<analysis_date>/         ① 报告 JSON
+<root>/report/docx/<analysis_date>/         ② 原始 DOCX（docxtpl 渲染）
+<root>/report/pdf/<analysis_date>/          ③ 转化 PDF（OnlyOffice）
+<root>/report/signed/<analysis_date>/       ④ 签名后 PDF（上上签回传，最终交付）
+<root>/report/rejected/<analysis_date>/      审核驳回后移出的原始制品（<subbarcode>_V<version>/ + manifest.json）
 ```
 
-同类内三个阶段共用同一文件名前缀，靠目录区分阶段；交付优先级 **signed → pdf → docx**。
+- 四个阶段的日期目录**统一取** `analysis_report.analysis_date`（varchar(8) 的 YYYYMMDD），签名件也用这个日期、
+  不取签名当天；目录已存在直接复用；
+  为空或非 8 位数字时生成直接报错（不猜日期）。
+- 生成过程写在临时目录 `<root>/.work/<tenant>_<reportId>_<轮次>/`，成功后逐阶段 move 到日期目录；
+  失败只丢弃临时目录，日期目录不留半成品，且不落库。
+- 驳回（2026-10-27）：把该报告已有的 json/docx/pdf/signed 移入
+  `<root>/report/rejected/<analysis_date>/<subbarcode>_V<version>/`（subbarcode 走文件安全化，为空退回 `report-<reportId>`），
+  同目录写 `manifest.json`：`{reportId, reportVersion, reportGenerationNo, reportName, analysisDate, rejectedBy, rejectedAt, reason}`。
+  移出后库里 4 个路径字段**置空**（归档位置不入库，避免下载接口拿到失效路径）；归档失败则抛错且报告状态不变。
+
+通知沿用按生成当天分目录：
+
+```text
+<root>/notify/docx/<yyyyMMdd>/     通知原始 DOCX
+<root>/notify/pdf/<yyyyMMdd>/      通知转化 PDF
+<root>/notify/signed/<yyyyMMdd>/   通知签名后 PDF
+<root>/notify/json/                通知 JSON（平铺）
+```
+
+同类内各阶段共用同一文件名前缀，靠目录区分阶段；报告交付优先级 **signed → pdf → docx**。
 路径登记进库（`analysis_report.report_json_path / report_file_raw_path / report_file_path /
 report_signed_file_path`、`qc_failed_notify.json_path / raw_docx_path / pdf_path`），
 下载与预览都校验路径必须落在 `<root>` 内。

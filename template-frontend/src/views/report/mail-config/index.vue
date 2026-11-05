@@ -13,6 +13,7 @@ import { defaultTransform, useNaivePaginatedTable, useTableOperate } from '@/hoo
 import { $t } from '@/locales';
 import ButtonIcon from '@/components/custom/button-icon.vue';
 import ReportMailConfigOperateDrawer from './modules/mail-config-operate-drawer.vue';
+import ReportMailConfigSearch from './modules/mail-config-search.vue';
 
 defineOptions({
   name: 'ReportMailConfigList'
@@ -47,19 +48,19 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         width: 80,
         render: row =>
           row.isDefault === '1' ? (
-            <NTag type="info" size="small">
+            <NTag type="info">
               默认
             </NTag>
           ) : (
             <>-</>
           )
       },
-      { key: 'fromEmail', title: '发件邮箱', align: 'left', minWidth: 220, render: row => row.fromEmail ?? '-' },
+      { key: 'fromEmail', title: '发件邮箱', align: 'center', minWidth: 220, render: row => row.fromEmail ?? '-' },
       { key: 'fromName', title: '发件人昵称', align: 'center', width: 140, render: row => row.fromName ?? '-' },
       {
         key: 'smtp',
         title: 'SMTP',
-        align: 'left',
+        align: 'center',
         width: 220,
         render: row => `${row.smtpHost ?? '-'}:${row.smtpPort ?? '-'}${row.sslEnable === '1' ? '（SSL）' : ''}`
       },
@@ -70,11 +71,11 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         width: 90,
         render: row =>
           row.passwordSet ? (
-            <NTag type="success" size="small">
+            <NTag type="success">
               已设置
             </NTag>
           ) : (
-            <NTag type="warning" size="small">
+            <NTag type="warning">
               未设置
             </NTag>
           )
@@ -86,11 +87,11 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         width: 90,
         render: row =>
           row.enabled === '1' ? (
-            <NTag type="success" size="small">
+            <NTag type="success">
               启用
             </NTag>
           ) : (
-            <NTag type="error" size="small">
+            <NTag type="error">
               停用
             </NTag>
           )
@@ -100,25 +101,34 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         key: 'operate',
         title: $t('common.operate'),
         align: 'center',
-        width: 200,
+        width: 180,
         fixed: 'right',
         render: row => {
-          const divider = () => (canEdit() ? <NDivider vertical /> : null);
-
+          // 与 ai-templates/frontend-module/index.vue 同一套写法：每个按钮单独判权限、图标 + tooltip，
+          // gap-8px，只在实际渲染出的按钮之间画竖线
           const defaultBtn = () => {
-            // 已经是默认的不再给按钮
-            if (!canEdit() || row.isDefault === '1') {
+            if (!canEdit()) {
               return null;
             }
+            // 固定占一个位置（已是默认时置灰），这样每行图标个数一致、上下行图标才能对齐
+            const isDefault = row.isDefault === '1';
             return (
-              <NButton text type="primary" size="small" onClick={() => handleSetDefault(row.id!)}>
-                设为默认
-              </NButton>
+              <ButtonIcon
+                text
+                type="primary"
+                icon="ant-design:star-outlined"
+                tooltipContent={isDefault ? '已是默认邮箱' : '设为默认'}
+                disabled={isDefault}
+                onClick={() => handleSetDefault(row.id!)}
+              />
             );
           };
 
-          const editBtn = () =>
-            canEdit() ? (
+          const editBtn = () => {
+            if (!canEdit()) {
+              return null;
+            }
+            return (
               <ButtonIcon
                 text
                 type="primary"
@@ -126,10 +136,14 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 tooltipContent={$t('common.edit')}
                 onClick={() => handleEdit(row.id!)}
               />
-            ) : null;
+            );
+          };
 
-          const testBtn = () =>
-            canTest() ? (
+          const testBtn = () => {
+            if (!canTest()) {
+              return null;
+            }
+            return (
               <ButtonIcon
                 text
                 type="primary"
@@ -137,10 +151,14 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 tooltipContent="发送测试邮件"
                 onClick={() => openTest(row)}
               />
-            ) : null;
+            );
+          };
 
-          const deleteBtn = () =>
-            canEdit() ? (
+          const deleteBtn = () => {
+            if (!canEdit()) {
+              return null;
+            }
+            return (
               <ButtonIcon
                 text
                 type="error"
@@ -149,16 +167,19 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
                 popconfirmContent={$t('common.confirmDelete')}
                 onPositiveClick={() => handleDelete(row.id!)}
               />
-            ) : null;
+            );
+          };
+
+          const buttons = [defaultBtn(), editBtn(), testBtn(), deleteBtn()].filter(item => item !== null);
 
           return (
             <div class="flex-center gap-8px">
-              {defaultBtn()}
-              {editBtn()}
-              {divider()}
-              {testBtn()}
-              {divider()}
-              {deleteBtn()}
+              {buttons.map((node, index) => (
+                <>
+                  {index > 0 ? <NDivider vertical /> : null}
+                  {node}
+                </>
+              ))}
             </div>
           );
         }
@@ -220,42 +241,11 @@ async function handleTest() {
     testing.value = false;
   }
 }
-
-async function search() {
-  getDataByPage();
-}
-
-function reset() {
-  searchParams.value.fromEmail = null;
-  getDataByPage();
-}
 </script>
 
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <NForm label-placement="left" :label-width="80">
-      <div class="flex flex-wrap items-start">
-        <NFormItem class="w-full pr-24px sm:w-1/2 xl:w-1/3" label="发件邮箱">
-          <NInput v-model:value="searchParams.fromEmail" placeholder="模糊匹配" clearable @keyup.enter="search" />
-        </NFormItem>
-        <NFormItem class="ml-auto" :show-feedback="false">
-          <NSpace :size="16">
-            <NButton @click="reset">
-              <template #icon>
-                <icon-ic-round-refresh class="text-icon" />
-              </template>
-              {{ $t('common.reset') }}
-            </NButton>
-            <NButton type="primary" ghost @click="search">
-              <template #icon>
-                <icon-ic-round-search class="text-icon" />
-              </template>
-              {{ $t('common.search') }}
-            </NButton>
-          </NSpace>
-        </NFormItem>
-      </div>
-    </NForm>
+    <ReportMailConfigSearch v-model:model="searchParams" @search="getDataByPage" />
 
     <NCard title="邮件配置" :bordered="false" size="small" class="card-wrapper sm:flex-1-hidden">
       <template #header-extra>

@@ -69,6 +69,12 @@
             <groupId>org.dromara</groupId>
             <artifactId>ruoyi-common-excel</artifactId>
         </dependency>
+
+        <!-- 列表里展示「创建人 / 更新人」姓名：Vo 用 @Translation(USER_ID_TO_NAME) 把用户 id 换成昵称 -->
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-common-translation</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

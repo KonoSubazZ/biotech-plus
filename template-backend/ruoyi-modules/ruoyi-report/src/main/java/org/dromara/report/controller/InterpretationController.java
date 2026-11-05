@@ -1,6 +1,7 @@
 package org.dromara.report.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import lombok.RequiredArgsConstructor;
 import org.dromara.common.core.domain.R;
 import org.dromara.common.idempotent.annotation.RepeatSubmit;
@@ -10,18 +11,21 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.report.domain.bo.InterpretationEnterBo;
-import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
+import org.dromara.report.domain.bo.InterpretationVariantEditBo;
+import org.dromara.report.domain.bo.InterpretationBioinfoBo;
+import org.dromara.report.domain.bo.InterpretationSignCallbackBo;
 import org.dromara.report.domain.bo.InterpretationFileQueryBo;
+import org.dromara.report.domain.bo.InterpretationFileRedriveBo;
 import org.dromara.report.domain.bo.InterpretationPreviewBo;
 import org.dromara.report.domain.bo.InterpretationReviewBo;
 import org.dromara.report.domain.bo.InterpretationSendBo;
 import org.dromara.report.domain.bo.InterpretationQueryBo;
-import org.dromara.report.domain.bo.InterpretationTargetBo;
 import org.dromara.report.domain.bo.InterpretationVariantQueryBo;
 import org.dromara.report.domain.bo.InterpretationVariantStatusBo;
 import org.dromara.report.domain.vo.AnalysisReportVo;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.InterpretationPreviewVo;
+import org.dromara.report.domain.vo.FileRedriveVo;
 import org.dromara.report.domain.vo.InterpretationFileContentVo;
 import org.dromara.report.domain.vo.InterpretationFileVo;
 import org.dromara.report.domain.vo.InterpretationMailPreviewVo;
@@ -31,6 +35,7 @@ import org.dromara.report.domain.vo.ReportTemplateData;
 
 import org.dromara.report.service.IInterpretationPreviewService;
 import org.dromara.report.service.IInterpretationService;
+import org.dromara.report.service.IReportSignService;
 import org.dromara.report.service.impl.InterpretationReviewService;
 import org.dromara.report.service.impl.ReportFileService;
 import org.dromara.report.service.impl.ReportGenerationService;
@@ -62,7 +67,12 @@ import java.util.Map;
  *   <li>GET /report/interpretation/list：analysis_data ⟕ 最新 analysis_report，一页一个分析批次。</li>
  *   <li>POST /report/interpretation/enter：创建/复用该批次的「解读中」报告，返回 reportId 供跳转详情页。</li>
  * </ul>
- * 位点筛选 / 预览 / 审核 / 发送在后续页面按 permission 点位逐个开放。
+ * <p>
+ * 权限口径（页签级）：详情页 6 个页签各一个权限点
+ * report:interpretation:{lims|files|variants|preview|review|send}——
+ * 「有页签权限 = 页签内按钮与接口都能用」。被多个页签复用的接口（context / files / preview /
+ * report-file）用 SaMode.OR 放行，其余接口挂所属页签的权限点；context 另外放行 list（只有列表权限的
+ * 账号进详情页至少要能看到报告头）。
  *
  * @author <你的名字>
  */
@@ -85,6 +95,9 @@ public class InterpretationController extends BaseController {
     private final ReportMailPreviewService mailPreviewService;
 
     private final ReportMailSendService mailSendService;
+
+    /** 报告签名通道（未对接期是假实现 ReportSignStubService） */
+    private final IReportSignService reportSignService;
 
     /**
      * 分页查询报告解读列表
@@ -110,7 +123,7 @@ public class InterpretationController extends BaseController {
     @Log(title = "报告解读", businessType = BusinessType.INSERT)
     @PostMapping("/enter")
     public R<AnalysisReportVo> enter(@RequestBody @Validated InterpretationEnterBo bo) {
-        return R.ok(interpretationService.enter(bo.getAnalysisId()));
+        return R.ok(interpretationService.enter(bo.getAnalysisId(), Boolean.TRUE.equals(bo.getReadonly())));
     }
 
     /**
@@ -120,7 +133,18 @@ public class InterpretationController extends BaseController {
      * @param analysisId 分析数据ID
      * @return 上下文
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission(
+        value = {
+            "report:interpretation:lims",
+            "report:interpretation:list",
+            "report:interpretation:files",
+            "report:interpretation:variants",
+            "report:interpretation:preview",
+            "report:interpretation:review",
+            "report:interpretation:send"
+        },
+        mode = SaMode.OR
+    )
     @GetMapping("/context")
     public R<InterpretationContextVo> context(@RequestParam Long reportId, @RequestParam Long analysisId) {
         return R.ok(interpretationService.loadContext(reportId, analysisId));
@@ -134,7 +158,7 @@ public class InterpretationController extends BaseController {
      * @param pageQuery  分页参数
      * @return 分页列表
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission(value = {"report:interpretation:files", "report:interpretation:review"}, mode = SaMode.OR)
     @GetMapping("/files")
     public TableDataInfo<InterpretationFileVo> files(@RequestParam Long analysisId,
                                                     InterpretationFileQueryBo bo,
@@ -149,10 +173,82 @@ public class InterpretationController extends BaseController {
      * @param analysisId 分析数据ID
      * @return 文件内容（超长已截断）
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission(value = {"report:interpretation:files", "report:interpretation:review"}, mode = SaMode.OR)
     @GetMapping("/file/content")
     public R<InterpretationFileContentVo> fileContent(@RequestParam Long fileId, @RequestParam Long analysisId) {
         return R.ok(interpretationService.queryFileContent(fileId, analysisId));
+    }
+
+    /**
+     * 签名回调（**上上签未对接期间的占位接口**）：成功 → 50 → 60 报告待发送；失败 → 50 → 52 报告签名失败。
+     * <p>
+     * 接真实通道后由 {@code ISsqSignService} 的回调替代（同一个 {@code IReportSignService} 实现）。
+     * 当前权限挂在「样本流转 › 报告签名」页签上（report:flow:signing），便于联调与断言测试。
+     *
+     * @param bo 入参（flowNo + success，失败可带 reason）
+     * @return 空响应
+     */
+    @SaCheckPermission("report:flow:signing")
+    @RepeatSubmit
+    @Log(title = "报告签名-回调（未对接期占位）", businessType = BusinessType.UPDATE)
+    @PostMapping("/sign/callback")
+    public R<Void> signCallback(@RequestBody @Validated InterpretationSignCallbackBo bo) {
+        if (Boolean.FALSE.equals(bo.getSuccess())) {
+            reportSignService.handleFailure(bo.getFlowNo(), bo.getReason());
+            return R.ok();
+        }
+        reportSignService.handleCallback(bo.getFlowNo(), bo.getSignedPdfUrl());
+        return R.ok();
+    }
+
+    /**
+     * Tab③ 筛选位点 - 看点完成：20 生信看点 → 21 生信审核。
+     * <p>
+     * 权限 = 筛选位点页签的权限（页签权限 = 页签内按钮权限，与全站口径一致）。
+     *
+     * @param bo 入参（analysisId / reportId）
+     * @return 流转后的报告状态
+     */
+    @SaCheckPermission("report:interpretation:variants")
+    @RepeatSubmit()
+    @Log(title = "筛选位点-看点完成", businessType = BusinessType.UPDATE)
+    @PostMapping("/bioinfo/view-complete")
+    public R<Integer> finishBioinfoView(@RequestBody @Validated InterpretationBioinfoBo bo) {
+        return R.ok(interpretationService.finishBioinfoView(bo.getAnalysisId(), bo.getReportId()));
+    }
+
+    /**
+     * Tab③ 筛选位点 - 生信复核通过：21 生信审核 → 30 报告待解读。
+     * <p>
+     * 不能复核「自己看点」的报告（服务端按 report_bioinfo_viewed_by 校验）；
+     * 权限同筛选位点页签。
+     *
+     * @param bo 入参（analysisId / reportId）
+     * @return 流转后的报告状态（30 报告待解读）
+     */
+    @SaCheckPermission("report:interpretation:variants")
+    @RepeatSubmit()
+    @Log(title = "筛选位点-生信复核通过", businessType = BusinessType.UPDATE)
+    @PostMapping("/bioinfo/review-complete")
+    public R<Integer> finishBioinfoReview(@RequestBody @Validated InterpretationBioinfoBo bo) {
+        return R.ok(interpretationService.finishBioinfoReview(bo.getAnalysisId(), bo.getReportId()));
+    }
+
+    /**
+     * 重新驱动单个文件（「集群对接」页签的文件行按钮）
+     * <p>
+     * 只允许该批次内的文件；驱动在 ruoyi-drive 里同步执行：同批次重跑 ——
+     * 该文件老的 analysis_file_status 行置 del_flag='1'，再插一条新行（新 file_id），返回最新状态。
+     *
+     * @param bo 入参（analysisId / fileId）
+     * @return 文件最新状态 + 批次级驱动状态 + 处理说明
+     */
+    @SaCheckPermission("report:interpretation:files")
+    @RepeatSubmit()
+    @Log(title = "集群对接-重新驱动", businessType = BusinessType.UPDATE)
+    @PostMapping("/file/redrive")
+    public R<FileRedriveVo> redriveFile(@RequestBody @Validated InterpretationFileRedriveBo bo) {
+        return R.ok(interpretationService.redriveFile(bo.getAnalysisId(), bo.getFileId()));
     }
 
     /**
@@ -163,7 +259,7 @@ public class InterpretationController extends BaseController {
      * @param pageQuery  分页参数
      * @return 分页列表
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission("report:interpretation:variants")
     @GetMapping("/variants")
     public TableDataInfo<Map<String, Object>> variants(@RequestParam Long analysisId,
                                                       InterpretationVariantQueryBo bo,
@@ -177,7 +273,7 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / sourceType / sourceId / isReported / filteredRationale）
      * @return 操作结果
      */
-    @SaCheckPermission("report:interpretation:edit")
+    @SaCheckPermission("report:interpretation:variants")
     @RepeatSubmit()
     @Log(title = "报告解读-入报告", businessType = BusinessType.UPDATE)
     @PostMapping("/variant-report-status")
@@ -195,17 +291,17 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
      * @return 预览数据 + 来源标记（artifact / realtime）
      */
-    @SaCheckPermission("report:interpretation:preview")
+    @SaCheckPermission(value = {"report:interpretation:preview", "report:interpretation:review"}, mode = SaMode.OR)
     @PostMapping("/preview")
     public R<InterpretationPreviewVo> preview(@RequestBody @Validated InterpretationPreviewBo bo) {
         return R.ok(previewService.preview(bo));
     }
 
     /**
-     * 报告审核通过：置 APPROVED 并把该报告的位点匹配结果冻结进 history_*
+     * 报告审核通过：置 43（报告审核成功）并把该报告的位点匹配结果冻结进 history_*
      * （匹配历史只在审核通过时落库，预览与生成都是只读）。
      * <p>
-     * 只允许 PENDING_REVIEW 流转过来；产出人不能审核自己的报告；重复审核会直接报错。
+     * 只允许「报告待审核 / 报告审核中」（40/41）流转过来；产出人不能审核自己的报告；重复审核会直接报错。
      *
      * @param bo 入参（analysisId / reportId / templateId：人工选模板，可空）
      */
@@ -219,7 +315,7 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * 报告驳回：PENDING_REVIEW → REJECTED，驳回原因必填并写入 analysis_report.comment。
+     * 报告驳回：40/41 回退到 31（报告解读中，同一条记录），驳回原因必填，写入 comment 与回退字段。
      * <p>
      * 只有待审核能驳回；产出人不能驳回自己的报告；状态更新带来源状态条件防重复驳回。
      *
@@ -279,7 +375,7 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / reportId）
      * @return 含 reportId / templateCode / reportName / jsonPath / docxPath / 渲染信息的结果
      */
-    @SaCheckPermission("report:interpretation:generate")
+    @SaCheckPermission("report:interpretation:preview")
     @Log(title = "报告生成", businessType = BusinessType.INSERT)
     @RepeatSubmit()
     @PostMapping("/generate")
@@ -288,7 +384,7 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * 提交审核：冻结本次解读的位点匹配历史（history_*），再把报告状态置为 PENDING_REVIEW。
+     * 提交解读：冻结本次解读的位点匹配历史（history_*），再把报告状态置为 40（报告待审核）。
      * <p>
      * 入参与生成接口同一套（模板 / 解读癌种 / 报告日期 / 解读人）：冻结结果依赖癌种范围等参数，
      * 必须与生成时一致，否则冻出来的历史跟报告内容对不上。只有已生成报告才能提交。
@@ -296,7 +392,7 @@ public class InterpretationController extends BaseController {
      * @param bo 入参（analysisId / reportId / 生成参数）
      * @return 操作结果
      */
-    @SaCheckPermission("report:interpretation:review")
+    @SaCheckPermission("report:interpretation:preview")
     @RepeatSubmit()
     @Log(title = "报告解读-提交审核", businessType = BusinessType.UPDATE)
     @PostMapping("/submit")
@@ -317,7 +413,7 @@ public class InterpretationController extends BaseController {
      * @param analysisId 分析数据ID
      * @param response   响应
      */
-    @SaCheckPermission("report:interpretation:query")
+    @SaCheckPermission(value = {"report:interpretation:preview", "report:interpretation:review"}, mode = SaMode.OR)
     @GetMapping("/report-file")
     public void reportFile(@RequestParam Long reportId, @RequestParam Long analysisId,
                            HttpServletResponse response) throws IOException {
@@ -367,44 +463,32 @@ public class InterpretationController extends BaseController {
     }
 
     /**
-     * 人工确认胚系五级临床意义（保存后重新预览即可看到按 Class 匹配的证据）
-     *
-     * @param bo 入参（analysisId / reportId / sourceId / clinicalSignificance 1~5）
-     * @return 操作结果
-     */
-    /**
-     * 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点
-     *
-     * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds，空列表 = 取消改靶）
-     * @return 操作结果
-     */
-    @SaCheckPermission("report:interpretation:edit")
-    @RepeatSubmit()
-    @Log(title = "报告解读-改靶", businessType = BusinessType.UPDATE)
-    @PostMapping("/variant-target")
-    public R<Void> variantTarget(@RequestBody @Validated InterpretationTargetBo bo) {
-        previewService.updateVariantTarget(bo);
-        return R.ok();
-    }
-
-    /**
      * 改靶候选：按关键词查 NKB 位点节点（父级由知识库查询到）
      *
      * @param keyword 关键词（基因符号 / 节点名片段）
      * @return 候选节点列表
      */
-    @SaCheckPermission("report:interpretation:edit")
+    @SaCheckPermission("report:interpretation:preview")
     @GetMapping("/parent-candidates")
     public R<List<NkbVariantNodeVo>> parentCandidates(@RequestParam("keyword") String keyword) {
         return R.ok(previewService.searchParentNodes(keyword));
     }
 
-    @SaCheckPermission("report:interpretation:edit")
+    /**
+     * 位点人工修改（父靶点 / 胚系临床意义 / 突变说明）
+     * <p>
+     * 报告粒度存储，生成报告时写进 JSON；来源=历史（已入库）的位点只读。
+     * 只有可生成报告的状态（31/32/33/52）允许写。
+     *
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / 三个可选修改字段）
+     * @return 操作结果
+     */
+    @SaCheckPermission("report:interpretation:preview")
     @RepeatSubmit()
-    @Log(title = "报告解读-胚系临床意义", businessType = BusinessType.UPDATE)
-    @PostMapping("/germline-clinical-significance")
-    public R<Void> germlineSignificance(@RequestBody @Validated InterpretationGermlineSignificanceBo bo) {
-        previewService.updateGermlineSignificance(bo);
+    @Log(title = "报告解读-位点修改", businessType = BusinessType.UPDATE)
+    @PostMapping("/variant-edits")
+    public R<Void> variantEdits(@RequestBody @Validated InterpretationVariantEditBo bo) {
+        previewService.updateVariantEdits(bo);
         return R.ok();
     }
 }

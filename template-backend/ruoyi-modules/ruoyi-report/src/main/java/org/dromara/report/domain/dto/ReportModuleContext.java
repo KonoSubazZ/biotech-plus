@@ -32,8 +32,14 @@ public class ReportModuleContext {
     /** 报告 + 分析行（selectReportRow） */
     private Map<String, Object> report;
 
-    /** LIMS 信息（sample_file 映射） */
+    /** LIMS 信息（cms_sample 映射） */
     private InterpretationLimsVo lims;
+
+    /** cms_sample 最新一行（报告 JSON 的 sampleInfo 按它输出 45 个字段） */
+    private org.dromara.report.domain.CmsSample sample;
+
+    /** 同一订单下的全部样本（双样本组织 + 对照血；sampleInfo 的 sampleTypes / subbarcodes 汇总用） */
+    private List<org.dromara.report.domain.CmsSample> orderSamples;
 
     /** 已算好的体细胞报出位点（含匹配结果） */
     private List<PreviewVariantVo> somaticVariants;

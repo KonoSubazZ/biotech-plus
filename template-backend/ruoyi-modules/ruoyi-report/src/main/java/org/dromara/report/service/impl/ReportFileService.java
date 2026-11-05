@@ -75,6 +75,36 @@ public class ReportFileService {
         return file.toFile();
     }
 
+    /**
+     * 取「已签署」的报告成品文件（发邮件附件专用）。
+     * <p>
+     * 与 {@link #loadReportFile(Long, Long)} 的区别：这里不接受未签名 PDF 兜底，
+     * 没签署就抛错，避免把草稿发给客户。
+     */
+    public File loadSignedReportFile(Long reportId, Long analysisId) {
+        Map<String, Object> report = interpretationMapper.selectReportRow(reportId);
+        if (report == null) {
+            throw new ServiceException("报告不存在或已删除：reportId=" + reportId);
+        }
+        if (!String.valueOf(analysisId).equals(asString(report.get("analysisId")))) {
+            throw new ServiceException("报告与分析批次不匹配：reportId=" + reportId + "，analysisId=" + analysisId);
+        }
+        String rawPath = asString(report.get("reportSignedFilePath"));
+        if (rawPath == null || rawPath.isBlank()) {
+            throw new ServiceException("报告还没签署，不能发送：reportId=" + reportId);
+        }
+        Path root = Paths.get(artifactRoot).toAbsolutePath().normalize();
+        Path file = Paths.get(rawPath).toAbsolutePath().normalize();
+        if (!file.startsWith(root)) {
+            log.warn("报告文件路径不在输出目录内，拒绝读取：{}", rawPath);
+            throw new ServiceException("报告文件不可用：reportId=" + reportId);
+        }
+        if (!Files.isRegularFile(file)) {
+            throw new ServiceException("报告签名件不存在：reportId=" + reportId);
+        }
+        return file.toFile();
+    }
+
     /** 取第一个非空白值；全空返回 null */
     private String firstNotBlank(String... values) {
         return java.util.Arrays.stream(values)

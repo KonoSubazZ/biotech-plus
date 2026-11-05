@@ -3,8 +3,9 @@ package org.dromara.report.service.impl.preview;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.core.exception.ServiceException;
-import org.dromara.report.domain.bo.InterpretationGermlineSignificanceBo;
-import org.dromara.report.domain.bo.InterpretationTargetBo;
+import org.dromara.common.satoken.utils.LoginHelper;
+import org.dromara.report.domain.bo.InterpretationVariantEditBo;
+import org.dromara.report.domain.dto.PreviewContext;
 import org.dromara.report.domain.vo.InterpretationContextVo;
 import org.dromara.report.domain.vo.NkbVariantNodeVo;
 import org.dromara.report.domain.vo.PreviewDrugVo;
@@ -12,26 +13,32 @@ import org.dromara.report.domain.vo.PreviewVariantVo;
 import org.dromara.report.mapper.InterpretationMapper;
 import org.dromara.report.mapper.NkbEvidenceMapper;
 import org.dromara.report.service.IInterpretationService;
+import org.dromara.report.service.impl.NkbDrugMatcher;
+import org.dromara.report.service.impl.revision.ReportRevisionPolicy;
+import org.dromara.report.utils.ReportStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.dromara.report.service.impl.PreviewSupport.asInt;
 import static org.dromara.report.service.impl.PreviewSupport.asLong;
 import static org.dromara.report.service.impl.PreviewSupport.asString;
 import static org.dromara.report.service.impl.PreviewSupport.nkb;
-import org.dromara.report.domain.dto.PreviewContext;
-import org.dromara.report.service.impl.NkbDrugMatcher;
 
 /**
- * 位点人工干预：改靶（人工指定知识库父级）、胚系五级临床意义确认、父级候选检索。
+ * 位点人工修改：父靶点（体细胞/胚系）、胚系临床意义、突变说明，统一写
+ * {@code analysis_report.report_variant_edits}（报告粒度 JSON）。
  * <p>
- * 与匹配（{@link VariantMatcher}）分家的理由：匹配是「读知识库出结果」，这里是「人工改数据」，
- * 两者的校验与风险不同 —— 人工改动必须按 en7 口径卡住（父级要在知识库且改靶后必须能出药物证据）。
- * <p>
- * 事务由调用方（{@code InterpretationPreviewServiceImpl} 的实现方法）开启，这里只做业务校验与写库。
+ * 口径（2026-11-05）：
+ * <ul>
+ *   <li>只有未入库位点可改（history_* 无该 match_key）；来源=历史只读，这里直接拒绝</li>
+ *   <li>不写 history_*、不写 {@code file_*.parent_mutation_id}：修改只影响本报告生成的 JSON</li>
+ *   <li>审核通过冻结时从报告 JSON 派生 history_*，不读本表</li>
+ * </ul>
  *
  * @author <你的名字>
  */
@@ -39,6 +46,12 @@ import org.dromara.report.service.impl.NkbDrugMatcher;
 @Component
 @RequiredArgsConstructor
 public class VariantEditService {
+
+    /** 单条突变说明最大长度（整段文本，够长但防脏数据） */
+    private static final int MAX_NOTE_LENGTH = 4000;
+
+    /** 一份报告的修改表总量上限（防有人把整篇文档粘进来） */
+    private static final int MAX_EDITS_BYTES = 64 * 1024;
 
     private final InterpretationMapper interpretationMapper;
 
@@ -53,65 +66,96 @@ public class VariantEditService {
     private final VariantMatcher variantMatcher;
 
     /**
-     * 人工确认胚系五级临床意义（1~5）。
-     * <p>
-     * 保存前要求该位点已经建立匹配历史（预览过一次），按匹配键更新；
-     * <b>只更新该列</b>，不重跑匹配、不覆盖已冻结的 match_result / 用药 / 位点等级
-     * （早先会重跑 en7 匹配「顺手刷新」冻结结果，NKB 一更新就改掉老记录，与「冻结只读」冲突，已去掉）。
+     * 保存位点人工修改（部分字段更新，null = 不改）。
      *
-     * @param bo 入参（analysisId / reportId / sourceId / clinicalSignificance）
+     * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds / clinicalSignificance / mutationDescription）
      */
-    public void updateGermlineSignificance(InterpretationGermlineSignificanceBo bo) {
-        Integer significance = bo.getClinicalSignificance();
-        if (significance == null || significance < 1 || significance > 5) {
-            throw new ServiceException("临床意义只能是 1~5：1致病/2可能致病/3未知临床意义/4可能良性/5良性");
-        }
+    public void updateVariantEdits(InterpretationVariantEditBo bo) {
         Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
-        Map<String, Object> row = interpretationMapper.selectGermlineVariant(bo.getSourceId(), bo.getAnalysisId());
-        if (row == null) {
-            throw new ServiceException("胚系位点不存在或不属于该分析批次：sourceId=" + bo.getSourceId());
+        Integer status = asInt(report.get("status"));
+        if (status == null || !ReportRevisionPolicy.isGeneratable(status)) {
+            throw new ServiceException("当前状态（" + ReportStatus.label(status == null ? -1 : status)
+                + "）不允许修改位点：报告已送审或已发送");
         }
-        InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
-        PreviewContext pc = contextBuilder.build(bo.getAnalysisId(), bo.getReportId(), report, context);
-        PreviewVariantVo item = new PreviewVariantVo();
-        item.setSourceType("CR_ALL");
-        item.setGene(asString(row.get("gene")));
-        item.setVariant(asString(row.get("variant")));
-        item.setOriVariant(asString(row.get("oriVariant")));
-        item.setZygosity(asString(row.get("zygosity")));
-        // 必须带上人工父级：它参与匹配键，漏了会把改靶后的确认写到旧键上（实测踩到）
-        item.setParentMutationIds(ParentMutationIds.parse(row.get("parentMutationId")));
-        item.setMutationType("G");
-        int affected = interpretationMapper.updateGermlineSignificance(variantMatcher.matchKey(pc, item), significance);
-        if (affected == 0) {
-            throw new ServiceException("该位点还没有匹配历史，请先预览一次再确认临床意义");
-        }
-    }
-
-    /**
-     * 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点，
-     * 写入源位点表 {@code parent_mutation_id}（逗号分隔）→ 产生新的匹配键，下次预览走继承逻辑。
-     * <p>
-     * 空列表 = 取消改靶。保存前按 en7 口径校验「改靶后必须能出药物证据」，出不来直接拒绝。
-     *
-     * @param bo 入参（analysisId / reportId / sourceType / sourceId / parentMutationIds）
-     */
-    public void updateVariantTarget(InterpretationTargetBo bo) {
         Map<String, Object> row = interpretationMapper.selectVariantForTarget(bo.getSourceType(), bo.getSourceId(),
             bo.getAnalysisId());
         if (row == null) {
             throw new ServiceException("位点不存在或不属于该分析批次：" + bo.getSourceType() + "#" + bo.getSourceId());
         }
-        List<Long> parentIds = ParentMutationIds.distinct(bo.getParentMutationIds());
-        if (!parentIds.isEmpty()) {
-            requireApprovedNodes(parentIds);
-            requireDrugEvidence(bo, row, parentIds);
+        String gene = asString(row.get("gene"));
+        String variant = asString(row.get("variant"));
+        String oriVariant = asString(row.get("oriVariant"));
+        boolean germline = "CR_ALL".equals(bo.getSourceType());
+        if (!germline && bo.getClinicalSignificance() != null) {
+            throw new ServiceException("只有胚系位点可以人工确认临床意义：" + bo.getSourceType());
         }
-        String parentIdsText = parentIds.isEmpty() ? null : ParentMutationIds.toKey(parentIds);
-        int affected = interpretationMapper.updateParentMutation(bo.getSourceType(), bo.getSourceId(),
-            bo.getAnalysisId(), parentIdsText);
+        requireNotInHistory(bo, report, gene, variant, oriVariant, germline);
+        requireValidTarget(bo, report, gene, variant, oriVariant);
+        requireValidNote(bo.getMutationDescription());
+
+        String key = ReportVariantEdits.key(gene, variant, bo.getSourceType(), bo.getSourceId());
+        ReportVariantEdits.Edit patch = new ReportVariantEdits.Edit(
+            bo.getParentMutationIds(), bo.getClinicalSignificance(), bo.getMutationDescription());
+        String merged = ReportVariantEdits.merge(asString(report.get("reportVariantEdits")), key, patch);
+        if (merged != null && merged.getBytes(StandardCharsets.UTF_8).length > MAX_EDITS_BYTES) {
+            throw new ServiceException("该报告的位点修改总量超限（>64KB），请精简后再保存");
+        }
+        int affected = interpretationMapper.updateReportVariantEdits(
+            bo.getReportId(), bo.getAnalysisId(), merged, LoginHelper.getUserId());
         if (affected == 0) {
-            throw new ServiceException("改靶失败：位点不存在或不属于该分析批次");
+            throw new ServiceException("报告状态已变化，请刷新后重试：reportId=" + bo.getReportId());
+        }
+        log.info("位点修改已保存：reportId={}，key={}，parents={}，significance={}，note={}",
+            bo.getReportId(), key, bo.getParentMutationIds(), bo.getClinicalSignificance(),
+            StringUtils.hasText(bo.getMutationDescription()) ? "有" : "无");
+    }
+
+    /**
+     * 来源=历史（已入库）只读：按 matchKey 查 history_*，命中即拒绝。
+     */
+    private void requireNotInHistory(InterpretationVariantEditBo bo, Map<String, Object> report,
+                                     String gene, String variant, String oriVariant, boolean germline) {
+        InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
+        PreviewContext pc = contextBuilder.build(bo.getAnalysisId(), bo.getReportId(), report, context);
+        PreviewVariantVo item = new PreviewVariantVo();
+        item.setSourceType(bo.getSourceType());
+        item.setGene(gene);
+        item.setVariant(variant);
+        item.setOriVariant(oriVariant);
+        item.setMutationType(germline ? "G" : "S");
+        String matchKey = variantMatcher.matchKey(pc, item);
+        Map<String, Object> history = germline
+            ? interpretationMapper.selectGermlineHistory(matchKey)
+            : interpretationMapper.selectSomaticHistory(matchKey);
+        if (history != null) {
+            throw new ServiceException("该位点已入库（来源=历史），只读；只有未入库位点可以人工修改");
+        }
+    }
+
+    /**
+     * 父靶点校验：节点必须在知识库（Approved），且改靶后必须能出药物证据。
+     * 空列表 = 取消改靶（合法）。
+     */
+    private void requireValidTarget(InterpretationVariantEditBo bo, Map<String, Object> report,
+                                    String gene, String variant, String oriVariant) {
+        List<Long> parentIds = ParentMutationIds.distinct(bo.getParentMutationIds());
+        if (parentIds.isEmpty()) {
+            return;
+        }
+        requireApprovedNodes(parentIds);
+        InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
+        PreviewContext pc = contextBuilder.build(bo.getAnalysisId(), bo.getReportId(), report, context);
+        NkbDrugMatcher.MatchResult matched = drugMatcher.match(gene, variant, oriVariant,
+            "CR_ALL".equals(bo.getSourceType()), pc.getDiseaseScope(), parentIds);
+        List<PreviewDrugVo> evidence = matched.getEvidence() == null ? List.of() : matched.getEvidence();
+        if (evidence.isEmpty()) {
+            throw new ServiceException("改靶后无药物信息，此操作无法保存");
+        }
+    }
+
+    private void requireValidNote(String mutationDescription) {
+        if (mutationDescription != null && mutationDescription.trim().length() > MAX_NOTE_LENGTH) {
+            throw new ServiceException("突变说明不能超过 " + MAX_NOTE_LENGTH + " 字");
         }
     }
 
@@ -142,7 +186,7 @@ public class VariantEditService {
     }
 
     /**
-     * 校验父级都来自知识库（Approved 节点）。人工改靶必须挂到知识库里有的节点上。
+     * 校验父级都来自知识库（Approved 节点）。
      *
      * @param parentIds 父级节点ID（已去重）
      */
@@ -150,27 +194,6 @@ public class VariantEditService {
         List<String> names = nkb(() -> nkbEvidenceMapper.selectVariantNames(parentIds));
         if (names == null || names.size() < parentIds.size()) {
             throw new ServiceException("有父级节点在知识库中不存在或未审核，请重新选择");
-        }
-    }
-
-    /**
-     * en7 口径（{@code GeneticMarkerVwServiceImpl.hasTargetDrugInfo}）：<b>改靶后必须能出药物证据</b>，
-     * 出不来直接拒绝保存。
-     *
-     * @param bo        改靶入参
-     * @param row       源位点行（gene / variant / oriVariant）
-     * @param parentIds 人工父级节点ID
-     */
-    private void requireDrugEvidence(InterpretationTargetBo bo, Map<String, Object> row, List<Long> parentIds) {
-        Map<String, Object> report = contextBuilder.loadReport(bo.getReportId(), bo.getAnalysisId());
-        InterpretationContextVo context = interpretationService.loadContext(bo.getReportId(), bo.getAnalysisId());
-        PreviewContext pc = contextBuilder.build(bo.getAnalysisId(), bo.getReportId(), report, context);
-        boolean germline = "CR_ALL".equals(bo.getSourceType());
-        NkbDrugMatcher.MatchResult matched = drugMatcher.match(asString(row.get("gene")), asString(row.get("variant")),
-            asString(row.get("oriVariant")), germline, pc.getDiseaseScope(), parentIds);
-        List<PreviewDrugVo> evidence = matched.getEvidence() == null ? List.of() : matched.getEvidence();
-        if (evidence.isEmpty()) {
-            throw new ServiceException("改靶后无药物信息，此操作无法保存");
         }
     }
 }

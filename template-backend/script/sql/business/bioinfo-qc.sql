@@ -7,7 +7,7 @@
 --
 -- 设计说明（两张质控表共用的「公共字段」规则，湿实验质控 wet_lab_qc 后续照抄本段）：
 --   id          主键（bigint 自增，页面不展示）
---   subbarcode  样本编号（= sample_file.subbarcode，源 sample_qc_info.sample_id），业务唯一键
+--   subbarcode  样本编号（= cms_sample.subbarcode，源 sample_qc_info.sample_id），业务唯一键
 --   source_id   上游记录 id（源表 id，幂等/追溯用，页面不展示）
 --   status      质控状态：passed 合格 / failed 不合格 / pending 待判定（按 qc_standard 阈值判定，阈值可改）
 --   notify_status  通知发送状态：已生成（文档）/ 已发送（邮件）；页面暂不展示（湿实验表同口径）
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `bioinfo_qc` (
     id                                    bigint        NOT NULL AUTO_INCREMENT     COMMENT '主键',
 
     -- ── 公共字段（两张质控表共用）
-    subbarcode                            varchar(100)  NOT NULL                    COMMENT '样本编号（= sample_file.subbarcode，源 sample_qc_info.sample_id）',
+    subbarcode                            varchar(100)  NOT NULL                    COMMENT '样本编号（= cms_sample.subbarcode，源 sample_qc_info.sample_id）',
     source_id                             varchar(64)                               COMMENT '上游记录 id（源 sample_qc_info.id，幂等/追溯用）',
     status                                varchar(20)   NOT NULL DEFAULT 'pending'  COMMENT '质控状态（passed 合格 / failed 不合格 / pending 待判定）',
     notify_status                         varchar(20)                              COMMENT '通知发送状态（已生成（文档）/ 已发送（邮件）），暂不展示',

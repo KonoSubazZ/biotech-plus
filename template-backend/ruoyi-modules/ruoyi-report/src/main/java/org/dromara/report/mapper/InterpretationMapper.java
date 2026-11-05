@@ -20,6 +20,10 @@ import java.util.Map;
  */
 public interface InterpretationMapper {
 
+    int updateReportSignResultIfCurrent(@Param("reportId") Long reportId, @Param("flowNo") String flowNo,
+        @Param("status") int status, @Param("signedFilePath") String signedFilePath,
+        @Param("failReason") String failReason);
+
     /**
      * 分页查询「报告解读」列表：analysis_data ⟕ 该批次最新一份 analysis_report。
      *
@@ -39,7 +43,7 @@ public interface InterpretationMapper {
     AnalysisSnapshotVo selectAnalysisSnapshot(@Param("analysisId") Long analysisId);
 
     /**
-     * 分页查询某个分析批次的集群文件（data_file_status）；不返回 file_text 大字段。
+     * 分页查询某个分析批次的集群文件（analysis_file_status）；不返回 file_text 大字段。
      *
      * @param page       分页参数
      * @param analysisId 分析数据ID
@@ -51,7 +55,124 @@ public interface InterpretationMapper {
                                               @Param("query") InterpretationFileQueryBo query);
 
     /**
-     * 取单个文件的文本内容（data_file_status.file_text），超长按 maxLength 截断。
+     * 取所有「签名中」（50）且有合同号的报告（批量刷新签名状态用）。
+     *
+     * @return [{reportId, signFlowNo, status}]
+     */
+    List<Map<String, Object>> selectReportsInSigning();
+
+    /**
+     * 取报告当前状态码（刷新后统计用）。
+     *
+     * @param reportId 报告ID
+     * @return 状态码；报告不存在返回 null
+     */
+    Integer selectReportSignStatus(@Param("reportId") Long reportId);
+
+    /**
+     * 送签：状态 → 50 报告签名中，写签名流程号与送签时间。
+     * <p>
+     * 允许的来源状态：43 报告审核成功（审核通过后自动送签）、52 报告签名失败（重新送签）；
+     * 带来源条件，重复点击/并发时后到的那次影响行数为 0。
+     *
+     * @param reportId 报告ID
+     * @param flowNo   签名流程号
+     * @return 影响行数
+     */
+    int updateReportSigning(@Param("reportId") Long reportId, @Param("flowNo") String flowNo);
+
+    /**
+     * 签名结果落状态：50 → 60 报告待发送（成功）/ 52 报告签名失败（失败）；送签即失败时也允许从 43 落 52。
+     *
+     * @param reportId       报告ID
+     * @param status         60 报告待发送 / 52 报告签名失败
+     * @param signedFilePath 签名后 PDF 路径（成功时；未对接期可为空）
+     * @param failReason     失败原因（失败时）
+     * @return 影响行数
+     */
+    int updateReportSignResult(@Param("reportId") Long reportId, @Param("status") Integer status,
+                              @Param("signedFilePath") String signedFilePath,
+                              @Param("failReason") String failReason);
+
+    /**
+     * 按签名流程号取报告（回调只带流程号，不信任回调里的 reportId）。
+     *
+     * @param flowNo 签名流程号
+     * @return {reportId, analysisId, status, reportFilePath}；找不到返回 null
+     */
+    Map<String, Object> selectReportBySignFlowNo(@Param("flowNo") String flowNo);
+
+    /**
+     * 报告生成结果落状态：成功 32（顺带清空失败原因）/ 失败 33（写失败原因）。
+     *
+     * @param reportId   报告ID
+     * @param status     32 报告生成成功 / 33 报告生成失败
+     * @param failReason 生成失败原因（成功时传 null，清空历史原因）
+     * @return 影响行数
+     */
+    int updateReportGenerated(@Param("reportId") Long reportId, @Param("status") Integer status,
+                              @Param("failReason") String failReason);
+
+    /**
+     * 生信看点完成（20 生信看点 → 21 生信审核）：记看点人与时间。
+     * <p>
+     * 带来源状态条件：重复点击或并发时后到的那次影响行数为 0，调用方据此提示刷新。
+     *
+     * @param reportId 报告ID
+     * @param userId   看点人（写 report_bioinfo_viewed_by）
+     * @return 影响行数
+     */
+    int updateBioinfoViewed(@Param("reportId") Long reportId, @Param("userId") Long userId);
+
+    /**
+     * 认领生信看点：点「处理」时先占人（不改状态），防止同一批次被多人同时处理。
+     * 已被他人占用时影响行数为 0。
+     *
+     * @param reportId 报告ID
+     * @param userId   当前用户
+     * @return 影响行数
+     */
+    int claimBioinfoView(@Param("reportId") Long reportId, @Param("userId") Long userId);
+
+    /**
+     * 认领生信复核：点「处理」时先占人（不改状态）。
+     *
+     * @param reportId 报告ID
+     * @param userId   当前用户
+     * @return 影响行数
+     */
+    int claimBioinfoReview(@Param("reportId") Long reportId, @Param("userId") Long userId);
+
+    /**
+     * 生信复核通过（21 生信审核 → 30 报告待解读）：记复核人与时间。
+     * <p>
+     * 带来源状态条件：重复点击或并发时后到的那次影响行数为 0，调用方据此提示刷新。
+     *
+     * @param reportId 报告ID
+     * @param userId   复核人（写 report_bioinfo_reviewed_by）
+     * @return 影响行数
+     */
+    int updateBioinfoReviewed(@Param("reportId") Long reportId, @Param("userId") Long userId);
+
+    /**
+     * 取单个文件的行（重新驱动前校验文件属于该批次、拿落盘路径）。
+     *
+     * @param fileId     文件ID
+     * @param analysisId 分析数据ID
+     * @return {fileId, fileName, filePath, status}；文件不存在返回 null
+     */
+    Map<String, Object> selectFileRow(@Param("fileId") Long fileId, @Param("analysisId") Long analysisId);
+
+    /**
+     * 取该批次的样本级驱动状态（重新驱动后读回来展示）。
+     *
+     * @param analysisId 分析数据ID
+     * @return drive_status（int 码）；批次不存在返回 null
+     */
+    Integer selectAnalysisDriveStatus(@Param("analysisId") Long analysisId);
+
+    /**
+     * 取单个文件的文本内容（analysis_file_status.file_text），超长按 maxLength 截断。
      *
      * @param fileId    文件ID
      * @param analysisId 分析数据ID（校验文件确实属于该批次）
@@ -178,16 +299,21 @@ public interface InterpretationMapper {
     Integer selectInheritedGermlineSignificance(@Param("q") Map<String, Object> q);
 
     /**
-     * 保存人工确认的胚系临床意义（要求该位点已通过预览建立历史记录）。
+     * 保存人工确认的胚系临床意义（报告级覆盖表，不写 history_*）。
      * <p>
-     * 只改 `clinical_significance`：**不**重跑匹配、**不**覆盖已冻结的 `match_result` / 用药 / 位点等级。
+     * 只有未入库位点允许写；已入库（来源=历史）由服务层拒绝。覆盖表在预览/生成时套用，
+     * 审核通过冻结时写进 history_germline.clinical_significance。
      *
-     * @param matchKey             规范化匹配键
-     * @param clinicalSignificance 1~5
-     * @return 影响行数（0 = 还没建立历史）
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID（归属校验）
+     * @param overrides  覆盖表 JSON；null = 清空
+     * @param operatorId 操作人（sys_user.user_id）
+     * @return 影响行数（0 = 报告不存在 / 不属于该批次 / 状态已变）
      */
-    int updateGermlineSignificance(@Param("matchKey") String matchKey,
-                                  @Param("clinicalSignificance") Integer clinicalSignificance);
+    int updateReportGermlineSignificance(@Param("reportId") Long reportId,
+                                         @Param("analysisId") Long analysisId,
+                                         @Param("overrides") String overrides,
+                                         @Param("operatorId") Long operatorId);
 
     /**
      * 取单个 CR_ALL 位点（保存临床意义前要重算 match_key）
@@ -212,18 +338,20 @@ public interface InterpretationMapper {
                                               @Param("analysisId") Long analysisId);
 
     /**
-     * 改靶：把人工父级写回源位点表（逗号分隔的多父级）
+     * 写报告级「位点人工修改」表（JSON，键 = gene_variant_sourceType:sourceId）。
+     * <p>
+     * 只在可生成报告的状态（31/32/33/52）生效；40+ 已送审/已发送不允许改（影响行数 0）。
      *
-     * @param sourceType       源位点表（SNP_INDEL / CNV / FUSION / CR_ALL）
-     * @param sourceId         位点ID
-     * @param analysisId       分析数据ID
-     * @param parentMutationIds 人工父级节点ID（逗号分隔）；null 表示取消改靶
-     * @return 影响行数
+     * @param reportId   报告ID
+     * @param analysisId 分析数据ID（归属校验）
+     * @param edits      修改表 JSON；null = 清空
+     * @param operatorId 操作人（sys_user.user_id）
+     * @return 影响行数（0 = 报告不存在 / 不属于该批次 / 状态已变）
      */
-    int updateParentMutation(@Param("sourceType") String sourceType,
-                             @Param("sourceId") Long sourceId,
-                             @Param("analysisId") Long analysisId,
-                             @Param("parentMutationIds") String parentMutationIds);
+    int updateReportVariantEdits(@Param("reportId") Long reportId,
+                                 @Param("analysisId") Long analysisId,
+                                 @Param("edits") String edits,
+                                 @Param("operatorId") Long operatorId);
 
     int updateVariantReportStatus(@Param("sourceId") Long sourceId,
                                  @Param("sourceType") String sourceType,
@@ -263,8 +391,8 @@ public interface InterpretationMapper {
      * @param fromStatuses 允许的来源状态
      * @return 影响行数
      */
-    int updateReportStatusIfIn(@Param("reportId") Long reportId, @Param("status") String status,
-                              @Param("fromStatuses") List<String> fromStatuses);
+    int updateReportStatusIfIn(@Param("reportId") Long reportId, @Param("status") Integer status,
+                              @Param("fromStatuses") List<Integer> fromStatuses);
 
     /**
      * 审核动作状态流转（通过 / 驳回共用）：置目标状态 + 审核人/审核时间；
@@ -282,11 +410,22 @@ public interface InterpretationMapper {
      * @return 影响行数
      */
     int updateReportReview(@Param("reportId") Long reportId,
-                           @Param("status") String status,
+                           @Param("status") Integer status,
                            @Param("comment") String comment,
-                           @Param("checkedBy") String checkedBy,
+                           @Param("checkedBy") Long checkedBy,
                            @Param("operatorId") Long operatorId,
-                           @Param("fromStatuses") List<String> fromStatuses);
+                           @Param("fromStatuses") List<Integer> fromStatuses,
+                           @Param("revertFrom") Integer revertFrom,
+                           @Param("revertReason") String revertReason);
+
+    /**
+     * 清空报告制品路径：审核驳回后文件已移到 {@code report/rejected/}，
+     * 库里不再保留失效路径（归档位置不入库）。
+     *
+     * @param reportId 报告ID
+     * @return 影响行数
+     */
+    int clearReportArtifact(@Param("reportId") Long reportId);
 
     /**
      * 回填报告业务字段：生成报告时把本次生效的「解读癌种」写回 analysis_report

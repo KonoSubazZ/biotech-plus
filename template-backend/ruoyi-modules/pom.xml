@@ -11,9 +11,12 @@
 
     <modules>
         <module>ruoyi-report</module>
+        <module>ruoyi-drive</module>
         <module>ruoyi-project</module>
         <module>ruoyi-qc</module>
         <module>ruoyi-compliance</module>
+        <module>ruoyi-audit</module>
+        <module>ruoyi-backup</module>
         <module>ruoyi-generator</module>
         <module>ruoyi-job</module>
         <module>ruoyi-system</module>

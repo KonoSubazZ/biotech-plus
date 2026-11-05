@@ -11,13 +11,13 @@
 <mapper namespace="org.dromara.qc.mapper.WetLabQcMapper">
 
     <!--
-      样本编号 → 归属药企编号（sample_file.tenant_id）。样本自身的归属字段，服务端可信，
+      样本编号 → 归属药企编号（cms_sample.tenant_id）。样本自身的归属字段，服务端可信，
       不用客户名去 sys_tenant 二次翻译（那一步会因为客户名对不上药企名而整批拒收）。
       同编号多条时取最新一条；含已软删样本不加限制（软删样本仍可定位药企，避免接口推数据被静默丢）。
     -->
     <select id="selectTenantIdBySubbarcode" resultType="java.lang.String">
         SELECT tenant_id
-        FROM sample_file
+        FROM cms_sample
         WHERE subbarcode = #{subbarcode}
         ORDER BY id DESC
         LIMIT 1

@@ -24,7 +24,7 @@ public class WetLabQcBo {
     /** 主键；新增时为空 */
     private Long id;
 
-    /** 样本条码（关联 sample_file.subbarcode） */
+    /** 样本条码（关联 cms_sample.subbarcode） */
     @Size(max = 80, message = "subbarcode 长度不能超过 80")
     private String subbarcode;
 

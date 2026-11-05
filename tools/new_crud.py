@@ -443,7 +443,7 @@ def main():
     print(f"  3. 前端：src/views/{ent_kebab}/index.vue + src/service/api/{mod}/ + typings")
     print(f"  4. 菜单与权限点位：把 {perm}:list/add/edit/remove 加进 sys_menu")
     print(f"  5. 验证：cd template-backend && mvn -B -ntp -pl ruoyi-modules/{arg} -am validate")
-    print(f"  6. 闸门：python3 tools/readability_check.py --changed-only origin/main")
+    print(f"  6. 闸门：python3 tools/readability_check.py --changed-only origin/master")
     return 0
 
 

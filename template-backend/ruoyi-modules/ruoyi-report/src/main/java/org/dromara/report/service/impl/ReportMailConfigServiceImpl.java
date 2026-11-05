@@ -81,11 +81,21 @@ public class ReportMailConfigServiceImpl implements IReportMailConfigService {
             throw new ServiceException("邮件配置不存在或已删除：id=" + bo.getId(), 400);
         }
         ReportMailConfig entity = existing == null ? new ReportMailConfig() : existing;
+        // 必须在 applyForm 之前取：entity 与 existing 是同一个对象，applyForm 会覆盖 isDefault
+        boolean wasDefault = existing != null && YES.equals(existing.getIsDefault());
         applyForm(entity, bo, existing);
         if (existing == null) {
             baseMapper.insert(entity);
         } else {
             baseMapper.updateById(entity);
+        }
+        if (YES.equals(entity.getIsDefault())) {
+            // 抽屉里的「默认邮箱」开关也能设默认：和 /{id}/default 一样清掉同租户其它行的默认，
+            // 否则会出现两条默认（列表两个「默认」，发信仍按 id 小的那条走，用户设的默认静默失效）
+            clearDefaultExcept(entity.getId());
+        } else if (wasDefault && countDefault() == 0) {
+            // 唯一的一条默认被关掉：保持这一条为默认（不悄悄换成别的邮箱），违背「必须有且只有一条默认」
+            keepDefault(entity.getId());
         }
         ensureDefault();
     }
@@ -195,6 +205,27 @@ public class ReportMailConfigServiceImpl implements IReportMailConfigService {
         baseMapper.update(null, Wrappers.<ReportMailConfig>lambdaUpdate()
             .eq(ReportMailConfig::getIsDefault, YES)
             .set(ReportMailConfig::getIsDefault, NO));
+    }
+
+    /** 清掉本租户除 keepId 之外的「默认」标记（保存时把某条设成默认用，保证默认唯一） */
+    private void clearDefaultExcept(Long keepId) {
+        baseMapper.update(null, Wrappers.<ReportMailConfig>lambdaUpdate()
+            .eq(ReportMailConfig::getIsDefault, YES)
+            .ne(keepId != null, ReportMailConfig::getId, keepId)
+            .set(ReportMailConfig::getIsDefault, NO));
+    }
+
+    /** 当前租户的默认条数 */
+    private Long countDefault() {
+        return baseMapper.selectCount(Wrappers.<ReportMailConfig>lambdaQuery()
+            .eq(ReportMailConfig::getIsDefault, YES));
+    }
+
+    /** 把指定的一条标成默认（唯一默认被关掉时的兜底，不换成别的邮箱） */
+    private void keepDefault(Long id) {
+        baseMapper.update(null, Wrappers.<ReportMailConfig>lambdaUpdate()
+            .eq(ReportMailConfig::getId, id)
+            .set(ReportMailConfig::getIsDefault, YES));
     }
 
     /** 默认那条：优先 is_default=1，缺失时退回最早一条（不抛异常，由调用方判断空） */

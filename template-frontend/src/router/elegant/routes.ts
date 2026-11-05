@@ -51,6 +51,35 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'backup',
+    path: '/backup',
+    component: 'layout.base',
+    meta: {
+      title: 'backup',
+      i18nKey: 'route.backup'
+    },
+    children: [
+      {
+        name: 'backup_database',
+        path: '/backup/database',
+        component: 'view.backup_database',
+        meta: {
+          title: 'backup_database',
+          i18nKey: 'route.backup_database'
+        }
+      },
+      {
+        name: 'backup_sample',
+        path: '/backup/sample',
+        component: 'view.backup_sample',
+        meta: {
+          title: 'backup_sample',
+          i18nKey: 'route.backup_sample'
+        }
+      }
+    ]
+  },
+  {
     name: 'compliance',
     path: '/compliance',
     component: 'layout.base',
@@ -95,7 +124,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'home',
       i18nKey: 'route.home',
-      icon: 'mdi:monitor-dashboard',
+      icon: 'ant-design:dashboard-outlined',
       order: 1
     }
   },
@@ -190,6 +219,15 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'project_project-config',
+        path: '/project/project-config',
+        component: 'view.project_project-config',
+        meta: {
+          title: 'project_project-config',
+          i18nKey: 'route.project_project-config'
+        }
+      },
+      {
         name: 'project_qc-standard',
         path: '/project/qc-standard',
         component: 'view.project_qc-standard',
@@ -197,34 +235,14 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'project_qc-standard',
           i18nKey: 'route.project_qc-standard'
         }
-      }
-    ]
-  },
-  {
-    name: 'qc',
-    path: '/qc',
-    component: 'layout.base',
-    meta: {
-      title: 'qc',
-      i18nKey: 'route.qc'
-    },
-    children: [
-      {
-        name: 'qc_bioinfo',
-        path: '/qc/bioinfo',
-        component: 'view.qc_bioinfo',
-        meta: {
-          title: 'qc_bioinfo',
-          i18nKey: 'route.qc_bioinfo'
-        }
       },
       {
-        name: 'qc_wet-lab',
-        path: '/qc/wet-lab',
-        component: 'view.qc_wet-lab',
+        name: 'project_template-config',
+        path: '/project/template-config',
+        component: 'view.project_template-config',
         meta: {
-          title: 'qc_wet-lab',
-          i18nKey: 'route.qc_wet-lab'
+          title: 'project_template-config',
+          i18nKey: 'route.project_template-config'
         }
       }
     ]
@@ -257,21 +275,12 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
-        name: 'report_sample-info',
-        path: '/report/sample-info',
-        component: 'view.report_sample-info',
+        name: 'report_sample-flow',
+        path: '/report/sample-flow',
+        component: 'view.report_sample-flow',
         meta: {
-          title: 'report_sample-info',
-          i18nKey: 'route.report_sample-info'
-        }
-      },
-      {
-        name: 'report_template',
-        path: '/report/template',
-        component: 'view.report_template',
-        meta: {
-          title: 'report_template',
-          i18nKey: 'route.report_template'
+          title: 'report_sample-flow',
+          i18nKey: 'route.report_sample-flow'
         }
       },
       {
@@ -281,6 +290,53 @@ export const generatedRoutes: GeneratedRoute[] = [
         meta: {
           title: 'report_variant-history',
           i18nKey: 'route.report_variant-history'
+        }
+      }
+    ]
+  },
+  {
+    name: 'sample',
+    path: '/sample',
+    component: 'layout.base',
+    meta: {
+      title: 'sample',
+      i18nKey: 'route.sample'
+    },
+    children: [
+      {
+        name: 'sample_bioinfo',
+        path: '/sample/bioinfo',
+        component: 'view.sample_bioinfo',
+        meta: {
+          title: 'sample_bioinfo',
+          i18nKey: 'route.sample_bioinfo'
+        }
+      },
+      {
+        name: 'sample_notify',
+        path: '/sample/notify',
+        component: 'view.sample_notify',
+        meta: {
+          title: 'sample_notify',
+          i18nKey: 'route.sample_notify'
+        }
+      },
+      {
+        name: 'sample_sample-info',
+        path: '/sample/sample-info',
+        component: 'view.sample_sample-info',
+        meta: {
+          title: 'sample_sample-info',
+          i18nKey: 'route.sample_sample-info'
+        }
+      },
+      {
+        name: 'sample_wet-lab',
+        path: '/sample/wet-lab',
+        component: 'view.sample_wet-lab',
+        meta: {
+          title: 'sample_wet-lab',
+          i18nKey: 'route.sample_wet-lab'
         }
       }
     ]

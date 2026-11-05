@@ -1,18 +1,17 @@
 <script setup lang="tsx">
 import { computed, ref, watch } from 'vue';
-import { NButton, NSelect, NTag } from 'naive-ui';
+import { NButton, NDivider, NInput, NSelect, NTag } from 'naive-ui';
 import {
   fetchBuildInterpretationPreview,
   fetchGenerateReport,
   fetchGetReportFileUrl,
   fetchParentCandidates,
   fetchSubmitReview,
-  fetchUpdateGermlineSignificance,
-  fetchUpdateVariantTarget
+  fetchUpdateVariantEdits,
 } from '@/service/api/report/interpretation';
+import ButtonIcon from '@/components/custom/button-icon.vue';
 import ReportGenerateParams from './report-generate-params.vue';
 import { gradeCountTags } from './grade-count';
-import { useAuth } from '@/hooks/business/auth';
 import { useDownload } from '@/hooks/business/download';
 
 defineOptions({
@@ -22,20 +21,21 @@ defineOptions({
 interface Props {
   analysisId: number;
   reportId: number;
-  /** 报告当前状态（详情页 context 给的，用来判断能不能提交审核；可空 = 还没加载出来） */
-  reportStatus?: string | null;
+  /** 报告当前状态（详情页 context 给的，用来判断能不能生成报告 / 提交解读；可空 = 还没加载出来） */
+  /** 报告状态（后端返回 int 码，这里数组/字符串都收，内部统一 Number() 比较） */
+  reportStatus?: number | string | null;
+  templateId?: number | null;
+  reportVersion?: number | null;
 }
 
 const props = defineProps<Props>();
 
 interface Emits {
-  /** 状态被本页改过（如提交审核），通知详情页刷新报告头 */
+  /** 状态被本页改过（如提交解读），通知详情页刷新报告头 */
   (e: 'changed'): void;
 }
 
 const emit = defineEmits<Emits>();
-
-const { hasAuth } = useAuth();
 
 /** en7 药物等级分组键与中文标签（1-4 获益 A-D，5-8 耐药 A-D） */
 const GROUP_KEYS = [
@@ -85,13 +85,11 @@ const targetIds = ref<number[]>([]);
 const candidateNodes = ref<Api.Report.NkbVariantNode[]>([]);
 const candidateLoading = ref(false);
 
-const canEdit = computed(() => hasAuth('report:interpretation:edit'));
-
 /** 顶部上下文一行（sampleInfo 是 Map，取值统一转字符串） */
 const contextLine = computed(() => {
   const info = preview.value?.sampleInfo ?? {};
   const part = (key: string) => (info[key] === null || info[key] === undefined ? '-' : String(info[key]));
-  return `样本 ${part('sampleCode')} · 癌种 ${part('disease')} · 性别 ${part('gender')}`;
+  return `样本 ${part('subbarcode')} · 癌种 ${part('diseaseType')} · 性别 ${part('sex')}`;
 });
 
 /** JSON 原文（放 script 里，模板只负责渲染字符串） */
@@ -100,6 +98,8 @@ const previewJson = computed(() => JSON.stringify(preview.value ?? {}, null, 2))
 /** 预览数据来源：artifact = 后端读「已生成的 JSON 制品」，realtime = 实时重新匹配组装 */
 const previewSource = ref<'artifact' | 'realtime' | ''>('');
 const previewArtifactTime = ref<string | null>(null);
+const paramsChanged = ref(false);
+let previewRequestNo = 0;
 
 /** 报告生成参数小组件（模板 / 解读癌种 / 报告日期 / 解读人，各自带默认值） */
 const generateParamsRef = ref<InstanceType<typeof ReportGenerateParams> | null>(null);
@@ -108,20 +108,24 @@ async function loadPreview() {
   if (!props.analysisId || !props.reportId) {
     return;
   }
+  const requestNo = ++previewRequestNo;
   editing.value = true;
   try {
     const { data, error } = await fetchBuildInterpretationPreview({
       analysisId: props.analysisId,
       reportId: props.reportId,
-      ...(generateParamsRef.value?.params ?? {})
+      realtime: paramsChanged.value,
+      ...generateParamsRef.value?.params
     });
-    if (!error) {
+    if (!error && requestNo === previewRequestNo) {
       preview.value = data?.data ?? null;
       previewSource.value = data?.source ?? '';
       previewArtifactTime.value = data?.artifactGeneratedAt ?? null;
     }
   } finally {
-    editing.value = false;
+    if (requestNo === previewRequestNo) {
+      editing.value = false;
+    }
   }
 }
 
@@ -143,20 +147,25 @@ const hasReportFile = computed(() => previewSource.value === 'artifact');
  * 成功后重新预览 —— 来源变成「已生成报告」，参数随之锁定，并出现下载入口。
  */
 async function handleGenerate() {
+  previewRequestNo += 1;
+  editing.value = false;
   generating.value = true;
   try {
     const { data, error } = await fetchGenerateReport({
       analysisId: props.analysisId,
       reportId: props.reportId,
-      ...(generateParamsRef.value?.params ?? {})
+      ...generateParamsRef.value?.params
     });
     if (!error) {
       const fileName = data?.docxFileName as string | undefined;
       window.$message?.success(fileName ? `报告已生成：${fileName}` : '报告已生成');
+      paramsChanged.value = false;
+      emit('changed');
       await loadPreview();
     }
   } finally {
     generating.value = false;
+    emit('changed');
   }
 }
 
@@ -168,17 +177,24 @@ function handleDownload() {
   zip(fetchGetReportFileUrl(props.reportId, props.analysisId), '');
 }
 
-/** 允许提交审核的报告状态（与后端 InterpretationReviewService.SUBMITTABLE_STATUS 保持一致） */
-const SUBMITTABLE_STATUS = ['INTERPRETING', 'REJECTED'];
+/** 仅本轮生成成功（32）的有效制品允许提交解读 */
+const SUBMITTABLE_STATUS = [32];
 
-/** 提交审核按钮：已生成报告（有成品文件）+ 状态允许提交时才出现 */
-const canSubmitReview = computed(() => hasReportFile.value && SUBMITTABLE_STATUS.includes(props.reportStatus ?? ''));
+/** 允许生成报告：31 解读中 / 32 生成成功 / 33 生成失败或驳回 / 52 签名失败 */
+const GENERATABLE_STATUS = [31, 32, 33, 52];
+
+/** 生成报告按钮：解读中阶段才出现（已提交审核的报告不能再生成，后端也会拦） */
+const canGenerate = computed(() => GENERATABLE_STATUS.includes(Number(props.reportStatus)));
+
+/** 提交解读按钮：已生成报告（有成品文件）+ 状态允许提交时才出现 */
+const canSubmitReview = computed(() => hasReportFile.value && !paramsChanged.value
+  && SUBMITTABLE_STATUS.includes(Number(props.reportStatus)));
 
 const submitting = ref(false);
 
 /**
- * 提交审核：后端在同一事务里冻结本次解读的位点匹配历史（history_*）并把报告置为待审核。
- * 参数与生成时同一套（预览页在已生成状态下是锁定回填的），否则冻出的历史与报告内容对不上。
+ * 提交解读：后端只校验制品并置为待审核（40），**不冻结**位点匹配历史；
+ * 历史在「审核通过」时冻结。参数与生成时同一套（已生成状态下参数锁定回填）。
  */
 async function handleSubmitReview() {
   submitting.value = true;
@@ -186,10 +202,10 @@ async function handleSubmitReview() {
     const { error } = await fetchSubmitReview({
       analysisId: props.analysisId,
       reportId: props.reportId,
-      ...(generateParamsRef.value?.params ?? {})
+      ...generateParamsRef.value?.params
     });
     if (!error) {
-      window.$message?.success('已提交审核，请到「审核报告」处理');
+      window.$message?.success('已提交审核；复审报告会直接进入原审核人的待办');
       emit('changed');
     }
   } finally {
@@ -201,9 +217,10 @@ async function handleSubmitReview() {
 async function saveSignificance(row: Api.Report.PreviewVariant, value: number) {
   savingId.value = row.sourceId;
   try {
-    const { error } = await fetchUpdateGermlineSignificance({
+    const { error } = await fetchUpdateVariantEdits({
       analysisId: props.analysisId,
       reportId: props.reportId,
+      sourceType: row.sourceType ?? 'CR_ALL',
       sourceId: row.sourceId,
       clinicalSignificance: value
     });
@@ -219,7 +236,7 @@ async function saveSignificance(row: Api.Report.PreviewVariant, value: number) {
 async function saveTarget(row: Api.Report.PreviewVariant, parentMutationIds: number[]): Promise<boolean> {
   savingId.value = row.sourceId;
   try {
-    const { error } = await fetchUpdateVariantTarget({
+    const { error } = await fetchUpdateVariantEdits({
       analysisId: props.analysisId,
       reportId: props.reportId,
       sourceType: row.sourceType ?? 'SNP_INDEL',
@@ -237,18 +254,111 @@ async function saveTarget(row: Api.Report.PreviewVariant, parentMutationIds: num
   }
 }
 
+/** 突变说明编辑态（只胚系：肿瘤遗传风险；体细胞预留，先不做） */
+const noteEditing = ref(false);
+const noteSaving = ref(false);
+const noteDraft = ref('');
+
+/** 与「生成报告」同一批状态（31/32/33/52）：40+ 已送审/已发送，说明只读 */
+const NOTE_EDITABLE_STATUS = [31, 32, 33, 52];
+
+/** 只有胚系位点开说明编辑，且报告状态允许（来源=历史时按钮置灰，仍展示） */
+const canEditNote = computed(
+  () => detailRow.value?.sourceType === 'CR_ALL' && NOTE_EDITABLE_STATUS.includes(Number(props.reportStatus))
+);
+
+/** 来源=历史（已入库）→ 说明编辑只读 */
+const noteReadonly = computed(() => detailRow.value?.fromHistory === true);
+
+/** 进入编辑：预填当前整段（人工文本或默认两段），保存后按 sourceType:sourceId 回填 */
+function startEditNote() {
+  noteDraft.value = detailRow.value?.mutationDescription ?? mutationTexts(detailRow.value).join('\n');
+  noteEditing.value = true;
+}
+
+function cancelEditNote() {
+  noteEditing.value = false;
+  noteDraft.value = '';
+}
+
+/**
+ * 保存人工说明（传空串 = 恢复默认）。
+ * <p>
+ * 后端存报告粒度覆盖表，生成报告时覆盖默认说明，所以保存后重新拉预览即可看到新值；
+ * 弹窗不关，直接把 `detailRow` 换成这次预览回来的同一位点。
+ */
+async function persistNote(text: string): Promise<boolean> {
+  const row = detailRow.value;
+  if (!row) {
+    return false;
+  }
+  const key = `${row.sourceType}:${row.sourceId}`;
+  noteSaving.value = true;
+  try {
+    const { error } = await fetchUpdateVariantEdits({
+      analysisId: props.analysisId,
+      reportId: props.reportId,
+      sourceType: row.sourceType,
+      sourceId: row.sourceId,
+      mutationDescription: text
+    });
+    if (error) {
+      return false;
+    }
+    window.$message?.success(text ? '突变说明已保存' : '已恢复默认说明');
+    await loadPreview();
+    const fresh = [...(preview.value?.somaticVariants?.items ?? []), ...(preview.value?.germlineVariants?.items ?? [])].find(
+      item => `${item.sourceType}:${item.sourceId}` === key
+    );
+    if (fresh) {
+      detailRow.value = fresh;
+    }
+    noteEditing.value = false;
+    noteDraft.value = '';
+    return true;
+  } finally {
+    noteSaving.value = false;
+  }
+}
+
+function saveNote() {
+  persistNote(noteDraft.value);
+}
+
+function resetNote() {
+  persistNote('');
+}
+
+/** 两表统一列宽（以「肿瘤遗传风险」为准；中段两列合计都是 280，保证「来源 / 操作」列位对齐） */
+const COL_WIDTH = {
+  gene: 110,
+  variant: 150,
+  type: 150,
+  oriVariant: 220,
+  variantType: 130,
+  zygosity: 110,
+  significance: 170,
+  abundance: 150,
+  variationLevel: 130,
+  source: 100,
+  operate: 190
+};
+
+/** 两表共用的横向滚动宽度 = 各列宽之和，两边必须一致 */
+const TABLE_SCROLL_X = 1330;
+
 /** 位点表前四列（基因 / 变异 / 类型 / 原始位点） */
 function baseColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
   return [
-    { key: 'gene', title: '基因', align: 'center', width: 110, render: row => row.gene ?? '-' },
-    { key: 'variant', title: '变异', align: 'center', width: 150, render: row => row.variant ?? '-' },
+    { key: 'gene', title: '基因', align: 'center', width: COL_WIDTH.gene, render: row => row.gene ?? '-' },
+    { key: 'variant', title: '变异', align: 'center', width: COL_WIDTH.variant, render: row => row.variant ?? '-' },
     // 类型：体系|变异类别|核酸类型（核酸类型只有融合有，由后端 typeText 组装）
-    { key: 'mutationType', title: '类型', align: 'center', width: 150, render: row => row.typeText ?? '-' },
+    { key: 'mutationType', title: '类型', align: 'center', width: COL_WIDTH.type, render: row => row.typeText ?? '-' },
     {
       key: 'oriVariant',
       title: '原始位点',
       align: 'left',
-      minWidth: 220,
+      width: COL_WIDTH.oriVariant,
       ellipsis: { tooltip: true },
       render: row => row.oriVariant ?? '-'
     }
@@ -261,19 +371,19 @@ function variantTypeColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
     key: 'variantType',
     title: '变异类型',
     align: 'center',
-    width: 130,
+    width: COL_WIDTH.variantType,
     render: row => row.variantTypeText ?? '-'
   };
 }
 
 /** 丰度/reads 列：DNA → 45.47%；RNA 融合 → reads 数（无单位）；扩增/缺失 → 拷贝数 */
 function abundanceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
-  return { key: 'frequency', title: '丰度/reads', align: 'center', width: 120, render: row => row.abundanceText ?? '-' };
+  return { key: 'frequency', title: '丰度/reads', align: 'center', width: COL_WIDTH.abundance, render: row => row.abundanceText ?? '-' };
 }
 
-/** 体细胞列 = 公共列 + 变异类型 + 丰度/reads + 位点等级 + 操作 */
+/** 体细胞列 = 公共列 + 变异类型 + 丰度/reads + 位点等级 + 来源 + 操作 */
 function buildSomaticColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [...baseColumns(), variantTypeColumn(), abundanceColumn(), variationLevelColumn(), operateColumn()];
+  return [...baseColumns(), variantTypeColumn(), abundanceColumn(), variationLevelColumn(), sourceColumn(), operateColumn()];
 }
 
 /** 合子列：CR_ALL 的 Zygosity（纯合/杂合）；只在胚系表用 */
@@ -282,14 +392,14 @@ function zygosityColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
     key: 'zygosity',
     title: '纯合/杂合',
     align: 'center',
-    width: 110,
+    width: COL_WIDTH.zygosity,
     render: row => row.zygosity ?? '-'
   };
 }
 
-/** 胚系列 = 公共列 + 变异类型 + 纯合/杂合 + 临床意义 + 操作（丰度/reads、文件判定、位点等级不展示） */
+/** 胚系列 = 公共列 + 变异类型 + 纯合/杂合 + 临床意义 + 来源 + 操作（丰度/reads、文件判定、位点等级不展示） */
 function buildGermlineColumns(): NaiveUI.TableColumn<Api.Report.PreviewVariant>[] {
-  return [...baseColumns(), variantTypeColumn(), zygosityColumn(), significanceColumn(), operateColumn()];
+  return [...baseColumns(), variantTypeColumn(), zygosityColumn(), significanceColumn(), sourceColumn(), operateColumn()];
 }
 
 /** 临床意义列：五级人工确认（1 致病 ~ 5 良性），保存后重新预览 */
@@ -298,13 +408,13 @@ function significanceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
     key: 'clinicalSignificance',
     title: '临床意义',
     align: 'center',
-    width: 170,
+    width: COL_WIDTH.significance,
     render: row => (
       <NSelect
         value={row.clinicalSignificance}
         options={SIGNIFICANCE_OPTIONS}
         size="small"
-        disabled={!canEdit.value}
+        disabled={row.fromHistory === true}
         loading={savingId.value === row.sourceId}
         onUpdateValue={(value: number) => saveSignificance(row, value)}
       />
@@ -318,12 +428,27 @@ function variationLevelColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> 
     key: 'variationLevel',
     title: '位点等级',
     align: 'center',
-    width: 100,
+    width: COL_WIDTH.variationLevel,
     render: row => {
       const short = row.variationClass ? row.variationClass.replace('类', '') : null;
       // 等级是「类别」不是「状态」：按配色契约用中性色，不借用绿/黄/红
       return short ? <NTag size="small">{short}</NTag> : <>-</>;
     }
+  };
+}
+
+/** 来源列：匹配结果来自冻结历史还是本次知识库匹配（后端 fromHistory） */
+function sourceColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
+  return {
+    key: 'fromHistory',
+    title: '来源',
+    align: 'center',
+    width: COL_WIDTH.source,
+    render: row => (
+      <NTag size="small" type={row.fromHistory ? 'default' : 'info'}>
+        {row.fromHistory ? '历史' : '知识库'}
+      </NTag>
+    )
   };
 }
 
@@ -335,7 +460,7 @@ function operateColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
     key: 'operate',
     title: '操作',
     align: 'center',
-    width: 190,
+    width: COL_WIDTH.operate,
     render: row => (
       <div class="flex items-center justify-center gap-10px">
         <NButton text type="primary" size="small" onClick={() => openDetail(row)}>
@@ -344,9 +469,15 @@ function operateColumn(): NaiveUI.TableColumn<Api.Report.PreviewVariant> {
         <NButton text type="primary" size="small" onClick={() => showTodo('匹配')}>
           匹配
         </NButton>
-        <NButton text type="primary" size="small" onClick={() => openTarget(row)}>
-          改靶
-        </NButton>
+        {row.fromHistory === true ? (
+          <NButton text size="small" disabled>
+            改靶
+          </NButton>
+        ) : (
+          <NButton text type="primary" size="small" onClick={() => openTarget(row)}>
+            改靶
+          </NButton>
+        )}
       </div>
     )
   };
@@ -561,20 +692,20 @@ function gradeValue(row: Api.Report.PreviewVariant | null): string {
 
 const sectionMeta = computed(() => [
   {
-    key: 'somatic',
-    title: '体细胞变异解析',
-    hint: '报出的体细胞位点（SNP/Indel + CNV + Fusion），按癌种匹配 NKB 用药证据',
-    section: preview.value?.somaticVariants,
-    columns: buildSomaticColumns(),
-    gradeTags: gradeCountTags(preview.value?.somaticVariants, 'somatic')
-  },
-  {
     key: 'germline',
     title: '肿瘤遗传风险',
     hint: '报出的胚系位点（CR_ALL），临床意义人工确认后按致病性分级匹配证据',
     section: preview.value?.germlineVariants,
     columns: buildGermlineColumns(),
     gradeTags: gradeCountTags(preview.value?.germlineVariants, 'germline')
+  },
+  {
+    key: 'somatic',
+    title: '体细胞变异解析',
+    hint: '报出的体细胞位点（SNP/Indel + CNV + Fusion），按癌种匹配 NKB 用药证据',
+    section: preview.value?.somaticVariants,
+    columns: buildSomaticColumns(),
+    gradeTags: gradeCountTags(preview.value?.somaticVariants, 'somatic')
   }
 ]);
 
@@ -638,7 +769,9 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         <NSpace :size="8">
           <NButton size="small" @click="jsonVisible = true">查看 JSON</NButton>
           <NButton size="small" type="primary" ghost :loading="editing" @click="() => loadPreview()">重新预览</NButton>
-          <NButton size="small" type="primary" :loading="generating" @click="handleGenerate">生成报告</NButton>
+          <NButton v-if="canGenerate" size="small" type="primary" :loading="generating" @click="handleGenerate">
+            生成报告
+          </NButton>
           <NButton v-if="hasReportFile" size="small" type="success" ghost @click="handleDownload">下载报告</NButton>
           <NButton
             v-if="canSubmitReview"
@@ -648,7 +781,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
             :loading="submitting"
             @click="handleSubmitReview"
           >
-            提交审核
+            提交解读
           </NButton>
         </NSpace>
       </NSpace>
@@ -658,11 +791,14 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         ref="generateParamsRef"
         :analysis-id="props.analysisId"
         :report-id="props.reportId"
-        :preset-disease="(preview?.sampleInfo?.disease as string | null) ?? null"
+        :preset-template-id="props.templateId"
+        :template-locked="Boolean(props.reportVersion)"
+        :preset-disease="(preview?.sampleInfo?.diseaseType as string | null) ?? null"
         :preset-report-date="(preview?.reportInfo?.reportDate as string | null) ?? null"
         :preset-analyzer="(preview?.reportInfo?.analyzer as string | null) ?? null"
-        :locked="previewSource === 'artifact'"
-        @change="() => loadPreview()"
+        :locked="!canGenerate"
+        :busy="generating || submitting"
+        @change="() => { paramsChanged = true; loadPreview(); }"
       />
       <NAlert v-if="preview?.warnings?.length" type="warning" :bordered="false" class="mt-12px">
         <div v-for="item in preview.warnings" :key="item">{{ item }}</div>
@@ -691,7 +827,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         :data="meta.section?.items ?? []"
         :loading="editing"
         :row-key="row => row.sourceId"
-        :scroll-x="1200"
+        :scroll-x="TABLE_SCROLL_X"
         size="small"
       />
     </NCard>
@@ -749,7 +885,7 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
 
         <!-- 三段说明：基因说明 / 信号通路说明 / 突变说明（en7 拼装：HGVS 译文 + 位点说明，NKB 优先、四段兜底） -->
         <div
-          v-if="detailRow.geneDescription || detailRow.pathwayDescription || mutationTexts(detailRow).length"
+          v-if="detailRow.geneDescription || detailRow.pathwayDescription || mutationTexts(detailRow).length || canEditNote"
           class="mb-10px flex-col gap-6px text-12px"
         >
           <div v-if="detailRow.geneDescription" class="rounded bg-#f5f7fa p-10px">
@@ -760,15 +896,70 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
             <span class="font-medium">信号通路说明</span>
             <div class="mt-4px leading-20px op-80">{{ detailRow.pathwayDescription }}</div>
           </div>
-          <div v-if="mutationTexts(detailRow).length" class="rounded bg-#f5f7fa p-10px">
-            <span class="font-medium">突变说明</span>
-            <div
-              v-for="(text, index) in mutationTexts(detailRow)"
-              :key="index"
-              class="mt-4px leading-20px op-80"
-            >
-              {{ text }}
+          <div
+            v-if="mutationTexts(detailRow).length || detailRow.mutationDescriptionEdited || canEditNote"
+            class="rounded bg-#f5f7fa p-10px"
+          >
+            <div class="flex items-center justify-between gap-8px">
+              <div class="flex items-center gap-6px">
+                <span class="font-medium">突变说明</span>
+                <NTag v-if="detailRow.mutationDescriptionEdited" size="small" type="warning">已手工修改</NTag>
+              </div>
+              <div v-if="canEditNote" class="flex items-center gap-8px">
+                <ButtonIcon
+                  v-if="!noteEditing"
+                  text
+                  type="primary"
+                  icon="material-symbols:drive-file-rename-outline-outline"
+                  :tooltip-content="noteReadonly ? '已入库（来源=历史），只读' : '编辑突变说明'"
+                  :disabled="noteReadonly"
+                  @click="startEditNote"
+                />
+                <template v-else>
+                  <NButton text size="tiny" :disabled="noteSaving" @click="cancelEditNote">取消</NButton>
+                  <NButton text type="primary" size="tiny" :loading="noteSaving" @click="saveNote">保存</NButton>
+                </template>
+                <template v-if="!noteEditing && detailRow.mutationDescriptionEdited">
+                  <NDivider vertical />
+                  <ButtonIcon
+                    text
+                    icon="material-symbols:backup-outline"
+                    tooltip-content="恢复默认说明"
+                    :disabled="noteSaving || noteReadonly"
+                    @click="resetNote"
+                  />
+                </template>
+              </div>
             </div>
+            <NInput
+              v-if="noteEditing"
+              v-model:value="noteDraft"
+              type="textarea"
+              :rows="6"
+              :maxlength="4000"
+              show-count
+              class="mt-6px"
+              placeholder="填写该位点的突变说明"
+            />
+            <template v-else>
+              <!-- 人工改过的整段说明（单段，保留换行）；未改过则分两段展示 HGVS 译文 + 位点说明 -->
+              <div
+                v-if="detailRow.mutationDescriptionEdited"
+                class="mt-4px whitespace-pre-wrap leading-20px op-80"
+              >
+                {{ detailRow.mutationDescription }}
+              </div>
+              <template v-else>
+                <div
+                  v-for="(text, index) in mutationTexts(detailRow)"
+                  :key="index"
+                  class="mt-4px whitespace-pre-wrap leading-20px op-80"
+                >
+                  {{ text }}
+                </div>
+                <div v-if="!mutationTexts(detailRow).length" class="mt-4px text-12px op-60">暂无说明</div>
+              </template>
+            </template>
           </div>
         </div>
 
@@ -850,7 +1041,6 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
         clearable
         :options="targetOptions"
         :loading="candidateLoading"
-        :disabled="!canEdit"
         placeholder="输入基因或位点关键词搜索知识库节点"
         @search="searchCandidates"
       />
@@ -859,7 +1049,6 @@ watch(() => [props.analysisId, props.reportId], () => initPreview(), { immediate
           <NButton @click="targetVisible = false">取消</NButton>
           <NButton
             type="primary"
-            :disabled="!canEdit"
             :loading="savingId === targetRow?.sourceId"
             @click="confirmTarget"
           >

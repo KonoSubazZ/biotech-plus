@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { $t } from '@/locales';
 
 defineOptions({
@@ -6,7 +6,7 @@ defineOptions({
 });
 
 interface Props {
-  /** Whether to show the title */
+  /** 侧栏展开时显示系统名，收起时只留标记 */
   showTitle?: boolean;
 }
 
@@ -16,11 +16,15 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-  <RouterLink to="/" class="w-full flex-center nowrap-hidden">
-    <SystemLogo class="fill-primary text-30px" />
-    <h2 v-show="showTitle" class="pl-12px text-16px text-primary font-bold transition duration-300 ease-in-out">
+  <RouterLink
+    to="/"
+    class="w-full flex-y-center nowrap-hidden"
+    :class="showTitle ? 'px-16px' : 'justify-center'"
+  >
+    <SystemLogo :size="28" />
+    <span v-show="showTitle" class="pl-10px text-16px text-primary font-600 dark:text-white">
       {{ $t('system.title') }}
-    </h2>
+    </span>
   </RouterLink>
 </template>
 

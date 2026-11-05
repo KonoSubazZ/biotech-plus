@@ -13,19 +13,31 @@
 
     <resultMap id="ProductConfigResult" type="org.dromara.project.domain.vo.ProductConfigVo">
         <id property="id" column="id"/>
-        <result property="name" column="name"/>
-        <result property="code" column="code"/>
-        <result property="testType" column="test_type"/>
+        <result property="productCode" column="product_code"/>
+        <result property="tradeName" column="trade_name"/>
+        <result property="productBio" column="product_bio"/>
+        <result property="productName" column="product_name"/>
         <result property="relatedDiseases" column="related_diseases"/>
+        <result property="testType" column="test_type"/>
+        <result property="controlType" column="control_type"/>
+        <result property="productVersion" column="product_version"/>
+        <result property="sequencingPlatform" column="sequencing_platform"/>
+        <result property="geneCount" column="gene_count"/>
         <result property="reportCycleDays" column="report_cycle_days"/>
+        <result property="maintainLab" column="maintain_lab"/>
+        <result property="relatedProcess" column="related_process"/>
+        <result property="probeType" column="probe_type"/>
+        <result property="panelType" column="panel_type"/>
         <result property="status" column="status"/>
         <result property="remark" column="remark"/>
         <result property="createTime" column="create_time"/>
     </resultMap>
 
     <sql id="selectProductConfigColumns">
-        p.id, p.name, p.code, p.test_type, p.related_diseases,
-        p.report_cycle_days, p.status, p.remark, p.create_time
+        p.id, p.product_code, p.trade_name, p.product_bio, p.product_name,
+        p.related_diseases, p.test_type, p.control_type, p.product_version, p.sequencing_platform,
+        p.gene_count, p.report_cycle_days, p.maintain_lab, p.related_process, p.probe_type,
+        p.panel_type, p.status, p.remark, p.create_time
     </sql>
 
     <!--
@@ -38,6 +50,21 @@
         FROM qc_standard
         WHERE product_id = #{productId}
           AND del_flag = '0'
+    </select>
+
+    <!--
+      编码唯一校验：故意不带 del_flag 条件。
+      唯一键 uk_product_config_product_code 不含 del_flag，软删行仍占编码；
+      带上 del_flag='0' 会让「删了再建同编码」通过校验后撞唯一键报 500。
+      租户条件由租户拦截器附加，与唯一键的 (tenant_id, product_code) 维度一致。
+    -->
+    <select id="countByProductCodeIncludeDeleted" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM product_config
+        WHERE product_code = #{productCode}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
     </select>
 
 </mapper>

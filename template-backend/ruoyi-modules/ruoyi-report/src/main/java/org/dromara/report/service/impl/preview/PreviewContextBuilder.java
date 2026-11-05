@@ -121,11 +121,14 @@ public class PreviewContextBuilder {
         pc.setGender(gender);
         pc.setCustomer(customer);
         pc.setProjectCode(firstNonBlank(asString(report.get("product")), ""));
+        pc.setProjectNo(asString(report.get("projectNo")));
         // 产品基因：product_id 为空时按产品名兼容定位（scanner 只写产品名）
         Long resolvedProductId = reportTemplateDataService.resolveProductId(productId, asString(report.get("product")));
         pc.setProductGenes(resolvedProductId == null
             ? List.of() : interpretationMapper.selectProductGeneSymbols(resolvedProductId));
         pc.setSpecimenType(lims.getSpecimenType());
+        pc.setSample(context.getSample());
+        pc.setOrderSamples(context.getOrderSamples());
         return pc;
     }
 

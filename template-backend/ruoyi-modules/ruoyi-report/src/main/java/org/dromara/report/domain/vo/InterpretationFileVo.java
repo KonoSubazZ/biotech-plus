@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 解读页 Tab② 集群对接：文件列表行（data_file_status）
+ * 解读页 Tab② 集群对接：文件列表行（analysis_file_status）
  * <p>
  * 只带列表需要的列，不带 {@code file_text}（LONGTEXT，最大几十 KB）——
  * 内容由「查看文件」单独接口按 file_id 取，避免列表接口把大字段全查出来。

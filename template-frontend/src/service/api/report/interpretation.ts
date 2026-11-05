@@ -1,5 +1,15 @@
 import { request } from '@/service/request';
 
+/** 已发送报告整批重扫后进入新的生信看点记录。 */
+export function fetchReinterpretReport(data: { analysisId: number; reportId: number }) {
+  return request<Api.Report.InterpretationReport>({
+    url: '/report/interpretation/reinterpret',
+    method: 'post',
+    data,
+    timeout: 360000
+  });
+}
+
 /**
  * 报告解读接口层（报告管理 › 报告解读）
  * <p>
@@ -40,6 +50,33 @@ export function fetchGetInterpretationFileContent(params: { fileId: number; anal
     url: '/report/interpretation/file/content',
     method: 'get',
     params
+  });
+}
+
+/** Tab③ 看点完成：20 生信看点 → 21 生信审核（返回流转后的状态码） */
+export function fetchFinishBioinfoView(data: { analysisId: number; reportId: number }) {
+  return request<number>({
+    url: '/report/interpretation/bioinfo/view-complete',
+    method: 'post',
+    data
+  });
+}
+
+/** Tab③ 生信复核通过：21 生信审核 → 30 报告待解读（返回流转后的状态码） */
+export function fetchFinishBioinfoReview(data: { analysisId: number; reportId: number }) {
+  return request<number>({
+    url: '/report/interpretation/bioinfo/review-complete',
+    method: 'post',
+    data
+  });
+}
+
+/** Tab② 重新驱动单个文件（后端调外部 scanner.py 驱动单文件，脚本写回状态后返回最新值） */
+export function fetchRedriveInterpretationFile(data: { analysisId: number; fileId: number }) {
+  return request<Api.Report.FileRedriveResult>({
+    url: '/report/interpretation/file/redrive',
+    method: 'post',
+    data
   });
 }
 
@@ -97,6 +134,7 @@ export function fetchGetInterpretationTemplateOptions(params: { analysisId: numb
  * 否则实时组装。只返回、不落库。
  */
 export function fetchBuildInterpretationPreview(data: {
+  realtime?: boolean;
   analysisId: number;
   reportId: number;
   /** 报告生成参数：模板 / 解读癌种 / 报告日期 / 解读人（都不传就用默认值） */
@@ -112,30 +150,23 @@ export function fetchBuildInterpretationPreview(data: {
   });
 }
 
-/** 人工确认胚系五级临床意义 */
-export function fetchUpdateGermlineSignificance(data: {
-  analysisId: number;
-  reportId: number;
-  sourceId: number;
-  clinicalSignificance: number;
-}) {
-  return request<null>({
-    url: '/report/interpretation/germline-clinical-significance',
-    method: 'post',
-    data
-  });
-}
-
-/** 改靶（体细胞 / 胚系共用）：给位点人工指定一个或多个 NKB 父级节点；空数组 = 取消改靶 */
-export function fetchUpdateVariantTarget(data: {
+/**
+ * 位点人工修改（父靶点 / 胚系临床意义 / 突变说明）
+ * <p>
+ * 报告粒度存储（report_variant_edits），只影响本报告生成的 JSON；来源=历史（已入库）只读。
+ * 三个字段都可选：不传 = 不改；parentMutationIds 空数组 = 取消改靶；mutationDescription 空串 = 恢复默认。
+ */
+export function fetchUpdateVariantEdits(data: {
   analysisId: number;
   reportId: number;
   sourceType: string;
   sourceId: number;
-  parentMutationIds: number[];
+  parentMutationIds?: number[] | null;
+  clinicalSignificance?: number | null;
+  mutationDescription?: string | null;
 }) {
   return request<null>({
-    url: '/report/interpretation/variant-target',
+    url: '/report/interpretation/variant-edits',
     method: 'post',
     data
   });
@@ -151,7 +182,7 @@ export function fetchParentCandidates(keyword: string) {
 }
 
 /** 进入解读：创建/复用该分析批次的「解读中」报告，返回 reportId */
-export function fetchEnterInterpretation(data: { analysisId: number }) {
+export function fetchEnterInterpretation(data: { analysisId: number; readonly?: boolean }) {
   return request<Api.Report.InterpretationReport>({
     url: '/report/interpretation/enter',
     method: 'post',

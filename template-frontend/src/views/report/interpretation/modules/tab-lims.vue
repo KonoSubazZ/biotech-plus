@@ -6,7 +6,7 @@ defineOptions({
 });
 
 interface Props {
-  /** 后端 InterpretationLimsVo：字段已按设计书 5.2 从 sample_file 映射好 */
+  /** 后端 InterpretationLimsVo：字段已按设计书 5.2 从 cms_sample 映射好 */
   lims: Api.Report.InterpretationLims;
 }
 
@@ -23,14 +23,14 @@ function show(value: string | null | undefined) {
     <NAlert v-if="props.lims.found === false" type="error" :bordered="false" title="未找到样本信息">
       按样本编号
       <b>{{ props.lims.subbarcode }}</b>
-      在样本信息（sample_file.subbarcode）里没有查到记录 —— LIMS 信息缺失，无法继续解读。
+      在样本信息（cms_sample.subbarcode）里没有查到记录 —— LIMS 信息缺失，无法继续解读。
     </NAlert>
 
     <template v-else>
       <NCard title="患者与疾病" :bordered="false" size="small">
         <NDescriptions bordered :column="3" label-placement="left" size="small">
-          <NDescriptionsItem label="患者编号">{{ show(props.lims.patientId) }}</NDescriptionsItem>
-          <NDescriptionsItem label="患者姓名">{{ show(props.lims.patientName) }}</NDescriptionsItem>
+          <NDescriptionsItem label="受试者编号">{{ show(props.lims.patientId) }}</NDescriptionsItem>
+          <NDescriptionsItem label="样本名称">{{ show(props.lims.patientName) }}</NDescriptionsItem>
           <NDescriptionsItem label="性别">{{ show(props.lims.gender) }}</NDescriptionsItem>
           <NDescriptionsItem label="出生日期">{{ show(props.lims.birthday) }}</NDescriptionsItem>
           <NDescriptionsItem label="年龄">{{ show(props.lims.age) }}</NDescriptionsItem>
@@ -44,7 +44,7 @@ function show(value: string | null | undefined) {
 
       <NCard title="样本与送检" :bordered="false" size="small">
         <NDescriptions bordered :column="3" label-placement="left" size="small">
-          <NDescriptionsItem label="医院/送检单位" :span="2">{{ show(props.lims.hospitalName) }}</NDescriptionsItem>
+          <NDescriptionsItem label="客户名称" :span="2">{{ show(props.lims.hospitalName) }}</NDescriptionsItem>
           <NDescriptionsItem label="实验室">{{ show(props.lims.laboratoryName) }}</NDescriptionsItem>
           <NDescriptionsItem label="样本编号">{{ show(props.lims.subbarcode) }}</NDescriptionsItem>
           <NDescriptionsItem label="样本类型">{{ show(props.lims.specimenType) }}</NDescriptionsItem>

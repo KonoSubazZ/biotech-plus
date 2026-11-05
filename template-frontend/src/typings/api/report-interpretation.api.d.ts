@@ -27,13 +27,14 @@ declare namespace Api {
       productId: number | null;
       /** 解读人员 */
       analyzer: string | null;
-      /** 集群驱动状态：DRIVING / LOADED / PARTIAL */
-      driveStatus: string | null;
+      /** 集群驱动状态（int 码：10 驱动失败 / 11 驱动成功 / 12 驱动中） */
+      driveStatus: number | null;
       /** 驱动执行时间 */
       driveExecutedAt: string | null;
       /** 报告ID（为空 = 该批次还没点过「解读」） */
       reportId: number | null;
-      /** 报告状态：INTERPRETING / PENDING_REVIEW / APPROVED / REJECTED / SENT */
+      reportVersion?: number | null;
+      /** 报告状态（int 码：20/21/30/31/32/33/40/41/42/43/50/52/53/60/61/62，见后端 utils/ReportStatus） */
       reportStatus: string | null;
       /** 解读癌种 */
       analysisDisease: string | null;
@@ -63,18 +64,43 @@ declare namespace Api {
         Common.CommonSearchParams
     >;
 
+    /** 单文件重新驱动结果（= 后端 FileRedriveVo） */
+    interface FileRedriveResult {
+      /** 文件ID */
+      fileId: number;
+      /** 文件名 */
+      fileName: string | null;
+      /** 该文件驱动后的状态（Loaded / Pending / Error） */
+      fileStatus: string | null;
+      /** 该批次的样本级驱动状态（int 码：10 失败 / 11 成功 / 12 驱动中） */
+      driveStatus: number | null;
+      /** 驱动脚本给的说明（成功行数 / 失败原因） */
+      message: string | null;
+    }
+
     /** 报告头信息（= 后端 AnalysisReportVo，进详情页要用 reportId） */
     interface InterpretationReport {
       reportId: number;
+      reportVersion?: number | null;
+      reportGenerationNo?: number | null;
+      reportReviewerId?: number | null;
+      reportReviewClaimedBy?: number | null;
+      sourceReportId?: number | null;
+      reportName?: string | null;
       analysisId: number;
       analysisDate: string | null;
       subbarcode: string | null;
-      product: string | null;
+      productBio: string | null;
       productId: number | null;
+      /** 项目编号（= cms_sample.project_no） */
+      projectNo: string | null;
+      /** 上传批次目录名（= analysis_data.analysis_batch_date） */
+      analysisBatchDate: string | null;
       analysisDisease: string | null;
       templateId: number | null;
       template: string | null;
-      status: string;
+      /** 报告状态（int 码：20/21/30/31/32/33/40/41/42/43/50/52/53/60/61/62） */
+      reportStatus: number | null;
       comment: string | null;
       createTime: string | null;
       /** 报告产出人（用户ID字符串） */
@@ -91,7 +117,7 @@ declare namespace Api {
       reportSentAt: string | null;
     }
 
-    /** 解读页 Tab① LIMS 信息（= 后端 InterpretationLimsVo；数据源 sample_file） */
+    /** 解读页 Tab① LIMS 信息（= 后端 InterpretationLimsVo；数据源 cms_sample） */
     interface InterpretationLims {
       /** 是否找到该样本编号的样本信息；false = 没有 LIMS 数据（会阻止生成） */
       found: boolean | null;
@@ -149,7 +175,7 @@ declare namespace Api {
       doctorEmail: string | null;
     }
 
-    /** 解读页 Tab② 集群对接：文件列表行（= 后端 InterpretationFileVo，data_file_status） */
+    /** 解读页 Tab② 集群对接：文件列表行（= 后端 InterpretationFileVo，analysis_file_status） */
     interface InterpretationFile {
       fileId: number;
       /** 文件类型：SNP / Indel / CNV / Fusion / CR_ALL / MSI / qc / Chem / Chemical_all */
@@ -355,6 +381,8 @@ declare namespace Api {
       zygosity: string | null;
       clinicalSignificance: number | null;
       clinicalSignificanceLabel: string | null;
+      /** 是否复用冻结的历史匹配结果（true=历史，false=本次知识库匹配）；页面「来源」列用 */
+      fromHistory: boolean | null;
       /** MATCHED / NOT_MATCHED */
       matchStatus: string | null;
       variationClass: string | null;
@@ -403,6 +431,13 @@ declare namespace Api {
       variantDescription: string | null;
       /** 突变说明（HGVS → 中文，移植 en7 的 translate_hgvs.pl） */
       mutationExplanation: string | null;
+      /**
+       * 报告里展示的「突变说明」整段文本：人工修改优先，
+       * 否则 = HGVS 译文 + 位点说明（en7 口径，直接拼接）
+       */
+      mutationDescription: string | null;
+      /** 突变说明是否被人工改过（「已手工修改」标签用） */
+      mutationDescriptionEdited: boolean | null;
     }
 
     /** 报告预览：一个分节 */

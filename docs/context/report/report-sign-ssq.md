@@ -143,7 +143,7 @@ sudo ip route add 172.17.20.31 via 172.20.1.254 dev eno4
 ## 6. 本次不做（明确边界）
 
 - 下载签名后 PDF（网关 `DownloadFile`）；
-- 落盘到 `signed/`（`<root>/{report,notify}/signed/<yyyyMMdd>/`）；
+- 落盘到 `signed/`（报告：`<root>/report/signed/<analysis_date>/`，日期取 `analysis_report.analysis_date`；通知：`<root>/notify/signed/<yyyyMMdd>/`）；
 - 签署状态查询（`best-signquery-contract-info/{contractId}`）与回调入口；
 - `IReportSignService` 的实现（`submit(reportId)` + `handleCallback`）与库列回填（`sign_flow_no` / `sign_status` / `report_signed_file_path`）；
 - Controller / 前端按钮（本次只交付 IService）；

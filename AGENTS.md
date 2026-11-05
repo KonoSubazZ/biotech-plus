@@ -5,11 +5,14 @@
 > - 改前端 → 先读 `template-frontend/.claude/CLAUDE.md`（`.codex/` 同源），设计约束读 `template-frontend/DESIGN.md` 与 `UX-CONTRACT.md`
 > - 本文件只管：仓库是什么、文档在哪、代码在哪、怎么跑、怎么交付、有哪些坑。
 > - **写代码 / 提 PR 前必读 `ai-rules/`**（可读性判据、评审契约、多人协作），并跑一次
->   `python3 tools/readability_check.py --changed-only origin/main`。新模块从 `ai-templates/` 复制。
->   页面结构另有闸门：`python3 tools/structure_check.py --changed-only origin/main`（两个都要过）。
+>   `python3 tools/readability_check.py --changed-only origin/master`。新模块从 `ai-templates/` 复制。
+>   页面结构另有闸门：`python3 tools/structure_check.py --changed-only origin/master`（两个都要过）。
 >   动数据库表另有闸门：`python3 tools/check_db_schema.py`（建表规范见 `ai-rules/04-db-schema.md`）。
 >   **改完必须规范提交**：先跑一次 `bash tools/install-git-hooks.sh` 装钩子，
 >   之后每次提交会自动跑闸门并校验提交信息（type/scope/中文简述，规范见 `ai-rules/05-git-commit.md`）。
+> - **分支基线**：本仓默认分支是 `master`，**没有 `main`**（`origin/main` 不存在，闸门会直接报错）。
+>   当前主干开发在 `feat/audit-cdc`（比 `master` 多 27 个提交，截至 2026-10-21），
+>   所有闸门/评审命令的基线统一写 `origin/master`。
 
 ---
 
@@ -26,9 +29,19 @@ Monorepo，两个可独立构建的子项目：
 
 ### 1.1 当前状态（最重要的一条）
 
-- **业务代码尚未实现。** 后端只有 RuoYi 自带模块（`ruoyi-system` / `ruoyi-generator` / `ruoyi-job`），前端只有模板页面（`about` / `home` / `monitor` / `system` / `tool`）。
-- 仓库现有的内容是**模板脚手架 + 一批设计文档**，两者尚未合并。
-- 设计文档描述的业务表（`qc_record`、`product_config`、`audit_log`、`analysis_report` 等 13 张）在全仓代码里**命中 0 次**，也没有对应的建表 SQL。
+- **业务代码已经实现，不在 `master` 上**：主干开发分支是 `feat/audit-cdc`（比 `master` 多 27 个提交，
+  截至 2026-10-21）。本文档旧版本写的"业务代码尚未实现"已经过期，**不要再按那句话从零新建模块**。
+- 后端 6 个业务模块（与 RuoYi 自带的 system/generator/job 并存）：
+  `ruoyi-project`(18 类) · `ruoyi-qc`(38) · `ruoyi-report`(137) · `ruoyi-compliance`(24) ·
+  `ruoyi-audit`(5) · `ruoyi-drive`(29)。
+- 报告域 2026-10-27 起的新口径（制品目录按 analysis_date、数字状态码、生信认领、62 只读、历史改到审核通过才冻结）
+  集中在 §3.3，权威细节在 `docs/context/report/report-module-design.md` §0.7。
+- 前端已实现页面：`report/`（解读 9 页签 / 样本流转 / 样本信息 / 模板 / 邮件配置 / 位点历史）、
+  `qc/`（湿实验质控、生信质控）、`project/`（产品配置、质控标准）、
+  `compliance/`（3Q 文档、开发记录、验证记录）。
+- 业务表 DDL 是有的：`template-backend/script/sql/business/*.sql`（15 个）+ `script/sql/update/*.sql`（43 个迁移）。
+- 报告模块的设计与流程文档在 `docs/context/report/`（`report-module-design.md`、`report-module-flow.md`、
+  `report-driver/` = 旧 Python 驱动仓，只读参考）。
 
 ### 1.2 技术栈错位（必须知道，否则一定写错）
 
@@ -58,6 +71,9 @@ Monorepo，两个可独立构建的子项目：
 | `docs/context/设计文档/<模块>.md` | 其余 11 篇模块设计文档，格式统一为「数据模型 + API + 功能流程 + 角色权限」 | 改对应模块前 |
 | `docs/context/流程图/<模块>-flow.md` | 5 条业务流程（wetlab-qc / report / company-access / data-retention / system-management） | 理业务流程 |
 | `docs/context/设计文档/task_implement.json` | 文档生成过程记录；其 `write_scope` / `read_scope` 指向外部项目路径，**勿依赖** | 仅追溯来源 |
+| `docs/context/report/report-module-design.md` | 报告域实现基线；**§0 是权威快照**，§0.7 = 状态码/认领/只读/冻结时机/驳回（2026-10-27） | 改报告域任何一处之前 |
+| `docs/context/report/report-module-flow.md`、`report-docx-renderer.md` | 流程图（旧枚举图另有数字码注释）、docx 渲染与**制品目录** | 改流程 / 改产物落盘 |
+| `docs/deliverables/`（gitignore） | 甲方交付文档（功能设计 / 数据库设计 / 测试用例 / SOP）。**由 `/home/liushangzhi/project/qa/biotech-plus/gen_docs_*.py` 生成**，手改会被覆盖；截图由同目录 `capture_interpretation.py` 采集 | 改交付文档口径时改生成器再重跑 |
 
 设计文档里出现的 `classDef unimplemented stroke-dasharray: 5 5` 表示该节点**未实现**，不是笔误。
 
@@ -75,9 +91,17 @@ ruoyi-common/           23 个子模块（ruoyi-common-bom 统一版本 + 22 个
                         ratelimiter / sse / websocket / translation / sensitive / job / mail /
                         sms / social / encrypt / doc / json）
 ruoyi-modules/
-  ruoyi-system/         用户 / 角色 / 菜单 / 部门 / 租户（业务代码放这里或新增同级模块）
-  ruoyi-generator/      代码生成器
-  ruoyi-job/            定时任务
+  ruoyi-system/         用户 / 角色 / 菜单 / 租户 / 字典 / 客户端（RuoYi 自带）
+  ruoyi-generator/      代码生成器（自带）
+  ruoyi-job/            定时任务（自带）
+  ruoyi-project/        产品配置 / 基因面板 / 质控标准（对应前端 /project/*）
+  ruoyi-qc/             湿实验质控 + 生信质控（对应前端 /qc/*，有上游接收接口）
+  ruoyi-report/         报告全流程：解读 9 页签 / 样本流转 / 样本信息 / 模板 / 邮件 / 位点历史 /
+                        报告生成渲染 / 复审与版本 / 上上签签名（137 个类，最重的模块）
+  ruoyi-drive/          数据驱动入库：解析上传文件 → analysis_data / analysis_file_status / file_* 明细
+                        （4 个接口，见 §3.2；**不依赖 ruoyi-report**，依赖方向只能 report → drive）
+  ruoyi-compliance/     3Q 文档 / 开发记录 / 验证记录
+  ruoyi-audit/          审计日志（Canal CDC 入库）
 ruoyi-extend/           monitor-admin（Spring Boot Admin 9090）、snailjob-server（17888）
 config/checkstyle/      checkstyle.xml（绑定 Maven validate 阶段）
 script/                 bin / docker / sql / tests（含 checkstyle-regression.ps1）/ leave
@@ -88,10 +112,89 @@ docs/backend-code-standard.md
 `domain`（实体）· `domain/bo`（请求对象）· `domain/vo`（响应对象）·
 `XxxController`（路由/校验/权限/封装返回）· `IXxxService` + `XxxServiceImpl`（业务/事务）· `XxxMapper`（持久化）
 
-### 3.2 前端 `template-frontend/`
+### 3.2 驱动入库 `ruoyi-drive`（2026-10-21 落地，改这块前必读）
+
+**这条链路已经全部在 Java 里了，不要再去找 / 调用 `report-driver/scanner.py`。**
+Python 驱动仓（`docs/context/report/report-driver/`，独立 git）现在只作为口径参考与新增类型的解析样板。
+
+- 入口（2026-10-22 收敛为两个）：`POST /report/drive/sample`（`analysisBatchDate`(14) + `productBio` + `subbarcode`
+  + `type=UPLOAD|REINTERPRET`）与 `POST /report/drive/file`（`analysisId`+`fileId`），**同步**返回最终状态与文件数。
+  外部调用走固定 token `X-Api-Token`（`api.token.paths` 含 `/report/drive/**`），且**必须同时带 `clientid` 头**（缺→401）。
+- 文件类型：`utils/DriveFileType` 枚举是唯一权威（第一版只有 1238 产品的 10 个固定文件）；
+  文件名规则 `<样本编号>T<suffix>`，枚举顺序即匹配顺序（`.G.qc.txt` 必须排在 `.qc.txt` 前）。
+  新增类型 = 加一个枚举值 + 一个 `DriveFileParser` 实现，不改 Registry / Controller。
+- 两种驱动逻辑：
+  · `type=UPLOAD`（生信上传）→ 三件套（`analysis_batch_date`+`product_bio`+`subbarcode`）已有记录就**拒绝**，
+    没有则新建 `analysis_id`（`INSERT … WHERE NOT EXISTS` 原子判重）
+  · `type=REINTERPRET`（重新解读）→ 同三件套不判重，**新建 analysis_id**
+  · 重新驱动 → **同一批次**：该文件 `del_flag='0'` 的行置 `'1'`，再插一条 `del_flag='0'` 的新行（**新 file_id**）
+- **上传幂等（用户 2026-10-22 定）**：同一批次目录重复上传直接拒（返回「该批次已驱动过，拒绝重复上传」），
+  不再「每次都新建批次」。失败样本的修复入口是 `/report/drive/file` 单文件重驱；
+  同一批次目录要再跑一遍必须用 `type=REINTERPRET`（页面「重新解读」）。
+- 样本状态：本次 10 个文件全成功才 `drive_status=11`；缺文件或有失败一律 `10`
+  （旧脚本"缺文件仍可能算成功"的口径已废弃）。
+- 租户：驱动是平台动作，**不写 tenant_id**（走库默认 000000），数据访问统一包在 `TenantContext.withoutTenant`。
+  用户 2026-10-21 定：本期不考虑租户，后续整体移除租户数据权限模块。
+- 表约束（改表前必看）：`analysis_data` **没有唯一键**，只有 `idx_analysis_batch (analysis_batch_date, product_bio, subbarcode)`；
+  `analysis_file_status`（2026-10-22 由 `data_file_status` 改名）**也没有唯一键**，只有 `idx_file_analysis (analysis_id, file_name)`。
+  「重新解读要同三件套多行」「同一文件多历史行」都是设计要求，**不要按旧口径把唯一键加回来**。
+  迁移脚本：`5.6.31`（首版 batch_no 方案）→ `5.6.32`（批次口径）→ `5.6.33`（文件状态表改名）→ `5.6.34`（报告表 project_no/product_bio）。
+- 未实现：旧驱动其余 30 个文件类型（tmb / her2 / mgmt / immune_all / neoantigen / mrd / pdinfo …）
+  本轮按用户口径不做，且这些老明细表在本地库也不存在；等新驱动逻辑口径确定后再加枚举 + 解析器。
+- 按钮接线：`InterpretationServiceImpl.redriveFile`、`ReportReinterpretService.reinterpret` 只调 `IDriveService`，
+  不要在 report 模块里再写解析/落库。
+- 配置位置：`drive.root-dir` **按环境放在 profile 文件**——`application-dev.yml` = `/tmp/rp-upload`，
+  `application-prod.yml` = `${DRIVE_ROOT_DIR:}`（留空时调用即快速失败，不猜生产路径）；
+  共用 `application.yml` 只放与环境无关的项（create-by / operator-name / 批量行数 / file_text 上限）。
+  生产必须把该目录挂进后端容器，`deploy.sh` 的 `DRIVER_UPLOAD_DIR` 要与之一致。
+
+### 3.3 报告制品目录与状态机（report 域，2026-10-27 口径，改这块前必读）
+
+**制品根** = `report.artifact.root`（容器 `/app/reports`，宿主 `/home/liushangzhi/project/reports`），
+日期目录**统一取 `analysis_report.analysis_date`**（不是生成当天），空或非 8 位数字直接报错、不猜：
+
+```text
+report/{json,docx,pdf,signed}/<yyyyMMdd>/   四个阶段，同一轮共用一个文件名前缀
+report/rejected/<yyyyMMdd>/<subbarcode>_V<n>/{json,docx,pdf,signed}/ + manifest.json
+.work/<tenant>_<reportId>_<轮次>/           临时区，成功后逐阶段 move，失败直接丢弃
+```
+
+- 文件名 = `客户_样本_模板名_V<版本>`；同 reportId+version+analysis_date 重生成 → **同名覆盖**；
+  只有「发送成功」（sent_version+1）之后版本号才递增。不再有 `report/<tenant>/<reportId>/V<n>/current` 那一层。
+- 生成失败：只丢临时区（不建 `failed/`、不留半成品、不落库），状态落 33。
+- 审核驳回：先把制品 move 到 `report/rejected/...`（+ `manifest.json`），再 `clearReportArtifact`
+  把库里 4 个路径字段置空，状态回退 31；归档失败则抛错、状态不变。
+
+**状态机**（权威定义 `utils/ReportStatus.java`，数字码，不写英文枚举）：
+
+```text
+20 生信看点 → 21 生信审核 → 30 报告待解读 → 31 报告解读中 →（32 生成成功 / 33 生成失败）
+  → 40 报告待审核 → 41 报告审核中 →（43 审核成功，瞬时）→ 50 签名中 → 60 报告待发送
+  →（61 发送失败 / 62 发送成功终态）；40/41 驳回 → 归档后回退 31
+```
+
+- 42（审核失败）、53（签名成功）**只是定义了、代码不落库**：驳回直接回 31，签名件到手直接写 60。
+- 生信认领（2026-10-27，方案 B，未加列）：点「处理」把 `report_bioinfo_viewed_by` / `report_bioinfo_reviewed_by`
+  置为当前用户（`WHERE report_status=20/21 AND (字段 IS NULL OR 字段=当前用户)`，0 行 → 「已被他人认领」），
+  点「完成」再校验认领人并推进状态；认领不是审核的硬前置，也不自动释放。
+- 62 报告的「查看解读」走 `POST /report/interpretation/enter` 的 `readonly=true`：只返回该批次已有报告，
+  不新建/不补快照/不校验流转状态；前端详情只读（`pointer-events:none` + 置灰），「重新解读」才是重扫出新批次。
+- **位点历史只在「审核通过」时冻结**：提交审核（32→40/41）不写 `history_somatic/history_germline`、
+  不写 `report_variant_history`、不登记 `history_reuse_log`；驳回也不写。详细口径与代码落点见
+  `docs/context/report/report-module-design.md` §0.7。
+- **已入库 = 只读**（2026-11-05）：页面「来源」列 = 历史的行（history_* 已有该 match_key），临床意义、改靶、
+  突变说明全部置灰/只读；对 `history_*` 的更新只剩命中历史时 `reuse_count+1` / `last_reused_at`。
+  未入库位点的三类修改统一存 `analysis_report.report_variant_edits`（json，键 `gene_variant_sourceType:sourceId`），
+  生成报告时写进 JSON；审核通过时**只读该 JSON** 冻结 `history_*`（不再现场重算），与制品不一致的历史值直接阻止审核（B1）。
+- **突变说明**：默认由 HGVS 译文 + NKB 位点说明实时拼（不进冻结）；人工文本与父靶点/临床意义一起存
+  `analysis_report.report_variant_edits`（键 `gene_variant_sourceType:sourceId`），空串 = 恢复默认；
+  只有 31/32/33/52 能改（40+ 只读）。预览/生成共用 `assemble()` 应用，JSON 字段 `...items[].mutationDescription`。
+  **历史 DOCX 模板不含该占位符**，要印用 `{{it.mutationDescription or ''}}`。
+
+### 3.4 前端 `template-frontend/`
 
 ```
-src/views/        页面（当前仅 about / _builtin / home / monitor / system / tool）
+src/views/        页面（about / _builtin / home / monitor / system / tool + 业务页 report / qc / project / compliance）
 src/service/api/  接口层    src/service/request/  请求封装
 src/store/        Pinia     src/router/           路由（文件路由，用 pnpm gen-route 生成）
 src/components/   组件      src/hooks/            组合式函数
@@ -132,10 +235,15 @@ docs/             模板代码生成模板（*.vm）+ 建表 SQL
 | 3Q 文档管理 | `/compliance/documents` | `设计文档/compliance-docs.md` |
 | 开发记录 | `/compliance/dev-log` | `设计文档/dev-log.md` |
 | 3Q 验证记录 | `/compliance/validation-records` | `设计文档/validation-record.md` |
-| 产品配置 | `/system/product-config` | `设计文档/product-config.md` |
+| 产品配置 | `/project/product-config`（**不是** `/system/product-config`） | `设计文档/product-config.md` |
+| 质控标准 | `/project/qc-standard` | 实现时新增，设计文档未单列 |
 | 数据周期管理 | `/system/data-retention` | `设计文档/data-retention.md` |
 | 系统管理 | `/system/role`、`/system/user`、`/system/menu` | `设计文档/system-management.md` |
-| 报告管理 | `/report/management`、`/report/interpretation` | **无设计文档**，仅 `流程图/report-flow.md` |
+| 报告解读 | `/report/interpretation` | 已实现，9 页签状态机（20 生信看点 → … → 62 报告发送）；制品/状态/冻结口径见 §3.3 |
+| 样本流转 | `/report/sample-flow` | 已实现，9 页签 + 处理（含生信认领）/ 重新驱动；口径见 §3.3 与 `docs/context/report/report-module-flow.md` |
+| 样本信息 | `/sample/sample-info` | 已实现（CMS 样本信息，表 `cms_sample`；菜单归样本管理） |
+| 报告模板 / 邮件配置 / 位点历史 | `/report/template`、`/report/mail-config`、`/report/variant-history` | 已实现 |
+| 数据驱动（无页面） | `POST /report/drive/*` | 已实现，口径见 §3.2，外部由生信流程调用 |
 
 角色：`wet_lab`（湿实验员）· `bioinformatician`（生信分析师）· `interpreter`（报告解读员）· `operation_admin`（运营管理员）。
 权限点位形如 `read:QcControl` / `manage:ProductConfig` / `apply:CompanyAccess` / `approve:CompanyAccess`。
@@ -146,13 +254,27 @@ docs/             模板代码生成模板（*.vm）+ 建表 SQL
 
 ### 后端（在 `template-backend/` 下执行）
 
+**本机没有安装 JDK / Maven**（`mvn: command not found`），所有构建/测试都走 Docker 里的 maven 镜像，
+并复用宿主 `~/.m2` 缓存（离线 `-o` 可跑；首次没有缓存时去掉 `-o`）：
+
 ```bash
-mvn -version                                    # 先确认是 JDK 17
-mvn -B -ntp validate                            # 会连带跑 Checkstyle（绑定在 validate）
-mvn -B -ntp -pl ruoyi-modules/ruoyi-system -am validate   # 定向模块
+# 全量打包 → ruoyi-admin/target/ruoyi-admin.jar（后端容器以 bind mount 方式使用它）
+docker run --rm --name biotech-plus-build \
+  -v "$PWD":/src -v ~/.m2:/root/.m2 -w /src -e MAVEN_OPTS=-Xmx2g \
+  maven:3.9-eclipse-temurin-17 mvn -B -ntp -o -Pdev -DskipTests package
+
+# 只编译某个模块（连带依赖）：把 -pl 换成目标模块
+#   ... mvn -B -ntp -o -pl ruoyi-modules/ruoyi-drive -am -DskipTests compile
+
+# 跑单元测试：父 POM 默认 skipTests=true，且 Surefire 按 ${profiles.active} 过滤 @Tag，
+# @Tag("local") 的测试只有 -Plocal 才会执行（-Pdev 会得到 "Tests run: 0"）
+#   ... mvn -B -ntp -o -Plocal -pl ruoyi-admin -am -DskipTests=false \
+#         -Dtest=ReportReinterpretServiceTest -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-- 测试默认被父 POM 跳过，必须显式开：`-DskipTests=false`，且要按 `${profiles.active}` 匹配 Surefire 标签。
+- 生效方式：`ruoyi-admin.jar` 是 bind mount 到容器 `/app/app.jar`，**重建 jar 后必须
+  `docker restart biotech-plus-backend`**；启动日志搜 `Started DromaraApplication` 确认。
+- 部署脚本不在本仓：`/home/liushangzhi/docker/biotech-plus/deploy.sh`（`build` / `build-image` / `restart-backend`）。
 - 改过检查规则后跑：`script/tests/checkstyle-regression.ps1`。
 - 期望结果：末尾 `BUILD SUCCESS`。**核实实际执行的测试数量，零测试不等于通过。**
 
@@ -221,14 +343,27 @@ pnpm gen-route    # 生成路由
 
 ## 9. 已知缺口（别踩，也别假装它们不存在）
 
-- **没有业务表 DDL**：设计文档只有 markdown 字段表，全仓无对应建表 SQL。要建表先确认口径，不要凭文档猜类型。
-- **报告模块没有设计文档**：只有 `流程图/report-flow.md`，且该文档自列 4 项未实现（报告预览 / 审核 / 报告发送 / 归档的实际搬迁操作）。
-- **没有 API 契约文件**：无 OpenAPI/Swagger/共享 TS 类型，接口以设计文档的表格为准（40+ 个路径）。
-- **权限点位不全**：`system-management.md` 称「现有 20 个权限点位」，而 `README.md` 权限矩阵只列了 13 个，缺 7 个无据可查。
-- **文档存在死链**：`设计文档/README.md` 的流程图表链接指向 `../../docs/flowchart/...`，实际目录是 `docs/context/流程图/`，5 处同类引用全部失效。
-- **用户管理 / 菜单管理是纯前端 demo**：读本地模拟数据（`initialUsers` / `initialMenus`），无后端 API，修改不持久化（见 `system-management.md` 第 6 节）。
-- **`sample_qc_info` 字段未穷举**：文档写「另有 20+ 项指标」，缺完整清单。
-- **本仓库没有根 README**：本文件即入口；两个子项目的 README 分别是 RuoYi 和 Soybean 模板自带的，不是本系统的说明。
+- **`master` 落后于主干**：业务实现都在 `feat/audit-cdc`（比 master 多 27 个提交）。切到 `master`
+  会看到"什么都没实现"的假象，别据此判断仓库状态。
+- **驱动只覆盖 1238 的 10 个文件类型**：其余 30 类（tmb / her2 / mgmt / immune_all / neoantigen /
+  mrd / pdinfo …）本轮未实现，对应老明细表在本地库也不存在；口径见 §3.2。
+- **Python 驱动仓是独立 git 且带 WIP**：`docs/context/report/report-driver/` 里 `config/*.json` 大量未提交，
+  只读参考；要改必须提交到它自己的仓，不要混进主仓提交。
+- **没有 API 契约文件**：无 OpenAPI / 共享 TS 类型；接口以 Controller + 前端 `src/service/api` 为准。
+- **文档存在死链**：`设计文档/README.md` 的流程图表链接指向 `docs/flowchart/...`，
+  实际目录是 `docs/context/流程图/`。
+- **部分设计文档与实现已偏离**：产品配置实际路由是 `/project/product-config`（不是 `/system/product-config`），
+  质控标准页 `/project/qc-standard` 是新增的。**以代码为准**，文档只当需求输入。
+- **`sample_qc_info` 字段未穷举**：文档写"另有 20+ 项指标"，缺完整清单。
+- **交付文档里的截图是上一版行为拍的**：`docs/deliverables/10报告解读/截图/图18-提交审核核对.png` 等仍是
+  「提交审核即冻结位点历史」的旧画面（文案已改、图未换）。重拍前先看
+  `/home/liushangzhi/project/qa/biotech-plus/CAPTURE-RESHOT-TODO.md`（capture 脚本已改成数字状态码，
+  但尚未在 QA 实跑验证）。
+- **报告生成会在 docx 目录留下隐藏文件**：`.<报告名>.docx.renderer.log`（`ReportDocxRenderer` 的诊断副产物，
+  随 docx 一起 move 进成品目录）。不想要就改它写到 `.work` 或应用日志。
+- **「报告解读」列表默认按「分析日期=当天」过滤**：跨天回看历史批次会显示“无数据”，
+  先展开搜索区改日期——这是既有默认值，不是接口没返回。
+- **本仓库没有根 README**：本文件即入口；两个子项目 README 是 RuoYi / Soybean 模板自带的。
 
 ---
 
@@ -271,17 +406,17 @@ pnpm gen-route    # 生成路由
 ### 常用命令（提 PR 前两道闸门必跑）
 
 ```bash
-python3 tools/readability_check.py --changed-only origin/main   # 我这次改的合不合规（提 PR 前必跑）
-python3 tools/readability_check.py --rules                      # 规则清单
-python3 tools/structure_check.py --changed-only origin/main     # 页面结构契约（缺 modules 组件 / 未用统一 hooks / 类型写错位置）
-python3 tools/structure_check.py --rules                        # 结构规则清单
-python3 tools/check_db_schema.py                                # 数据库表规范体检（建表/改表后必跑，error 必须为 0）
-python3 tools/check_db_schema.py --rules                        # 数据库规则清单
-python3 tools/check_commit.py --latest 5                        # 校验最近 5 条提交信息（改完要提交时）
-python3 tools/check_commit.py --rules                           # 提交规范清单
-bash tools/install-git-hooks.sh                                 # 装 git 钩子（每个 clone 装一次即可）
+python3 tools/readability_check.py --changed-only origin/master   # 我这次改的合不合规（提 PR 前必跑；基线是 master，不是 main）
+python3 tools/readability_check.py --rules                        # 规则清单
+python3 tools/structure_check.py --changed-only origin/master     # 页面结构契约（缺 modules 组件 / 未用统一 hooks / 类型写错位置）
+python3 tools/structure_check.py --rules                          # 结构规则清单
+python3 tools/check_db_schema.py                                  # 数据库表规范体检（建表/改表后必跑，error 必须为 0）
+python3 tools/check_db_schema.py --rules                          # 数据库规则清单
+python3 tools/check_commit.py --latest 5                          # 校验最近 5 条提交信息（改完要提交时）
+python3 tools/check_commit.py --rules                             # 提交规范清单
+bash tools/install-git-hooks.sh                                   # 装 git 钩子（每个 clone 装一次即可）
 python3 tools/new_crud.py --module <模块> --entity <实体> --table <表> --title <中文> --fields "..." --dry-run
-git diff origin/main...HEAD > /tmp/change.diff                  # 交给评审者
+git diff origin/master...HEAD > /tmp/change.diff                  # 交给评审者
 ```
 
 ### 五条不可协商

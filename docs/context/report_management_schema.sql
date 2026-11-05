@@ -1,3 +1,5 @@
+-- ⚠ 历史快照：本文件是 2026-10 早期导出的结构记录，现行结构见
+--   template-backend/script/sql/business/report-interpretation.sql + update_5.6.32~35。
 -- 报告管理模块建表 SQL（MySQL 5.7，UTF-8）
 -- 导出日期：2026-10-03
 -- 来源：biotech-backend/src/main/resources/db/migration，核对至 V20。
@@ -186,8 +188,8 @@ CREATE TABLE IF NOT EXISTS `analysis_report_email_log` (
   CONSTRAINT `fk_report_email_analysis` FOREIGN KEY (`analysis_id`) REFERENCES `analysis_data` (`analysis_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC COMMENT='报告邮件发送审计日志';
 
--- 09. data_file_status | 来源：V1, V2, V4
-CREATE TABLE IF NOT EXISTS `data_file_status` (
+-- 09. analysis_file_status | 来源：V1, V2, V4
+CREATE TABLE IF NOT EXISTS `analysis_file_status` (
   `file_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `file_path` VARCHAR(300) NOT NULL,
   `file_name` VARCHAR(120) NOT NULL,
@@ -209,7 +211,7 @@ CREATE TABLE IF NOT EXISTS `data_file_status` (
   `analysis_id` BIGINT UNSIGNED NOT NULL,
   `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`file_id`),
-  UNIQUE KEY `data_file_status_uk` (`file_path`, `file_name`),
+  UNIQUE KEY `analysis_file_status_uk` (`file_path`, `file_name`),
   KEY `report_case_key_idx` (`analysis_date`, `product_name`, `subbarcode`, `status`),
   KEY `report_file_subbarcode_idx` (`subbarcode`, `analysis_date`),
   KEY `idx_file_analysis` (`analysis_id`),
@@ -350,7 +352,7 @@ CREATE TABLE IF NOT EXISTS `myapp_webcrmsample` (
 -- 11. file_Somatic_SNV_Indel | 来源：V4, V7
 CREATE TABLE IF NOT EXISTS `file_Somatic_SNV_Indel` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `file_id` int unsigned NOT NULL COMMENT '关联data_file_status.file_id',
+  `file_id` int unsigned NOT NULL COMMENT '关联analysis_file_status.file_id',
   `chr` varchar(50) DEFAULT NULL COMMENT '原字段：chr',
   `start` varchar(50) DEFAULT NULL COMMENT '原字段：start',
   `end` varchar(50) DEFAULT NULL COMMENT '原字段：end',
@@ -400,7 +402,7 @@ CREATE TABLE IF NOT EXISTS `file_Somatic_SNV_Indel` (
 -- 12. file_CNV | 来源：V4, V7
 CREATE TABLE IF NOT EXISTS `file_CNV` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `file_id` int unsigned NOT NULL COMMENT '关联data_file_status.file_id',
+  `file_id` int unsigned NOT NULL COMMENT '关联analysis_file_status.file_id',
   `gene` varchar(255) DEFAULT NULL COMMENT '原字段：gene',
   `chr` varchar(50) DEFAULT NULL COMMENT '原字段：chr',
   `start` varchar(50) DEFAULT NULL COMMENT '原字段：start',
@@ -426,7 +428,7 @@ CREATE TABLE IF NOT EXISTS `file_CNV` (
 -- 13. file_Fusion | 来源：V4, V7
 CREATE TABLE IF NOT EXISTS `file_Fusion` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `file_id` int unsigned NOT NULL COMMENT '关联data_file_status.file_id',
+  `file_id` int unsigned NOT NULL COMMENT '关联analysis_file_status.file_id',
   `chromosome1` varchar(50) DEFAULT NULL COMMENT '原字段：chromosome1',
   `softclip1` varchar(50) DEFAULT NULL COMMENT '原字段：softclip1',
   `sclip1_info` text COMMENT '原字段：sclip1_info',
@@ -472,7 +474,7 @@ CREATE TABLE IF NOT EXISTS `file_Fusion` (
 -- 14. file_CR_ALL | 来源：V4, V7
 CREATE TABLE IF NOT EXISTS `file_CR_ALL` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `file_id` int unsigned NOT NULL COMMENT '关联data_file_status.file_id',
+  `file_id` int unsigned NOT NULL COMMENT '关联analysis_file_status.file_id',
   `gene` varchar(255) DEFAULT NULL COMMENT '原字段：Gene',
   `chr` varchar(50) DEFAULT NULL COMMENT '原字段：Chr',
   `pos` varchar(50) DEFAULT NULL COMMENT '原字段：Pos',
@@ -522,7 +524,7 @@ CREATE TABLE IF NOT EXISTS `file_CR_ALL` (
 -- 15. file_MSI | 来源：V4
 CREATE TABLE IF NOT EXISTS `file_MSI` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `file_id` int unsigned NOT NULL COMMENT '关联data_file_status.file_id',
+  `file_id` int unsigned NOT NULL COMMENT '关联analysis_file_status.file_id',
   `score` varchar(255) DEFAULT NULL COMMENT '原字段：Score',
   `threshold` varchar(255) DEFAULT NULL COMMENT '原字段：Threshold',
   `status` varchar(255) DEFAULT NULL COMMENT '原字段：Status',
@@ -541,7 +543,7 @@ CREATE TABLE IF NOT EXISTS `file_MSI` (
 -- 16. file_qc | 来源：V4
 CREATE TABLE IF NOT EXISTS `file_qc` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `file_id` int unsigned NOT NULL COMMENT '关联data_file_status.file_id',
+  `file_id` int unsigned NOT NULL COMMENT '关联analysis_file_status.file_id',
   `tumor_cell_content` varchar(255) DEFAULT NULL COMMENT '原字段：肿瘤細胞含量',
   `dna_total_ng` varchar(255) DEFAULT NULL COMMENT '原字段：DNA 总量（ng）',
   `dna_degradation` varchar(255) DEFAULT NULL COMMENT '原字段：DNA 降解程度',
@@ -566,7 +568,7 @@ CREATE TABLE IF NOT EXISTS `file_qc` (
 -- 17. file_qc_control | 来源：V4, V15
 CREATE TABLE IF NOT EXISTS `file_qc_control` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `file_id` int unsigned NOT NULL COMMENT '关联data_file_status.file_id',
+  `file_id` int unsigned NOT NULL COMMENT '关联analysis_file_status.file_id',
   `tumor_cell_content` varchar(255) DEFAULT NULL COMMENT '原字段：肿瘤細胞含量',
   `dna_total_ng` varchar(255) DEFAULT NULL COMMENT '原字段：DNA 总量（ng）',
   `dna_degradation` varchar(255) DEFAULT NULL COMMENT '原字段：DNA 降解程度',
@@ -591,7 +593,7 @@ CREATE TABLE IF NOT EXISTS `file_qc_control` (
 -- 18. file_chemical | 来源：V4
 CREATE TABLE IF NOT EXISTS `file_chemical` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `file_id` int unsigned NOT NULL COMMENT '关联data_file_status.file_id',
+  `file_id` int unsigned NOT NULL COMMENT '关联analysis_file_status.file_id',
   `raw_json` longtext COMMENT '原始chemical.json完整内容',
   `reviewed_by` bigint unsigned DEFAULT NULL COMMENT '审核人ID',
   `reviewed_at` datetime DEFAULT NULL COMMENT '审核时间',
@@ -615,7 +617,7 @@ CREATE TABLE IF NOT EXISTS `history_somatic` (
   `disease` varchar(255) NOT NULL,
   `gender` varchar(16) NOT NULL,
   `customer` varchar(255) NOT NULL,
-  `project_code` varchar(120) NOT NULL COMMENT 'analysis_data.product',
+  `project_code` varchar(120) NOT NULL COMMENT 'analysis_data.product_bio',
   `source_type` varchar(32) NOT NULL COMMENT 'SNP_INDEL/CNV/FUSION',
   `mutation_type` varchar(8) NOT NULL DEFAULT 'S',
   `measurement` varchar(100) DEFAULT NULL,
@@ -645,7 +647,7 @@ CREATE TABLE IF NOT EXISTS `history_germline` (
   `disease` varchar(255) NOT NULL,
   `gender` varchar(16) NOT NULL,
   `customer` varchar(255) NOT NULL,
-  `project_code` varchar(120) NOT NULL COMMENT 'analysis_data.product',
+  `project_code` varchar(120) NOT NULL COMMENT 'analysis_data.product_bio',
   `source_type` varchar(32) NOT NULL DEFAULT 'CR_ALL',
   `mutation_type` varchar(8) NOT NULL DEFAULT 'G',
   `measurement` varchar(100) DEFAULT NULL COMMENT '胚系合子状态',

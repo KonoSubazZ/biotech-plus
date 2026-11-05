@@ -1,0 +1,355 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import type { UploadFileInfo } from 'naive-ui';
+import { jsonClone } from '@sa/utils';
+import {
+  fetchCreateReportTemplate,
+  fetchGetReportNameVars,
+  fetchGetProductOptions,
+  fetchGetTemplateProjectOptions,
+  fetchUpdateReportTemplate
+} from '@/service/api/report/template';
+import { getToken } from '@/store/modules/auth/shared';
+import { getServiceBaseURL } from '@/utils/service';
+import { useFormRules, useNaiveForm } from '@/hooks/common/form';
+import { $t } from '@/locales';
+
+defineOptions({
+  name: 'ReportTemplateOperateDrawer'
+});
+
+interface Props {
+  /** 操作类型：add / edit */
+  operateType: NaiveUI.TableOperateType;
+  /** 编辑时的行数据 */
+  rowData?: Api.Report.ReportTemplate | null;
+}
+
+const props = defineProps<Props>();
+
+interface Emits {
+  (e: 'submitted'): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const visible = defineModel<boolean>('visible', {
+  default: false
+});
+
+const { formRef, validate, restoreValidation } = useNaiveForm();
+const { createRequiredRule } = useFormRules();
+
+const saving = ref(false);
+
+const productOptions = ref<Api.Report.ProductOption[]>([]);
+
+const productSelectOptions = computed(() =>
+  productOptions.value.map(item => ({
+    label: `${item.productName}（${item.productCode}）`,
+    value: item.id
+  }))
+);
+
+/** 项目下拉：模板必须先选项目、再选产品（同一项目下同一产品只能绑一个模板） */
+const projectOptions = ref<Api.Report.ProjectOption[]>([]);
+
+const projectSelectOptions = computed(() =>
+  projectOptions.value.map(item => ({
+    label: `${item.projectNo} ${item.projectName}${item.customer ? `（${item.customer}）` : ''}`,
+    value: item.id
+  }))
+);
+
+/** 空的表单模型：moduleCode 留空 = 只输出公共字段；templateCode 不由前端维护（后端生成） */
+const EMPTY_FORM: Api.Report.ReportTemplateForm = {
+  templateId: null,
+  templateName: '',
+  templateVersion: 'v1',
+  customerCode: '',
+  projectId: null,
+  reportType: 'SOMATIC',
+  moduleCode: '',
+  reportName: '',
+  templatePath: '',
+  templateSha256: '',
+  status: 'active',
+  productIds: []
+};
+
+const model = ref<Api.Report.ReportTemplateForm>(jsonClone(EMPTY_FORM));
+
+const rules = {
+  projectId: createRequiredRule('请先选择项目'),
+  templateName: createRequiredRule('模板名称不能为空'),
+  reportType: createRequiredRule('报告类型不能为空'),
+  templatePath: createRequiredRule('模板文件路径不能为空'),
+  status: createRequiredRule('状态不能为空')
+};
+
+// ---------------------------------------------------------------- 模板文件上传
+const { baseURL } = getServiceBaseURL(import.meta.env);
+// 模板文件落「配置的模板根目录 + 填写的相对路径」，不用 OSS
+const uploadAction = `${baseURL}/report/template/upload`;
+const uploadHeaders: Record<string, string> = {
+  Authorization: `Bearer ${getToken()}`,
+  clientid: import.meta.env.VITE_APP_CLIENT_ID!
+};
+
+const uploading = ref(false);
+
+function isUploadErrorState(xhr: XMLHttpRequest) {
+  const response = JSON.parse(xhr?.responseText);
+  return response.code !== 200;
+}
+
+function handleUploadFinish(options: { file: UploadFileInfo; event?: ProgressEvent }) {
+  const { file, event } = options;
+  // @ts-expect-error Ignore type errors
+  const responseText = event?.target?.responseText;
+  const response = JSON.parse(responseText);
+  uploading.value = false;
+  if (response.code !== 200) {
+    window.$message?.error(response.msg || '模板上传失败');
+    return file;
+  }
+  model.value.templatePath = response.data.templatePath;
+  model.value.templateSha256 = response.data.sha256;
+  window.$message?.success(
+    response.data.backupPath ? `已覆盖，旧文件备份为 ${response.data.backupPath}` : '模板上传成功'
+  );
+  return file;
+}
+
+function handleUploadError(options: { file: UploadFileInfo; event?: ProgressEvent }) {
+  const { event } = options;
+  uploading.value = false;
+  // @ts-expect-error Ignore type errors
+  const responseText = event?.target?.responseText;
+  const msg = JSON.parse(responseText).msg;
+  window.$message?.error(msg || '模板上传失败');
+}
+
+const title = computed(() => (props.operateType === 'add' ? '新增报告模板' : '编辑报告模板'));
+
+/** 已注册的个性化模块编码（占位提示用；以交付说明为准） */
+const MODULE_CODE_HINT = 'SHENGYU_SOMATIC_VARIANTS_V1;SHENGYU_GERMLINE_VARIANTS_V1;SHENGYU_QC_V1';
+
+function handleUpdateModelWhenEdit() {
+  model.value = jsonClone(EMPTY_FORM);
+  if (props.operateType === 'edit' && props.rowData) {
+    const row = jsonClone(props.rowData);
+    model.value = {
+      ...jsonClone(EMPTY_FORM),
+      templateId: row.templateId,
+      templateName: row.templateName ?? '',
+      templateVersion: row.templateVersion ?? 'v1',
+      customerCode: row.customerCode ?? '',
+      projectId: row.projectId ?? null,
+      reportType: row.reportType ?? 'SOMATIC',
+      moduleCode: row.moduleCode ?? '',
+      reportName: row.reportName ?? '',
+      templatePath: row.templatePath ?? '',
+      templateSha256: row.templateSha256 ?? '',
+      status: row.status ?? 'active',
+      productIds: row.productIds ?? []
+    };
+  }
+}
+
+/** 报告命名变量：可用变量 + 样例值都来自后端，前端不自己维护变量清单 */
+const nameVars = ref<string[]>([]);
+const nameSample = ref<Record<string, unknown>>({});
+/** 留空时的默认拼接规则（后端 ReportNameResolver.DEFAULT_PATTERN，不在前端写死） */
+const nameDefaultPattern = ref('');
+
+const nameVarOptions = computed(() => nameVars.value);
+
+/** 试算：{{client}} 替换样例值；未知变量显示 ⚠，仅示意，真正校验在后端保存时 */
+const namePreview = computed(() => {
+  const pattern = model.value.reportName;
+  if (!pattern) return '';
+  return pattern.replace(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g, (_matched: string, path: string) => {
+    const value = nameSample.value[path];
+    return value === undefined || value === null ? `⚠${path}` : String(value);
+  });
+});
+
+async function loadNameVars() {
+  if (nameVars.value.length) return;
+  const { data, error } = await fetchGetReportNameVars();
+  if (error) return;
+  nameVars.value = data?.catalog ?? [];
+  nameSample.value = data?.sample ?? {};
+  nameDefaultPattern.value = data?.defaultPattern ?? '';
+}
+
+async function loadProductOptions() {
+  if (productOptions.value.length) return;
+  const { data: options, error } = await fetchGetProductOptions();
+  if (error) return;
+  productOptions.value = options ?? [];
+}
+
+async function loadProjectOptions() {
+  if (projectOptions.value.length) return;
+  const { data: options, error } = await fetchGetTemplateProjectOptions();
+  if (error) return;
+  projectOptions.value = options ?? [];
+}
+
+function closeDrawer() {
+  visible.value = false;
+}
+
+async function handleSubmit() {
+  await validate();
+
+  saving.value = true;
+  try {
+    if (props.operateType === 'add') {
+      const { error } = await fetchCreateReportTemplate(model.value);
+      if (error) return;
+      window.$message?.success($t('common.addSuccess'));
+    }
+
+    if (props.operateType === 'edit') {
+      const { error } = await fetchUpdateReportTemplate(model.value);
+      if (error) return;
+      window.$message?.success($t('common.updateSuccess'));
+    }
+
+    closeDrawer();
+    emit('submitted');
+  } finally {
+    saving.value = false;
+  }
+}
+
+watch(visible, () => {
+  if (visible.value) {
+    handleUpdateModelWhenEdit();
+    restoreValidation();
+    loadProjectOptions();
+    loadProductOptions();
+    loadNameVars();
+  }
+});
+</script>
+
+<template>
+  <NDrawer v-model:show="visible" :trap-focus="false" display-directive="show" :width="720" class="max-w-90%">
+    <NDrawerContent :title="title" :native-scrollbar="false" closable>
+      <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="130">
+        <NFormItem label="项目" path="projectId">
+          <NSelect
+            v-model:value="model.projectId"
+            :options="projectSelectOptions"
+            placeholder="先选项目，再选该项目的产品（同一项目下同一产品只能绑一个模板）"
+            filterable
+          />
+        </NFormItem>
+        <NFormItem label="关联产品" path="productIds">
+          <NSelect
+            v-model:value="model.productIds"
+            :options="productSelectOptions"
+            multiple
+            filterable
+            clearable
+            placeholder="选择该模板可用的产品（可多选）"
+          />
+        </NFormItem>
+        <NFormItem label="模板名称" path="templateName">
+          <NInput v-model:value="model.templateName" placeholder="如：圣域 1238 报告" clearable />
+        </NFormItem>
+        <NFormItem label="模板版本" path="templateVersion">
+          <NInput v-model:value="model.templateVersion" placeholder="如 v1" clearable />
+        </NFormItem>
+        <NFormItem label="报告类型" path="reportType">
+          <NSelect
+            v-model:value="model.reportType"
+            :options="[
+              { label: '体细胞（SOMATIC）', value: 'SOMATIC' },
+              { label: '胚系（GERMLINE）', value: 'GERMLINE' },
+              { label: '其他（OTHER）', value: 'OTHER' }
+            ]"
+            filterable
+          />
+        </NFormItem>
+        <NFormItem label="客户编码" path="customerCode">
+          <NInput v-model:value="model.customerCode" placeholder="可选；留空表示不限客户" clearable />
+        </NFormItem>
+        <NFormItem label="输出范围" path="moduleCode">
+          <NInput
+            v-model:value="model.moduleCode"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+            :placeholder="`分号分隔的有序个性化模块编码，顺序即执行顺序；留空 = 只输出公共字段。已注册：${MODULE_CODE_HINT}`"
+          />
+        </NFormItem>
+        <NFormItem label="报告命名" path="reportName">
+          <NInput
+            v-model:value="model.reportName"
+            placeholder="如 {{subbarcode}}_{{client}}_{{reportId}}；留空用默认规则"
+          />
+        </NFormItem>
+        <div class="ml-130px -mt-14px mb-16px text-12px text-gray-500">
+          可用变量：{{ nameVarOptions.length ? nameVarOptions.join('、') : '加载中…' }}
+          <template v-if="nameDefaultPattern">｜留空 = 默认规则 {{ nameDefaultPattern }}</template>
+          <template v-if="namePreview">
+            ｜试算：{{ namePreview }}（仅示意，以生成结果为准）
+          </template>
+        </div>
+        <NFormItem label="模板文件路径" path="templatePath">
+          <div class="w-full">
+            <div class="flex items-center gap-8px">
+              <NInput
+                v-model:value="model.templatePath"
+                placeholder="相对模板根目录的路径，如 xxx.docx 或 notify/xxx.docx"
+              />
+              <NUpload
+                :action="uploadAction"
+                :headers="uploadHeaders"
+                :data="{ templatePath: model.templatePath }"
+                :show-file-list="false"
+                :max="1"
+                :multiple="false"
+                accept=".docx"
+                :file-size="20"
+                :is-error-state="isUploadErrorState"
+                @start="uploading = true"
+                @finish="handleUploadFinish"
+                @error="handleUploadError"
+              >
+                <NButton :loading="uploading">上传</NButton>
+              </NUpload>
+            </div>
+            <NText depth="3" class="mt-4px block text-12px">
+              路径相对模板根目录（report.renderer.templates-root），可带子目录；同名文件会先备份为 .orig-时间戳 再覆盖。
+            </NText>
+          </div>
+        </NFormItem>
+        <NFormItem label="模板校验值" path="templateSha256">
+          <NInput v-model:value="model.templateSha256" placeholder="可选：模板文件 SHA-256" clearable />
+        </NFormItem>
+        <NFormItem label="状态" path="status">
+          <NSelect
+            v-model:value="model.status"
+            :options="[
+              { label: '启用', value: 'active' },
+              { label: '停用', value: 'inactive' }
+            ]"
+          />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace :size="16">
+          <NButton :disabled="saving" @click="closeDrawer">{{ $t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="handleSubmit">{{ $t('common.confirm') }}</NButton>
+        </NSpace>
+      </template>
+    </NDrawerContent>
+  </NDrawer>
+</template>
+
+<style scoped></style>

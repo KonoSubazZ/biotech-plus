@@ -29,10 +29,10 @@ public class ReportRendererProperties {
     private String script;
 
     /**
-     * 模板固定目录：所有模板文件放这一个目录，模板实体按库里的相对路径落位
-     * （如 {@code <根>/pharma-shengyu/v1/template.docx}，实体文件名固定 template.docx）。
-     * 查不到时回退 classpath 里的 report-templates/…（随 jar 交付）。
-     * 留空 = 只用 classpath。环境变量 REPORT_RENDERER_TEMPLATES_ROOT。
+     * 模板固定目录：所有模板文件放这一个目录，模板行用 template_path 记相对路径
+     * （可带子目录，如 {@code notify/xxx.docx}）；绝对路径不入库，换环境只改这个配置。
+     * 留空 = 渲染/上传直接报错（不做 classpath 兜底，模板必须由运维或后台上传到该目录）。
+     * 环境变量 REPORT_RENDERER_TEMPLATES_ROOT。
      */
     private String templatesRoot;
 

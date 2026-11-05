@@ -55,6 +55,7 @@ public class ReportTemplateDataService {
         data.setTemplateVersion(template.getTemplateVersion());
         data.setAnalysisId(input.getContext().getAnalysisId());
         data.setReportId(input.getContext().getReportId());
+        data.setProjectNo(input.getContext().getProjectNo());
 
         commonModules.apply(context, data);
 
@@ -143,6 +144,8 @@ public class ReportTemplateDataService {
         context.setReportId(pc.getReportId());
         context.setReport(input.getReport());
         context.setLims(input.getLims());
+        context.setSample(pc.getSample());
+        context.setOrderSamples(pc.getOrderSamples());
         context.setSomaticVariants(input.getSomaticVariants());
         context.setGermlineVariants(input.getGermlineVariants());
         context.setTemplate(template);

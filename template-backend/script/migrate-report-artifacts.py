@@ -33,7 +33,7 @@ MYSQL_STDIN = ["docker", "exec", "-i", "biotech-plus-mysql", "mysql",
 COLUMNS = {
     "analysis_report": ["report_json_path", "report_file_raw_path",
                         "report_file_path", "report_signed_file_path"],
-    "qc_failed_notify": ["json_path", "raw_docx_path", "pdf_path"],
+    "sample_notify": ["json_path", "raw_docx_path", "pdf_path", "signed_pdf_path"],
 }
 
 # 文件名里的 yyyyMMddHHmmss（取最后一个 14 位数字段，避开样本号里的短数字）

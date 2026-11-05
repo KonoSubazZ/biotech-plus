@@ -1,16 +1,22 @@
 <script setup lang="tsx">
 import { computed, ref } from 'vue';
 import dayjs from 'dayjs';
-import { NButton, NTag } from 'naive-ui';
+import { NButton, NSpace, NTag } from 'naive-ui';
 import { useRoute } from 'vue-router';
-import { fetchEnterInterpretation, fetchGetInterpretationList } from '@/service/api/report/interpretation';
+import {
+  fetchEnterInterpretation,
+  fetchGetInterpretationList,
+  fetchReinterpretReport
+} from '@/service/api/report/interpretation';
 import { useAppStore } from '@/store/modules/app';
+import { useAuth } from '@/hooks/business/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { defaultTransform, useNaivePaginatedTable } from '@/hooks/common/table';
 import { $t } from '@/locales';
 import InterpretationDetail from './modules/interpretation-detail.vue';
 import InterpretationSearch from './modules/interpretation-search.vue';
 import { REPORT_STATUS_META, statusMeta } from './modules/interpretation-status';
+import { INTERPRETATION_TAB_PERMS } from './modules/interpretation-tabs';
 
 defineOptions({
   name: 'ReportInterpretation'
@@ -19,6 +25,7 @@ defineOptions({
 const appStore = useAppStore();
 const route = useRoute();
 const { routerPushByKey } = useRouterPush();
+const { hasAuth } = useAuth();
 
 /** 进入解读请求中（防止连点） */
 const entering = ref(false);
@@ -27,10 +34,27 @@ const entering = ref(false);
 const currentReportId = computed(() => queryNumber('reportId'));
 const currentAnalysisId = computed(() => queryNumber('analysisId'));
 
+/** 直达页签（路由 query.tab，可空）；详情页会再按权限收敛到有权限的页签 */
+const currentTab = computed(() => {
+  const raw = route.query.tab;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value ? String(value) : '';
+});
+
+/** 「解读」按钮：要有进入权限，且至少有一个页签权限（否则进去也只有一条无页签权限提示） */
+const canInterpret = computed(() => hasAuth('report:interpretation:enter') && hasAuth(INTERPRETATION_TAB_PERMS));
+
 function queryNumber(key: string) {
   const raw = route.query[key];
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value ? Number(value) : 0;
+}
+
+/** 读取 query 里的字符串参数（如 readonly=1） */
+function queryString(key: string) {
+  const raw = route.query[key];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value ? String(value) : '';
 }
 
 const searchParams = ref<Api.Report.InterpretationSearchParams>({
@@ -54,6 +78,13 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
     },
     columns: () => [
       { key: 'reportId', title: '报告ID', align: 'center', minWidth: 100, render: row => row.reportId ?? '-' },
+      {
+        key: 'reportVersion',
+        title: '报告版本',
+        align: 'center',
+        width: 100,
+        render: row => (row.reportVersion ? `V${row.reportVersion}` : '-')
+      },
       { key: 'subbarcode', title: '样本编号', align: 'center', minWidth: 150 },
       { key: 'barcode', title: '患者编号', align: 'center', minWidth: 140 },
       { key: 'product', title: '产品', align: 'center', minWidth: 160 },
@@ -100,31 +131,63 @@ const { columns, columnChecks, data, getData, getDataByPage, loading, mobilePagi
         align: 'center',
         width: 100,
         fixed: 'right',
-        render: row => (
+        render: row =>
           // 带文字的按钮（不用纯图标）：第一次交付要让用户一眼看到入口
-          <NButton text type="primary" loading={entering.value} onClick={() => handleEnter(row.analysisId)}>
-            解读
-          </NButton>
-        )
+          canInterpret.value ? (
+            Number(row.reportStatus) === 62 ? (
+              // 已完成（62）：可只读查看解读记录，也可整批重扫后重新解读出一条新记录
+              <NSpace size={8} justify="center">
+                <NButton text type="primary" disabled={entering.value} onClick={() => handleEnter(row, true)}>
+                  查看解读
+                </NButton>
+                <NButton text type="warning" loading={entering.value} onClick={() => handleEnter(row, false)}>
+                  重新解读
+                </NButton>
+              </NSpace>
+            ) : (
+              <NButton text type="primary" loading={entering.value} onClick={() => handleEnter(row)}>
+                解读
+              </NButton>
+            )
+          ) : (
+            <span>-</span>
+          )
       }
     ]
   });
 
-/** 进入解读：创建/复用报告记录 → 带上 reportId / analysisId 回本页，由详情组件接管渲染 */
-async function handleEnter(analysisId: number) {
+/**
+ * 进入解读：创建/复用报告记录 → 带上 reportId / analysisId 回本页，由详情组件接管渲染。
+ * readonly=true 用于已完成（62）报告的「查看解读」：不新建、不重扫，详情页只读展示。
+ */
+async function handleEnter(row: Api.Report.InterpretationRow, readonly = false) {
   if (entering.value) {
     return;
   }
   entering.value = true;
   try {
-    const { data: report, error } = await fetchEnterInterpretation({ analysisId });
+    const request = readonly
+      ? fetchEnterInterpretation({ analysisId: row.analysisId, readonly: true })
+      : Number(row.reportStatus) === 62 && row.reportId
+        ? fetchReinterpretReport({ analysisId: row.analysisId, reportId: row.reportId })
+        : fetchEnterInterpretation({ analysisId: row.analysisId });
+    const { data: report, error } = await request;
     if (error) {
       return;
     }
     window.$message?.success(`已进入解读：报告 #${report.reportId}`);
-    await routerPushByKey('report_interpretation', {
-      query: { reportId: String(report.reportId), analysisId: String(report.analysisId) }
-    });
+    const query: Record<string, string> = {
+      reportId: String(report.reportId),
+      analysisId: String(report.analysisId)
+    };
+    if (readonly) {
+      query.readonly = '1';
+    }
+    // 从带页签的链接进来时保持同一页签，其它情况落到第一个有权限的页签
+    if (currentTab.value) {
+      query.tab = currentTab.value;
+    }
+    await routerPushByKey('report_interpretation', { query });
   } finally {
     entering.value = false;
   }
@@ -140,12 +203,15 @@ async function backToList() {
 <template>
   <div
     class="min-h-500px flex-col-stretch gap-16px"
-    :class="currentReportId ? 'overflow-y-auto' : 'overflow-hidden lt-sm:overflow-auto'"
+    :class="currentAnalysisId ? 'overflow-y-auto' : 'overflow-hidden lt-sm:overflow-auto'"
   >
+    <!-- 只带 analysisId 也能进详情（驱动异常样本还没报告记录，只放行集群对接页签） -->
     <InterpretationDetail
-      v-if="currentReportId"
-      :report-id="currentReportId"
+      v-if="currentAnalysisId"
+      :report-id="currentReportId || null"
       :analysis-id="currentAnalysisId"
+      :initial-tab="currentTab"
+      :readonly="queryString('readonly') === '1'"
       @back="backToList"
     />
 

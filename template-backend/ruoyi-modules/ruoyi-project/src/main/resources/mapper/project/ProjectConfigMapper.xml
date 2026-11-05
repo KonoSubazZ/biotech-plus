@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  复杂 SQL 才写在这里。单表 CRUD / 简单条件 / 排序 / 计数用 BaseMapperPlus，不要进这个文件。
+  约定：
+    · namespace = Mapper 接口全限定名；语句 id = 接口方法名
+    · 普通值一律 #{param} 绑定，禁止 ${} 拼接（${} 只允许接收服务端可信 Wrapper）
+    · 多参数用 @Param 明确命名
+    · 不写 SELECT *，用 resultMap 显式列，避免联表字段冲突和敏感字段泄漏
+    · 分页由 MyBatis-Plus 分页插件接管，这里不要手写 LIMIT
+-->
+<mapper namespace="org.dromara.project.mapper.ProjectConfigMapper">
+
+    <!--
+      唯一键 uk_project_config_node(tenant_id, project_no, research_center_no, research_center_name)
+      不含 del_flag，软删的行仍占着业务键 —— 下面三条 SQL 故意不带 del_flag = '0' 过滤，
+      供「删了再配一次」时恢复旧行。
+      parent_id = 0 是项目行，parent_id > 0 是研究中心行，恢复时必须按节点类型区分，别抓错行。
+    -->
+    <select id="selectDeletedIdByProjectNo" resultType="java.lang.Long">
+        SELECT id FROM project_config
+        WHERE project_no = #{projectNo} AND parent_id = 0 AND del_flag = '1'
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectDeletedCenterId" resultType="java.lang.Long">
+        SELECT id FROM project_config
+        WHERE project_no = #{projectNo}
+          AND research_center_no = #{researchCenterNo}
+          AND research_center_name = #{researchCenterName}
+          AND parent_id &gt; 0 AND del_flag = '1'
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <update id="restoreById">
+        UPDATE project_config SET del_flag = '0', update_time = NOW() WHERE id = #{id}
+    </update>
+
+</mapper>
